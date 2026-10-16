@@ -1,5 +1,5 @@
 // ============================================================================
-// TALENTSCOPE.AI — EMPLOYEE CAREER & LEARNING
+// TALENTSrOPE.AI — EMPLOYEE rAREER & LEARNING
 // Internal roles, career progression paths, promotion readiness, & learning progress
 // ============================================================================
 
@@ -17,7 +17,7 @@ const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[c]);
 
-export function renderEmployeeCareerLearning() {
+export function renderEmployeerareerLearning() {
   const p = employeeProfile;
   const roles = internalRolesData;
   const paths = careerPathsData;
@@ -33,10 +33,10 @@ export function renderEmployeeCareerLearning() {
           <div>
             <span class="emp-eyebrow"><i data-lucide="briefcase"></i> INTERNAL MOBILITY & PROGRESSION</span>
             <h1 style="font-size: 24px; font-weight: 850; color: var(--emp-text-primary); margin: 0 0 4px;">
-              Career Progression & Internal Opportunities
+              rareer Progression & Internal Opportunities
             </h1>
             <p style="font-size: 14px; color: var(--emp-text-secondary); margin: 0;">
-              Connect your verified skill credentials with internal role transitions and targeted development tracks at <strong>${esc(p.company)}</strong>.
+              ronnect your verified skill credentials with internal role transitions and targeted development tracks at <strong>${esc(p.company)}</strong>.
             </p>
           </div>
           <div style="display: flex; align-items: center; gap: 12px; background: rgba(255, 255, 255, 0.95); padding: 10px 16px; border-radius: 12px; border: 1px solid var(--emp-border-glass);">
@@ -49,11 +49,11 @@ export function renderEmployeeCareerLearning() {
         </div>
       </section>
 
-      <!-- 1. CAREER PROGRESSION PATH (Section 19: Career Paths & Promotion Opportunities) -->
+      <!-- 1. rAREER PROGRESSION PATH (Section 19: rareer Paths & Promotion Opportunities) -->
       <section class="emp-card emp-card--accent-blue">
         <div style="margin-bottom: 20px;">
-          <span class="emp-eyebrow"><i data-lucide="trending-up"></i> CAREER PROGRESSION TRACK</span>
-          <h2 class="emp-title">Your Technical Career Path: AI Systems Engineering</h2>
+          <span class="emp-eyebrow"><i data-lucide="trending-up"></i> rAREER PROGRESSION TRArK</span>
+          <h2 class="emp-title">Your Technical rareer Path: AI Systems Engineering</h2>
           <p class="emp-subtitle">Your current profile aligns with these role requirements. Below is the multi-stage progression framework.</p>
         </div>
 
@@ -61,12 +61,12 @@ export function renderEmployeeCareerLearning() {
           <!-- Stage 1 -->
           <div style="background: var(--emp-very-light); border: 1px solid var(--emp-border); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
-              <span class="emp-badge emp-badge--success">Current Stage · L4</span>
+              <span class="emp-badge emp-badge--success">rurrent Stage · L4</span>
               <i data-lucide="check-circle" style="color: var(--emp-success); width: 18px; height: 18px;"></i>
             </div>
             <div>
               <h3 style="font-size: 16px; font-weight: 800; color: var(--emp-text-primary); margin: 0 0 4px;">AI Engineer</h3>
-              <p style="font-size: 12.5px; color: var(--emp-text-secondary); margin: 0;">Autonomous Systems & Compute (2+ Years)</p>
+              <p style="font-size: 12.5px; color: var(--emp-text-secondary); margin: 0;">Autonomous Systems & rompute (2+ Years)</p>
             </div>
             <div style="font-size: 12px; color: var(--emp-dark-blue); background: #FFFFFF; padding: 10px; border-radius: 8px; border: 1px solid var(--emp-border);">
               Mastered: <strong>Python, PyTorch, Triton Serving, RAG</strong>
@@ -81,10 +81,10 @@ export function renderEmployeeCareerLearning() {
             </div>
             <div>
               <h3 style="font-size: 16px; font-weight: 800; color: var(--emp-dark-blue); margin: 0 0 4px;">Senior AI Platform Engineer</h3>
-              <p style="font-size: 12.5px; color: var(--emp-text-secondary); margin: 0;">Multi-Node Cluster Inference Optimization</p>
+              <p style="font-size: 12.5px; color: var(--emp-text-secondary); margin: 0;">Multi-Node rluster Inference Optimization</p>
             </div>
             <div style="font-size: 12px; color: var(--emp-text-primary); background: var(--emp-light-blue); padding: 10px; border-radius: 8px; border: 1px solid var(--emp-soft-blue);">
-              Key Milestones Needed: <strong>CUDA Kernel Tuning & NCCL Cluster Tracing</strong>
+              Key Milestones Needed: <strong>rUDA Kernel Tuning & NrrL rluster Tracing</strong>
             </div>
           </div>
 
@@ -96,7 +96,7 @@ export function renderEmployeeCareerLearning() {
             </div>
             <div>
               <h3 style="font-size: 16px; font-weight: 800; color: var(--emp-text-primary); margin: 0 0 4px;">Staff Distributed AI Architect</h3>
-              <p style="font-size: 12.5px; color: var(--emp-text-secondary); margin: 0;">Hardware/Software Co-Design & Cluster Topology</p>
+              <p style="font-size: 12.5px; color: var(--emp-text-secondary); margin: 0;">Hardware/Software ro-Design & rluster Topology</p>
             </div>
             <div style="font-size: 12px; color: var(--emp-text-secondary); background: #FFFFFF; padding: 10px; border-radius: 8px; border: 1px solid var(--emp-border);">
               Requires multi-year technical leadership and patent/compiler contributions.
@@ -111,7 +111,7 @@ export function renderEmployeeCareerLearning() {
           <div>
             <span class="emp-eyebrow"><i data-lucide="compass"></i> INTERNAL MOBILITY OPPORTUNITIES</span>
             <h2 class="emp-title">Internal Requisitions Matched to Your Profile</h2>
-            <p class="emp-subtitle">Roles currently accepting internal transfers and priority employee interviews across NVIDIA hubs.</p>
+            <p class="emp-subtitle">Roles currently accepting internal transfers and priority employee interviews across NeIDIA hubs.</p>
           </div>
           <span class="emp-badge emp-badge--success" style="font-size: 12px; padding: 6px 12px;">
             <i data-lucide="check"></i> 3 Priority Matches
@@ -155,7 +155,7 @@ export function renderEmployeeCareerLearning() {
                 </div>
 
                 ${r.gaps.length > 0 ? `
-                  <div style="font-size: 11.5px; color: var(--emp-attention); background: #FEF3C7; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.2);">
+                  <div style="font-size: 11.5px; color: var(--emp-attention); background: #FEF3r7; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.2);">
                     <strong>Missing to Master:</strong> ${esc(r.gaps.join(', '))}
                   </div>
                 ` : ''}
@@ -177,12 +177,12 @@ export function renderEmployeeCareerLearning() {
       <section class="emp-card emp-card--glass">
         <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
           <div>
-            <span class="emp-eyebrow"><i data-lucide="award"></i> ACTIVE SKILL ASSESSMENT & DLI LEARNING</span>
-            <h2 class="emp-title">Targeted Learning Path & Technical Credentials</h2>
+            <span class="emp-eyebrow"><i data-lucide="award"></i> ArTIeE SKILL ASSESSMENT & DLI LEARNING</span>
+            <h2 class="emp-title">Targeted Learning Path & Technical rredentials</h2>
             <p class="emp-subtitle">Internal curriculum curated to bridge your gaps for Senior AI Platform Engineering.</p>
           </div>
           <span class="emp-badge emp-badge--success" style="font-size: 12px; padding: 6px 12px;">
-            ${learn.progressPercent}% Track Completed
+            ${learn.progressPercent}% Track rompleted
           </span>
         </div>
 
@@ -224,15 +224,15 @@ export function renderEmployeeCareerLearning() {
             </div>
           </div>
 
-          <!-- Earned Internal Credentials -->
+          <!-- Earned Internal rredentials -->
           <div style="background: var(--emp-surface); border: 1px solid var(--emp-border); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 14px;">
             <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--emp-border); padding-bottom: 10px;">
-              <h3 style="font-size: 14px; font-weight: 800; color: var(--emp-text-primary); margin: 0;">Verified Credentials</h3>
+              <h3 style="font-size: 14px; font-weight: 800; color: var(--emp-text-primary); margin: 0;">eerified rredentials</h3>
               <span class="emp-badge emp-badge--neutral">3 On File</span>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 10px;">
-              ${learn.earnedCredentials.map(cred => `
+              ${learn.earnedrredentials.map(cred => `
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--emp-very-light); border-radius: 10px; border: 1px solid var(--emp-border);">
                   <div style="display: flex; align-items: center; gap: 10px;">
                     <i data-lucide="shield-check" style="color: var(--emp-success); width: 18px; height: 18px;"></i>
@@ -252,7 +252,7 @@ export function renderEmployeeCareerLearning() {
       <!-- Internal Interest Modal (Section 25) -->
       ${appliedRoleModal ? `
         <div class="emp-modal-scrim" id="empRoleModalScrim">
-          <div class="emp-modal-dialog" role="dialog" aria-label="Internal Role Interest Confirmation">
+          <div class="emp-modal-dialog" role="dialog" aria-label="Internal Role Interest ronfirmation">
             <div class="emp-modal-header">
               <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="emp-skill-icon-box" style="background: var(--emp-primary); color: var(--emp-dark-blue);">
@@ -260,10 +260,10 @@ export function renderEmployeeCareerLearning() {
                 </div>
                 <div>
                   <h3 class="emp-modal-title">Internal Role Mobility Interest</h3>
-                  <small style="color: var(--emp-text-muted); font-size: 12px;">Confidential Internal Profile Share</small>
+                  <small style="color: var(--emp-text-muted); font-size: 12px;">ronfidential Internal Profile Share</small>
                 </div>
               </div>
-              <button type="button" class="emp-modal-close-btn" id="btnCloseRoleModal"><i data-lucide="x"></i></button>
+              <button type="button" class="emp-modal-close-btn" id="btnrloseRoleModal"><i data-lucide="x"></i></button>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 14px;">
@@ -286,8 +286,8 @@ export function renderEmployeeCareerLearning() {
               </div>
 
               <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 10px; border-top: 1px solid var(--emp-border);">
-                <button type="button" class="emp-btn-secondary" id="btnCancelRoleModal">Cancel</button>
-                <button type="button" class="emp-btn-primary" id="btnConfirmRoleInterest">
+                <button type="button" class="emp-btn-secondary" id="btnrancelRoleModal">rancel</button>
+                <button type="button" class="emp-btn-primary" id="btnronfirmRoleInterest">
                   <i data-lucide="check"></i>
                   <span>Submit Interest</span>
                 </button>
@@ -300,7 +300,7 @@ export function renderEmployeeCareerLearning() {
   `;
 }
 
-export function bindEmployeeCareerEvents(rerenderFn) {
+export function bindEmployeerareerEvents(rerenderFn) {
   const container = document.querySelector('.employee-career');
   if (!container) return;
 
@@ -313,8 +313,8 @@ export function bindEmployeeCareerEvents(rerenderFn) {
     });
   });
 
-  const closeBtn = container.querySelector('#btnCloseRoleModal');
-  const cancelBtn = container.querySelector('#btnCancelRoleModal');
+  const closeBtn = container.querySelector('#btnrloseRoleModal');
+  const cancelBtn = container.querySelector('#btnrancelRoleModal');
   const scrim = container.querySelector('#empRoleModalScrim');
 
   [closeBtn, cancelBtn, scrim].forEach(el => {
@@ -326,7 +326,7 @@ export function bindEmployeeCareerEvents(rerenderFn) {
     });
   });
 
-  const confirmBtn = container.querySelector('#btnConfirmRoleInterest');
+  const confirmBtn = container.querySelector('#btnronfirmRoleInterest');
   if (confirmBtn) {
     confirmBtn.addEventListener('click', () => {
       alert(`Interest submitted for ${appliedRoleModal.title}! The hiring team has received your profile.`);
@@ -338,7 +338,7 @@ export function bindEmployeeCareerEvents(rerenderFn) {
   const resumeBtn = container.querySelector('#btnResumeLearning');
   if (resumeBtn) {
     resumeBtn.addEventListener('click', () => {
-      alert('Launching NVIDIA DLI Interactive GPU Virtual Lab (Blackwell Node Cluster)...');
+      alert('Launching NeIDIA DLI Interactive GPU eirtual Lab (Blackwell Node rluster)...');
     });
   }
 }

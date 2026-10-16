@@ -1,0 +1,84 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import re
+from time import perf_counter
+
+from app.api.router import api_router
+from app.core.auth_diagnostics import elapsed_ms, log_auth_trace
+from app.core.config import get_settings
+
+settings = get_settings()
+
+
+def cors_header_configuration(environment: str) -> tuple[list[str], list[str]]:
+    diagnostic_request_headers = (
+        ["X-Auth-Diagnostic-Id"] if environment == "development" else []
+    )
+    diagnostic_response_headers = (
+        ["X-Auth-Diagnostic-Id", "X-Auth-Profile-Status"]
+        if environment == "development"
+        else []
+    )
+    return diagnostic_request_headers, diagnostic_response_headers
+
+
+auth_diagnostic_headers, auth_diagnostic_exposed_headers = cors_header_configuration(settings.environment)
+app = FastAPI(
+    title="TalentScope Individual Portal API",
+    description="Backend API for the individual workforce skill-demand forecasting portal.",
+    version="0.1.0",
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Accept", "Authorization", "Content-Type", *auth_diagnostic_headers],
+    expose_headers=auth_diagnostic_exposed_headers,
+)
+
+
+@app.middleware("http")
+async def auth_sync_diagnostics(request, call_next):
+    enabled = (
+        settings.environment == "development"
+        and request.url.path == f"{settings.api_v1_prefix}/auth/sync"
+    )
+    diagnostic_id = request.headers.get("x-auth-diagnostic-id", "")
+    if not enabled or not re.fullmatch(r"authreq_[A-Za-z0-9_-]{8,60}", diagnostic_id):
+        return await call_next(request)
+
+    request.state.auth_diagnostic_id = diagnostic_id
+    started = perf_counter()
+    log_auth_trace(
+        "PROFILE_REQUEST_RECEIVED",
+        request_id=diagnostic_id,
+        method=request.method,
+        path=request.url.path,
+        result="received",
+    )
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        log_auth_trace(
+            "PROFILE_REQUEST_FAILED",
+            request_id=diagnostic_id,
+            duration_ms=elapsed_ms(started),
+            result="unhandled_error",
+            error_class=type(exc).__name__,
+        )
+        raise
+
+    response.headers["X-Auth-Diagnostic-Id"] = diagnostic_id
+    log_auth_trace(
+        "PROFILE_RESPONSE_SENT",
+        request_id=diagnostic_id,
+        duration_ms=elapsed_ms(started),
+        status_code=response.status_code,
+        content_type=response.headers.get("content-type"),
+        result="response_sent",
+    )
+    return response
+
+
+app.include_router(api_router, prefix=settings.api_v1_prefix)

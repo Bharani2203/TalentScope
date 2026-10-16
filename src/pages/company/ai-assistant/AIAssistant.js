@@ -5,10 +5,39 @@
 // ============================================================================
 
 import { companyProfile } from '../../../data/company/company-data.js';
+import { getCurrentUser } from '../../../auth/auth-state.js';
+import { queryCoreIntelligenceAnswer } from '../../../api/core-intelligence-client.js';
+import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
+import { renderAnswerEvidencePanel } from '../../../components/common/IntelligenceComponents.js';
 
 const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[c]);
+
+function formatMarkdown(content) {
+  if (!content) return '';
+  return String(content)
+    .replace(/^### (.*$)/gim, '<h4 style="margin:10px 0 4px; font-size:14px; color:var(--cmp-primary); font-weight:800;">$1</h4>')
+    .replace(/^## (.*$)/gim, '<h3 style="margin:12px 0 6px; font-size:15px; color:var(--cmp-primary); font-weight:800;">$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^\s*-\s+(.*$)/gim, '<li style="margin-left:14px; list-style-type:disc;">$1</li>')
+    .replace(/^\s*(\d+)\.\s+(.*$)/gim, '<li style="margin-left:14px; list-style-type:decimal;">$2</li>')
+    .replace(/\n\n/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+}
+
+const statusBadgeMap = {
+  completed: { label: 'Verified Grounded', bg: 'rgba(25,183,122,0.12)', color: '#059669', icon: 'check-circle-2' },
+  ready: { label: 'Verified Grounded', bg: 'rgba(25,183,122,0.12)', color: '#059669', icon: 'check-circle-2' },
+  partial: { label: 'Partial Coverage', bg: 'rgba(245,158,11,0.12)', color: '#D97706', icon: 'alert-circle' },
+  unavailable: { label: 'Capability Unavailable', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'ban' },
+  error: { label: 'Service Error', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'alert-triangle' },
+  requires_clarification: { label: 'Clarification Required', bg: 'rgba(245,158,11,0.12)', color: '#D97706', icon: 'help-circle' },
+  insufficient_data: { label: 'Insufficient Data', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'database' },
+  unsupported: { label: 'Unsupported in G2.6/G2.7', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'ban' },
+  blocked: { label: 'Access Restricted', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'lock' },
+  failed: { label: 'Query Failed', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'alert-triangle' }
+};
 
 const exampleQuestions = [
   { label: 'Workforce Changes', query: 'What changed in our workforce?' },
@@ -19,15 +48,19 @@ const exampleQuestions = [
   { label: 'CUDA Importance', query: 'Why is CUDA becoming important?' }
 ];
 
+let activeConversationId = null;
+let isCopilotAnalyzing = false;
+let inquiryGeneration = 0;
+
 let copilotMessages = [
   {
     sender: 'assistant',
     structured: {
-      answer: `Welcome to the **Executive Strategic AI Copilot** for **${companyProfile.name}**. I am grounded directly in your organizational workforce intelligence data — including **29,600 employee records (Workday)**, **1,840 verified technical skill profiles (NVIDIA DLI)**, and **real-time market signals**.`,
-      why: 'Help company administrators and workforce planners make data-backed talent decisions without wading through spreadsheets.',
-      evidence: ['Workday HCM Enterprise', 'NVIDIA Deep Learning Institute (DLI)', 'Simulated Prototype Intelligence Feed'],
-      affectedTeams: ['Autonomous Compute', 'Hyperscale Inference Services', 'NeMo Cloud Platform'],
-      action: 'Select a strategic question above or enter an inquiry below.'
+      answer: `Welcome to the **Executive Strategic AI Copilot**. Answers use evidence available to your authenticated organization. The surrounding company profile and dashboard are simulated demo data.`,
+      why: 'Company-specific records are returned only when the backend confirms organization membership.',
+      evidence: [],
+      affectedTeams: [],
+      action: 'Select a question to check which supported evidence is available.'
     }
   }
 ];
@@ -46,17 +79,15 @@ export function renderCompanyAIAssistant() {
               STRATEGIC DECISION COPILOT
             </span>
             <h1>Strategic Workforce AI Copilot</h1>
-            <p>Interrogate enterprise capability data, model redeployment scenarios, and generate board-level talent recommendations.</p>
+            <p>Ask questions about evidence available to your authenticated organization. Workforce simulations and unsupported metrics remain unavailable.</p>
           </div>
 
           <div class="cmp-hero__context-badge">
             <div class="cmp-hero__company-logo">${esc(p.logoInitials)}</div>
             <div class="cmp-hero__context-info">
               <strong>${esc(p.name)}</strong>
-              <span>Enterprise Grounding Active</span>
+              <span>Authenticated organization context</span>
               <div class="cmp-hero__context-meta">
-                <span><i data-lucide="shield-check"></i> SOC-2 Compliant</span>
-                <span>·</span>
                 <span class="cmp-badge cmp-badge--neutral">Simulated Demo Data</span>
               </div>
             </div>
@@ -89,7 +120,7 @@ export function renderCompanyAIAssistant() {
                 <i data-lucide="sparkles" style="width: 12px; height: 12px;"></i>
               </div>
               <strong style="font-size: 13px; color: var(--cmp-text-primary);">TalentScope Strategic Copilot</strong>
-              <span class="cmp-badge cmp-badge--success" style="font-size: 10.5px;">Grounded</span>
+              <span class="cmp-badge cmp-badge--neutral" style="font-size: 10.5px;">Evidence checked per response</span>
             </div>
             <button type="button" class="cmp-btn-ghost" id="cmpClearChatBtn" style="padding: 2px 8px; font-size: 11.5px;">
               <i data-lucide="trash-2"></i>
@@ -116,11 +147,12 @@ export function renderCompanyAIAssistant() {
               <input
                 type="text"
                 id="cmpCopilotInputField"
-                placeholder="Ask about workforce health, critical skills, redeployment, or scenario forecasts..."
+                placeholder="Ask about available company evidence, workforce records, or source limitations..."
                 style="flex: 1; height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--cmp-border); font-size: 13px; outline: none;"
                 autocomplete="off"
+                ${isCopilotAnalyzing ? 'disabled' : ''}
               />
-              <button type="submit" class="cmp-btn-primary" style="height: 40px; padding: 0 16px;">
+              <button type="submit" class="cmp-btn-primary" style="height: 40px; padding: 0 16px;" ${isCopilotAnalyzing ? 'disabled' : ''}>
                 <i data-lucide="send"></i>
                 <span>Ask</span>
               </button>
@@ -145,16 +177,34 @@ function renderCopilotMessage(msg) {
 
   // Structured response (Section 21: ANSWER, WHY, EVIDENCE, AFFECTED TEAMS, RECOMMENDED ACTION)
   const s = msg.structured;
+  const statusCfg = msg.status ? statusBadgeMap[msg.status] : null;
+
   return `
     <div style="display: flex; gap: 10px; align-items: flex-start;">
       <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--cmp-light-primary); color: var(--cmp-deep-primary); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; border: 1px solid var(--cmp-border-accent);">
         <i data-lucide="sparkles" style="width: 16px; height: 16px;"></i>
       </div>
       <div style="max-width: 85%; background: var(--cmp-very-light); border: 1px solid var(--cmp-border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        ${statusCfg ? `
+          <div>
+            <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; background:${statusCfg.bg}; color:${statusCfg.color}; padding:2px 8px; border-radius:6px;">
+              <i data-lucide="${statusCfg.icon}" style="width:11px; height:11px;"></i>
+              ${statusCfg.label}
+            </span>
+          </div>
+        ` : ''}
+
         <!-- Answer -->
         <div style="font-size: 13.5px; color: var(--cmp-text-primary); line-height: 1.55;">
-          ${s.answer}
+          ${formatMarkdown(s.answer)}
         </div>
+        ${s.metric_results?.length ? renderIntelligenceEvidencePanel({
+          status: msg.status,
+          metric_results: s.metric_results,
+          limitations: s.limitations
+        }, { title: 'Structured answer metrics' }) : ''}
+
+        ${renderAnswerEvidencePanel(s.facts, s.evidence)}
 
         ${s.why ? `
           <div style="background: #FFFFFF; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--cmp-border-subtle); font-size: 12.5px;">
@@ -178,11 +228,27 @@ function renderCopilotMessage(msg) {
           </div>
         ` : ''}
 
-        ${s.evidence && s.evidence.length ? `
-          <div style="padding-top: 8px; border-top: 1px solid var(--cmp-border-subtle); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 10.5px; color: var(--cmp-text-muted);">
-            <strong>Grounded Citations:</strong>
-            ${s.evidence.map(e => `<span class="cmp-badge cmp-badge--neutral" style="font-size: 10px;">${esc(e)}</span>`).join('')}
+        ${s.limitations && s.limitations.length ? `
+          <div style="padding: 6px 10px; background:#FEF3C7; border: 1px solid #FCD34D; border-radius:6px; font-size:11px; color:#92400E;">
+            <strong>Limitations:</strong> ${s.limitations.map(l => esc(l)).join('; ')}
           </div>
+        ` : ''}
+
+        ${s.followUps && s.followUps.length ? `
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+            ${s.followUps.map(fu => `
+              <button type="button" class="cmp-btn-secondary cmp-copilot-chip-btn" data-query="${esc(fu)}" style="height:26px; padding:0 8px; font-size:11px;">
+                <i data-lucide="corner-down-right" style="width:10px; height:10px;"></i>
+                <span>${esc(fu)}</span>
+              </button>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        ${msg.retryQuery && msg.status === 'failed' ? `
+          <button type="button" class="cmp-btn-secondary cmp-copilot-retry-btn" data-query="${esc(msg.retryQuery)}" style="align-self:flex-start;">
+            Retry this question
+          </button>
         ` : ''}
       </div>
     </div>
@@ -197,28 +263,43 @@ export function bindCompanyAIAssistantEvents(rerender) {
       handleCopilotInquiry(q, rerender);
     });
   });
+  document.querySelectorAll('.cmp-copilot-retry-btn').forEach(btn => {
+    btn.addEventListener('click', () => handleCopilotInquiry(btn.dataset.query, rerender, false));
+  });
 
   // Form submit
   document.querySelector('#cmpCopilotForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const input = document.querySelector('#cmpCopilotInputField');
     const q = input?.value.trim();
-    if (q) {
-      input.value = '';
+    if (q && !isCopilotAnalyzing) {
       handleCopilotInquiry(q, rerender);
+      input.value = '';
     }
   });
 
   // Clear chat
   document.querySelector('#cmpClearChatBtn')?.addEventListener('click', () => {
+    inquiryGeneration += 1;
+    isCopilotAnalyzing = false;
+    if (activeConversationId) {
+      queryCoreIntelligenceAnswer({
+        message: 'clear context',
+        portalType: 'company',
+        companyId: getAuthenticatedCompanyId(),
+        conversationId: activeConversationId,
+        clearContext: true
+      }).catch(() => {});
+    }
+    activeConversationId = null;
     copilotMessages = [
       {
         sender: 'assistant',
         structured: {
-          answer: `Session reset. Grounded directly in **${companyProfile.name}** active data sources. How can I help your workforce strategy?`,
-          why: 'Clear context for next strategic inquiry.',
-          evidence: ['Workday HCM Enterprise', 'NVIDIA DLI API', 'Simulated Prototype Intelligence Feed'],
-          affectedTeams: ['Autonomous Compute', 'Hyperscale Inference Services'],
+          answer: 'Session reset. Ask a question to check what evidence is available to your authenticated organization.',
+          why: 'The company dashboard shown around this conversation is simulated demo data.',
+          evidence: [],
+          affectedTeams: [],
           action: 'Select a question or ask anything.'
         }
       }
@@ -231,63 +312,96 @@ export function bindCompanyAIAssistantEvents(rerender) {
   }
 }
 
-function handleCopilotInquiry(query, rerender) {
-  copilotMessages.push({ sender: 'user', text: query });
+function getAuthenticatedCompanyId() {
+  const user = getCurrentUser();
+  return user?.companyId || user?.company_id || null;
+}
+
+async function handleCopilotInquiry(query, rerender, appendUser = true) {
+  if (isCopilotAnalyzing || !query) return;
+  isCopilotAnalyzing = true;
+  const generation = ++inquiryGeneration;
+  if (appendUser) copilotMessages.push({ sender: 'user', text: query });
   rerender();
 
   const indicator = document.querySelector('#cmpCopilotThinkingIndicator');
   if (indicator) indicator.style.display = 'block';
 
-  setTimeout(() => {
+  try {
+    const res = await queryCoreIntelligenceAnswer({
+      message: query,
+      portalType: 'company',
+      companyId: getAuthenticatedCompanyId(),
+      conversationId: activeConversationId || null
+    });
+
+    if (generation !== inquiryGeneration) return;
+    if (res.conversation_id) {
+      activeConversationId = res.conversation_id;
+    }
+
     if (indicator) indicator.style.display = 'none';
 
-    let structured = {
-      answer: `Based on current enterprise models for "${query}":`,
-      why: 'Workforce requirements are shifting rapidly.',
-      evidence: ['Workday HCM Enterprise', 'NVIDIA DLI API', 'Simulated Prototype Intelligence Feed'],
-      affectedTeams: ['Autonomous Compute', 'Inference Services'],
-      action: 'Review Skill Intelligence'
-    };
+    copilotMessages.push({
+      sender: 'assistant',
+      status: res.status || res.execution_status,
+      conversation_id: res.conversation_id || activeConversationId,
+      reasonCodes: res.reason_codes,
+      structured: {
+        answer: res.answer,
+        why: res.limitations.length ? res.limitations.join('; ') : '',
+        facts: res.facts,
+        metric_results: res.metric_results,
+        evidence: res.evidence,
+        limitations: res.limitations,
+        affectedTeams: [],
+        action: res.execution_status === 'requires_clarification' ? 'Provide more specific parameters' : '',
+        followUps: res.follow_up_questions
+      }
+    });
+  } catch (err) {
+    if (generation !== inquiryGeneration) return;
+    if (indicator) indicator.style.display = 'none';
 
-    const q = query.toLowerCase();
+    let errText = err.message || 'Strategic copilot encountered an error.';
+    let errWhy = 'Connection or permission restriction.';
+    let errAction = 'Verify connectivity and corporate credentials.';
+    let errStatus = 'failed';
+    let reasonCodes = ['SERVICE_ERROR'];
 
-    if (q.includes('what changed') || q.includes('workforce changes')) {
-      structured.answer = `### Workforce Health & Strategic Shifts\n\n- **Overall Health:** 86/100 (Stable across APAC and US pods).\n- **Headcount Allocation:** 29,600 global records with 14,200 in engineering.\n- **Major Change:** Deployment of Blackwell B200 pods has increased high-throughput memory profiling demand by +34.2%.`;
-      structured.why = 'External hardware advancements require immediate software optimization capabilities.';
-      structured.evidence = ['Engineering All-Hands Whitepaper #882', 'Workday Headcount Log'];
-      structured.affectedTeams = ['Autonomous Compute', 'Hyperscale Inference'];
-      structured.action = 'Enroll 42 AI Engineers into NVIDIA DLI Advanced Kernel Academy.';
-    } else if (q.includes('cuda')) {
-      structured.answer = `### Why CUDA & Kernel Optimization Is Becoming Critical\n\n- **Current Deficit:** 27% gap (142 qualified vs 218 needed for Q4 deliverables).\n- **Strategic Value:** Proprietary CUDA kernels are NVIDIA's primary software moat against competitors (AMD ROCm 6.2 and Cerebras).\n- **Cost Exposure:** Hiring externally for 76 Senior CUDA engineers would cost ~$1.4M with an 84-day onboarding ramp.`;
-      structured.why = 'Software performance defines customer hardware ROI.';
-      structured.evidence = ['Benchmark Suite v4.2', 'Market Supply Report'];
-      structured.affectedTeams = ['Autonomous Compute', 'Inference Services', 'Core Silicon Compilers'];
-      structured.action = 'Upskill internal L4 AI Engineers (e.g. Arun Sharma, 86% readiness).';
-    } else if (q.includes('future role') || q.includes('employees could fit')) {
-      structured.answer = `### Internal Talent Matching for Senior L5 Roles\n\n- **Candidate Match:** Arun Sharma (AI Engineer L4) matches **86%** of requirements for **Senior AI Platform Engineer (L5)**.\n- **Strengths:** Python, PyTorch, Distributed Systems.\n- **Development Gap:** CUDA Systems Optimization & Multi-Node NCCL.\n- **Other Matches:** Sunita Rao (64% readiness, mentorship assigned); Vikram Patel (75% readiness for Triton Specialist).`;
-      structured.why = 'Internal promotions increase retention and cut search agency fees.';
-      structured.evidence = ['Verified DLI Learning Logs', 'Workday Talent Bench'];
-      structured.affectedTeams = ['Autonomous Compute', 'Cloud Infrastructure'];
-      structured.action = 'Open Mobility Studio to review promotion dossiers.';
-    } else if (q.includes('reskill') || q.includes('redeploy')) {
-      structured.answer = `### Redeployment Cohort: REST API Developers → Triton Microservices\n\n- **Cohort Status:** 14 developers actively in Week 3 of transition sprint.\n- **Curriculum Mastery:** 64% completed (9 of 14 engineers certified).\n- **Benefit:** Zero layoffs required; preserves core domain knowledge and avoids $420K in recruiting and severance friction.`;
-      structured.why = 'Legacy REST monoliths are sunsetting across all cloud products.';
-      structured.evidence = ['Architecture Guild Directive v3.8', 'Cohort Tracker'];
-      structured.affectedTeams = ['Core Platform API', 'Hyperscale Inference'];
-      structured.action = 'Continue Week 4 production cluster deployment milestone.';
-    } else {
-      structured.answer = `### Strategic Synthesis for "${query}"\n\n- **Workforce Baseline:** 29,600 employees; 14% critical skill gap across 3 priority competencies.\n- **Mobility Benchmark:** 31.4% internal placement velocity (24 placements this quarter).\n- **Next Horizon:** Multi-horizon forecast projects a 530-engineer deficit at 12 months unless internal academies cover 60% of demand.`;
-      structured.why = 'Aligning talent capability with upcoming product architecture milestones.';
-      structured.evidence = ['FY26 Headcount Model', 'DLI Skills Architecture'];
-      structured.affectedTeams = ['All Engineering Pods'];
-      structured.action = 'Inspect Workforce Planning Forecast or test sensitivity sandbox.';
+    if (err.name === 'CoreIntelligenceAuthError' || err.status === 401 || err.status === 403) {
+      errText = 'Access Restricted: Enterprise workforce intelligence requires authenticated company organization credentials.';
+      errWhy = 'Strict multi-tenant security prevents unauthorized access to internal workforce structures.';
+      errAction = 'Sign in with an active enterprise corporate account.';
+      errStatus = 'blocked';
+      reasonCodes = ['UNAUTHORIZED_PORTAL_ACCESS'];
+    } else if (err.name === 'CoreIntelligenceNetworkError') {
+      errText = 'The intelligence service is temporarily unavailable. Please try again shortly.';
+      errWhy = 'Network connection to the analytical service failed.';
+      errAction = 'Verify backend is running and retry.';
+      errStatus = 'failed';
+      reasonCodes = ['NETWORK_ERROR'];
     }
 
     copilotMessages.push({
       sender: 'assistant',
-      structured
+      status: errStatus,
+      reasonCodes: reasonCodes,
+      structured: {
+        answer: errText,
+        why: errWhy,
+        facts: [],
+        evidence: [],
+        limitations: [errText],
+        affectedTeams: [],
+        action: errAction,
+        followUps: []
+      },
+      retryQuery: errStatus === 'failed' ? query : null
     });
+  } finally {
+    if (generation === inquiryGeneration) isCopilotAnalyzing = false;
+  }
 
-    rerender();
-  }, 900);
+  if (generation === inquiryGeneration) rerender();
 }

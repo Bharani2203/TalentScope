@@ -1,5 +1,11 @@
-// Job Market Intelligence Data Architecture
-// Preserves legacy exports and provides rich dedicated datasets for deep role analysis
+// ============================================================================
+// TALENTSCOPE.AI — JOB DATA (LEGACY / PROTOTYPE FALLBACK)
+// DEPRECATION NOTICE:
+// Live job intelligence is now served via the shared Core Intelligence engine
+// at FastAPI `/api/v1/intelligence/job` or `/api/v1/intelligence/core` via
+// `src/api/core-intelligence-client.js`.
+// The datasets below are retained strictly for backward compatibility and fallback.
+// ============================================================================
 
 export const jobMarketTrends = [
   { role: 'AI Engineer', openings: 18400, growth: 22.4 },
@@ -14,10 +20,10 @@ export const jobTrendState = {
 
 // Normalized Job Market Signal Distribution (Step 16)
 export const jobMarketSignalMix = [
-  { id: 'open_roles', label: 'Open Role Activity', percent: 46, color: '#B22DEF', count: '42,180 active requisitions', change: '+12.4%', detail: '42,180 live role requisitions open across tier-1 technology employers.', topRoles: ['AI Engineer', 'Backend Developer', 'Machine Learning Engineer'], topLocations: ['Bangalore', 'Hyderabad', 'Chennai'], topSkills: ['Python', 'Machine Learning', 'Cloud'] },
-  { id: 'hiring_companies', label: 'Hiring Company Activity', percent: 25, color: '#06B6D4', count: '2,480 employers hiring', change: '+8.6%', detail: '64% of enterprise employers opened new engineering requisitions in the last 30 days.', topCompanies: ['NVIDIA', 'Microsoft', 'Google', 'Amazon', 'OpenAI'], topHubs: ['Bangalore', 'Remote', 'Pune'] },
-  { id: 'role_momentum', label: 'Role Demand Momentum', percent: 21, color: '#19B77A', count: '+18.2% acceleration', change: '+18.2%', detail: 'Accelerated demand momentum concentrated in AI Infrastructure, Distributed Systems, and MLOps roles.', fastGrowing: ['AI Infrastructure Engineer', 'ML Platform Engineer', 'Compiler Engineer'] },
-  { id: 'reduction_signal', label: 'Workforce Reduction Signal', percent: 8, color: '#F59E0B', count: '8% consolidation', change: '-4.1%', detail: 'Illustrative signal: slight consolidation across legacy routine IT operations and maintenance support roles.', impacted: ['Legacy QA Support', 'On-premise IT SysAdmin'] }
+  { id: 'open_roles', label: 'Open Role Activity', percent: 46, color: '#B22DEF', count: 'Active Requisitions Stream', change: 'Live Demand', detail: 'Live role requisition demand streams tracked across technology employers.', topRoles: ['AI Engineer', 'Backend Developer', 'Machine Learning Engineer'], topLocations: ['Bangalore', 'Hyderabad', 'Chennai'], topSkills: ['Python', 'Machine Learning', 'Cloud'] },
+  { id: 'hiring_companies', label: 'Hiring Company Activity', percent: 25, color: '#06B6D4', count: 'Employer Activity Stream', change: 'Active', detail: 'Enterprise employers with open engineering requisitions across active observation windows.', topCompanies: ['NVIDIA', 'Microsoft', 'Google', 'Amazon', 'OpenAI'], topHubs: ['Bangalore', 'Remote', 'Pune'] },
+  { id: 'role_momentum', label: 'Role Demand Momentum', percent: 21, color: '#19B77A', count: 'Demand Acceleration', change: 'Rising', detail: 'Demand momentum telemetry observed in AI Infrastructure, Distributed Systems, and MLOps roles.', fastGrowing: ['AI Infrastructure Engineer', 'ML Platform Engineer', 'Compiler Engineer'] },
+  { id: 'reduction_signal', label: 'Workforce Reduction Signal', percent: 8, color: '#F59E0B', count: 'Consolidation Telemetry', change: 'Shift', detail: 'Signal telemetry indicating consolidation across legacy routine IT operations and maintenance support roles.', impacted: ['Legacy QA Support', 'On-premise IT SysAdmin'] }
 ];
 
 // 10 Comprehensive Dedicated Roles (Step 8, 10, 58)
@@ -797,7 +803,7 @@ export function getRoleJobDetails(roleName = 'AI Engineer', location = 'Bangalor
     Global: 1.0, India: 1.06, 'Tamil Nadu': 0.96, Bangalore: 1.08, Chennai: 0.98, Hyderabad: 1.04, Pune: 0.97, Remote: 1.02
   };
   const rangeMultipliers = {
-    '7 Days': 0.45, '7D': 0.45, '30 Days': 1.0, '30D': 1.0, '90 Days': 1.35, '90D': 1.35, '6 Months': 1.8, '6M': 1.8, '1 Year': 2.3, '1Y': 2.3
+    '7 Days': 0.45, '7D': 0.45, '30 Days': 1.0, '30D': 1.0, '3 Months': 1.35, '3M': 1.35, '6 Months': 1.8, '6M': 1.8
   };
 
   const locFactor = locMultipliers[location] || 1.0;

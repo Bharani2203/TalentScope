@@ -152,7 +152,7 @@ export function renderCompanyWorkforceSimulation() {
           <div style="margin-bottom: 16px;">
             <span class="cmp-eyebrow"><i data-lucide="sliders-horizontal" class="cmp-icon-inline"></i> WHAT-IF EXPERIMENTATION</span>
             <h2 class="cmp-title">What-If Sensitivity Sandbox</h2>
-            <p class="cmp-subtitle">Adjust key variables to model talent deficit, avoided recruiter search fees, and net financial ROI in real-time.</p>
+            <p class="cmp-subtitle">Illustrative local scenario model. Adjust inputs to see sample talent deficit and ROI calculations; this is not connected to company workforce data.</p>
           </div>
 
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: stretch;">

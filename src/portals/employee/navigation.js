@@ -10,6 +10,7 @@ export const employeeNavigation = [
       { label: 'Home', icon: 'house', route: '/employee/home' },
       { label: 'My Skills', icon: 'layers-3', route: '/employee/skills' },
       { label: 'My Growth', icon: 'trending-up', route: '/employee/growth' },
+      { label: 'Company Connection', icon: 'building-2', route: '/employee/company' },
       { label: 'Community', icon: 'users-round', route: '/employee/community' },
       { label: 'Opportunities', icon: 'compass', route: '/employee/opportunities' }
     ]
@@ -49,9 +50,9 @@ export const employeeRoutes = {
     icon: 'trending-up'
   },
   '/employee/company': {
-    eyebrow: 'ROLE & CAREER PROGRESSION',
-    title: 'My Growth',
-    description: 'Company technology shifts, role requirements, and team alignment.',
+    eyebrow: 'COMPANY CONNECTION',
+    title: 'Company Connection',
+    description: 'Manage your verified company connection request.',
     icon: 'building-2'
   },
   '/employee/community': {

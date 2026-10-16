@@ -50,7 +50,7 @@ export function renderCompanyProfile() {
               <span style="font-size: 11px; font-weight: 800; color: var(--cmp-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Verification Status</span>
               <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
                 <span class="cmp-badge cmp-badge--success" style="font-size: 11.5px; padding: 4px 8px;">
-                  <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i> Verified Enterprise Tenant
+                  <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i> Demo Enterprise Profile
                 </span>
               </div>
               <div style="margin-top: 8px; font-size: 12px; color: var(--cmp-text-secondary);">
@@ -108,7 +108,7 @@ export function renderCompanyProfile() {
 function renderPublicProfile(p) {
   return `
     <div style="display: flex; flex-direction: column; gap: 24px;">
-      <!-- Row 1: Core Company Baseline & Verified Infrastructure -->
+      <!-- Row 1: Illustrative Company Baseline & Infrastructure Examples -->
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
         <!-- Card 1: Enterprise Overview -->
         <div class="cmp-card">
@@ -155,7 +155,7 @@ function renderPublicProfile(p) {
           </div>
 
           <p style="font-size: 12.5px; color: var(--cmp-text-secondary); margin: 0 0 14px; line-height: 1.45;">
-            Verified production environments, hardware accelerators, and distributed model-serving stacks actively maintained.
+            Illustrative production environment examples, hardware accelerators, and distributed model-serving stacks actively maintained.
           </p>
 
           <div style="display: flex; flex-direction: column; gap: 10px;">

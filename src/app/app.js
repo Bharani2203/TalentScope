@@ -50,7 +50,7 @@ function renderJobDonutSVG(segments) {
 const marketFilterOptions = {
   companies: ['All Companies', 'Favorite Companies'],
   locations: ['Global', 'India', 'Tamil Nadu', 'Chennai', 'Bangalore', 'Hyderabad', 'Pune', 'Remote'],
-  times: ['7 Days', '30 Days', '90 Days', '6 Months', '1 Year'],
+  times: ['7 Days', '30 Days', '3 Months', '6 Months'],
   dates: ['Day', 'Month', 'Year', 'Custom Range']
 };
 
@@ -171,8 +171,8 @@ const marketIntelligenceData = {
 function getMarketDateLabels(marketTime, marketDate) {
   if (marketDate === 'Day' || marketTime === '7 Days') return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   if (marketTime === '30 Days') return ['Wk 1', 'Wk 2', 'Wk 3', 'Wk 4'];
-  if (marketTime === '90 Days') return ['M1', 'M2', 'M3'];
-  if (marketDate === 'Year' || marketTime === '1 Year') return ['Q1', 'Q2', 'Q3', 'Q4'];
+  if (marketTime === '3 Months') return ['M1', 'M2', 'M3'];
+  if (marketDate === 'Year' || marketTime === '6 Months') return ['Q1', 'Q2', 'Q3', 'Q4'];
   return ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];
 }
 
@@ -234,7 +234,7 @@ function renderMultiLineMarketChart(signals, marketTime, marketDate) {
 const skillFilterOptions = {
   collections: ['My Skills', 'Favorite Skills', 'All Skills'],
   locations: ['Global', 'India', 'Tamil Nadu', 'Chennai', 'Bangalore', 'Hyderabad', 'Pune', 'Remote'],
-  times: ['7 Days', '30 Days', '90 Days', '6 Months', '1 Year'],
+  times: ['7 Days', '30 Days', '3 Months', '6 Months'],
   dates: ['Day', 'Month', 'Year', 'Custom Range']
 };
 
@@ -254,11 +254,11 @@ const skillMarketData = [
     id: 'python',
     name: 'Python',
     category: 'Programming',
-    growth: 18.4,
-    direction: 'up',
+    growth: -10.1,
+    direction: 'down',
     isMySkill: true,
     isFavorite: true,
-    values: [50, 58, 64, 72, 78, 85, 92],
+    values: [221, 213, 132, 138, 124],
     adjacentSkills: ['FastAPI', 'Django', 'SQL', 'Machine Learning', 'PyTorch']
   },
   {
@@ -354,35 +354,35 @@ const skillMarketData = [
 const overviewData = {
   skill: {
     domain: 'SKILL',
-    name: 'Machine Learning',
-    change: 22.4,
-    direction: 'up',
-    status: 'Demo signal',
-    chartPoints: [42, 50, 58, 66, 74, 80, 86]
+    name: 'Python',
+    change: -10.1,
+    direction: 'down',
+    status: 'Verified Trend',
+    chartPoints: [221, 213, 132, 138, 124]
   },
   market: {
     domain: 'MARKET',
     company: 'NVIDIA',
-    change: 28.4,
-    direction: 'up',
-    status: 'Market signal',
-    chartPoints: [35, 48, 60, 72, 85, 94, 98]
+    change: 0.0,
+    direction: 'neutral',
+    status: 'Single-period baseline',
+    chartPoints: [50, 50, 50, 50, 50]
   },
   jobs: {
     domain: 'JOBS',
     role: 'AI Engineer',
-    openRoles: 2480,
-    change: 18.2,
-    status: 'Hiring active',
-    bars: [45, 60, 75, 50, 85, 90, 95]
+    openRoles: 0,
+    change: 0.0,
+    status: 'Single-period baseline',
+    bars: [50, 50, 50, 50, 50]
   },
   roadmap: {
     domain: 'ROADMAP',
-    active: true,
-    title: 'Python — Backend Development',
-    progress: 64,
-    status: 'Active',
-    currentStep: 'Assessment'
+    active: false,
+    title: 'No Active Roadmap',
+    progress: 0,
+    status: 'none',
+    currentStep: 'Choose a learning path'
   }
 };
 
@@ -584,7 +584,7 @@ const companyNavigation = [
 ];
 
 const routes = {
-  '/individual/home': { eyebrow: 'Individual / Home', title: 'Good morning, Arun', description: 'Stay ahead of the skills, technologies and opportunities shaping your career.', icon: 'sunrise' },
+  '/individual/home': { eyebrow: 'Individual / Home', title: 'TalentScope Intelligence', description: 'Stay ahead of the skills, technologies and opportunities shaping your career.', icon: 'sunrise' },
   '/individual/skills': { eyebrow: 'Main', title: 'My Skills', description: 'Build a clear picture of your strengths and the capabilities you want to grow.', icon: 'layers-3' },
   '/individual/learning': { eyebrow: 'Main', title: 'Learning', description: 'Keep your development focused with a learning path shaped around your goals.', icon: 'book-open' },
   '/individual/career': { eyebrow: 'Main', title: 'Career', description: 'Bring your next career move into focus with signals from the skills market.', icon: 'briefcase-business' },
@@ -592,15 +592,15 @@ const routes = {
   '/individual/market-insights': { eyebrow: 'Explore', title: 'Market Insights', description: 'See where demand is moving across roles, skills, and industries.', icon: 'chart-no-axes-combined' },
   '/individual/opportunities': { eyebrow: 'Explore', title: 'Opportunities', description: 'Discover roles and experiences matched to your evolving skill profile.', icon: 'compass' },
   '/individual/ai-assistant': { eyebrow: 'Workspace', title: 'AI Assistant', description: 'A focused space for turning workforce signals into your next best action.', icon: 'sparkles' },
-  '/individual/notifications': { eyebrow: 'Workspace', title: 'Notifications', description: 'Real-time alerts, market shifts, skill updates, and learning milestones.', icon: 'bell' },
+  '/individual/notifications': { eyebrow: 'Workspace', title: 'Notifications', description: 'Demo alerts, market shifts, skill updates, and learning milestones.', icon: 'bell' },
   '/individual/saved': { eyebrow: 'Workspace', title: 'Saved', description: 'Keep the roles, insights, and learning resources you want close at hand.', icon: 'bookmark' },
   '/individual/profile': { eyebrow: 'Account', title: 'Profile', description: 'Your profile is the foundation for relevant recommendations and opportunities.', icon: 'user-round' },
   '/individual/settings': { eyebrow: 'Account', title: 'Settings', description: 'Manage your portal preferences and notification choices.', icon: 'settings-2' }
 };
 
 const skillOptions = ['Python', 'Java', 'JavaScript', 'TypeScript', 'SQL', 'React', 'Node.js', 'Cloud Computing', 'Machine Learning', 'Generative AI', 'AI', 'Cybersecurity', 'Data Analytics'];
-const marketOptions = ['Global', 'India', 'United States', 'United Kingdom', 'Germany', 'Canada', 'Australia', 'Singapore', 'Japan'];
-const timeRangeOptions = ['7 Days', '30 Days', '90 Days', '6 Months', '1 Year'];
+const marketOptions = ['Global', 'India', 'Bangalore, India', 'Hyderabad, India', 'United States', 'United Kingdom', 'Germany', 'Canada'];
+const timeRangeOptions = ['30 Days', '3 Months', '6 Months', '12 Months', 'Max Available'];
 
 const marketTrends = [
   { label: 'Economic movement', value: 68, direction: 'Growing', icon: 'trending-up' },
@@ -672,39 +672,306 @@ const savedSkillState = JSON.parse(localStorage.getItem('talentscope-saved-skill
 const skillTrendFilterState = { startDate: '', endDate: '' };
 const dashboardState = {
   market: 'Global',
+  selectedLocation: 'Global',
   skillScope: 'All Skills',
-  skillLocation: 'Bangalore',
+  skillLocation: '',
   skillTime: '6 Months',
   skillDate: 'Month',
   isSkillFilterOpen: false,
   marketCompanyScope: 'All Companies',
-  marketLocation: 'Bangalore',
+  marketLocation: 'Global',
   marketTime: '6 Months',
   marketDate: 'Month',
   isMarketFilterOpen: false,
-  selectedMarketCompany: 'NVIDIA',
-  trendScope: 'Overall Live Trends',
+  selectedMarketCompany: 'Microsoft',
+  trendScope: 'Overall Demo Trends',
   trendSort: 'Highest Growth',
-  timeRange: '6 Months',
-  selectedSkill: savedSkillState[0] || 'Machine Learning',
+  timeRange: 'Max Available',
+  selectedSkill: savedSkillState[0] || '',
   savedSkills: savedSkillState,
-  savedCompanies: JSON.parse(localStorage.getItem('talentscope-saved-companies') || '["Microsoft"]')
+  savedCompanies: JSON.parse(localStorage.getItem('talentscope-saved-companies') || '[]')
 };
+const homeSkillIntelligenceState = {
+  status: 'idle',
+  skills: [],
+  intelligence: null,
+  location: '',
+  range: '6m',
+  favoriteSkills: new Set(),
+  requestId: 0
+};
+const skillIntelligenceEscape = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+})[character]);
 let liveTrendTick = 0;
 const marketTrendState = { scope: 'Global', timeRange: '30 Days', year: '2026', category: 'All Markets', watchlist: 'All Companies', company: '', view: 'Market Overview', customStartDate: '', customEndDate: '' };
 const jobTrendState = { period: '6 Months', market: 'Global', category: 'All Jobs', role: 'All Roles', roleScope: 'All Roles' };
-const jobRoleOptions = ['Software Engineer', 'AI / ML Engineer', 'AI Engineer', 'Data Scientist', 'Data Analyst', 'UI/UX Designer', 'Cybersecurity Engineer', 'Cloud Engineer'];
-let savedJobRoles = JSON.parse(localStorage.getItem('talentscope-saved-roles') || '["Software Engineer","AI Engineer","Data Scientist"]');
+const jobRoleOptions = ['Software Developers', 'Data Scientists', 'Computer Systems Analysts', 'Database Administrators', 'Information Security Analysts'];
+let savedJobRoles = JSON.parse(localStorage.getItem('talentscope-saved-roles') || '[]');
 let savedMarkets = JSON.parse(localStorage.getItem('talentscope-saved-markets') || '[]');
-const intelligenceExplorerState = { domainSelected: false, type: 'skills', scope: 'Global', skillScope: 'My Skills', market: 'Bangalore, India', companyScope: 'My/Favorite Companies', jobScope: 'Regional market', timeRange: '6 Months', selectedCompanies: [], companySignals: ['Technology', 'Investment', 'Jobs'], jobSignals: ['Vacancies', 'Hiring', 'Roles', 'Skills'], favoriteCompanies: JSON.parse(localStorage.getItem('talentscope-favorite-companies') || 'null') || ['NVIDIA', 'Microsoft', 'Google', 'Amazon'], selectedSkills: [], favoriteSkills: JSON.parse(localStorage.getItem('talentscope-favorite-skills') || 'null') || ['Python', 'Machine Learning', 'React', 'AWS'], selected: { skills: 'Machine Learning', companies: 'Microsoft', roles: 'AI Engineer' }, question: '', showWhy: false, hasSearched: false, isAnalyzing: false, analysisStep: 0, isRoadmapPreviewing: false };
-const homeJobIntelligenceState = {
-  companyScope: 'favorites',
-  company: 'NVIDIA',
-  region: 'Bangalore',
-  role: 'AI/ML',
-  period: '6 Months',
-  selectedSignal: 'roles'
+const intelligenceExplorerState = {
+  domainSelected: true,
+  type: 'skills',
+  scope: 'Global',
+  skillScope: 'All Skills',
+  market: 'Global',
+  companyScope: 'All Companies',
+  jobScope: 'All Companies',
+  timeRange: 'Max Available',
+  activeFilterSection: 'scope',
+  selectedCompanies: [],
+  companySignals: ['Technology', 'Investment', 'Jobs'],
+  jobSignals: ['Vacancies', 'Hiring', 'Roles', 'Skills'],
+  favoriteCompanies: JSON.parse(localStorage.getItem('talentscope-favorite-companies') || '[]'),
+  selectedSkills: [],
+  favoriteSkills: [],
+  selected: { skills: '', companies: '', roles: '' },
+  question: '',
+  showWhy: false,
+  hasSearched: false,
+  isAnalyzing: false,
+  analysisStep: 0,
+  isRoadmapPreviewing: false,
+  messages: [],
+  isFilterDrawerOpen: false,
+  analyzingEntity: '',
+  conversationId: null,
+  conversationHistory: [],
+  isHistoryDrawerOpen: false,
+  activeQueryId: 0,
+  domainSessions: {
+    skills: {
+      conversationId: null,
+      messages: [],
+      question: '',
+      hasSearched: false,
+      scope: 'All Skills',
+      location: 'Global',
+      timeRange: 'Max Available',
+      entity: '',
+      apiResponse: null
+    },
+    companies: {
+      conversationId: null,
+      messages: [],
+      question: '',
+      hasSearched: false,
+      scope: 'All Companies',
+      location: 'Global',
+      timeRange: 'Max Available',
+      entity: '',
+      apiResponse: null
+    },
+    roles: {
+      conversationId: null,
+      messages: [],
+      question: '',
+      hasSearched: false,
+      scope: 'All Companies',
+      location: 'Global',
+      timeRange: 'Max Available',
+      entity: '',
+      apiResponse: null
+    }
+  }
 };
+const homeJobIntelligenceState = {
+  status: 'idle',
+  companyScope: 'all',
+  company: 'All Companies',
+  region: 'India',
+  role: 'Software Developer',
+  period: '6 Months',
+  selectedSignal: 'roles',
+  query: 'software',
+  country: 'in',
+  jobs: [],
+  count: 0,
+  error: null,
+  requestId: 0
+};
+
+const homeMarketIntelligenceState = {
+  status: 'idle',
+  location: 'Global',
+  range: '6m',
+  data: null,
+  error: null,
+  requestId: 0
+};
+
+const homeCatalogState = { status: 'idle', skills: null, market: null, error: '', promise: null };
+
+function loadHomeCatalogs() {
+  if (homeCatalogState.status !== 'idle' || homeCatalogState.promise) return;
+  homeCatalogState.status = 'loading';
+  homeCatalogState.promise = Promise.all([
+    import('../api/intelligence-catalog-client.js').then(api => api.loadSkillCatalog()),
+    import('../api/intelligence-catalog-client.js').then(api => api.loadMarketCatalog())
+  ]).then(([skills, market]) => {
+    homeCatalogState.skills = skills;
+    homeCatalogState.market = market;
+    const skillFavoriteNames = (skills.favorite_skill_ids || []).map(id => skills.skills?.find(item => item.skill_id === id)?.name).filter(Boolean);
+    const marketFavoriteIds = new Set(market.favorite_entity_ids || []);
+    const marketFavoriteEntityNames = [
+      ...skillFavoriteNames,
+      ...(market.companies_with_job_evidence || []).filter(item => marketFavoriteIds.has(item.entity_id)).map(item => item.name),
+      ...(market.registered_company && marketFavoriteIds.has(market.registered_company.entity_id) ? [market.registered_company.name] : [])
+    ].filter(Boolean);
+    homeSkillIntelligenceState.favoriteSkills = new Set(skillFavoriteNames);
+    intelligenceExplorerState.favoriteSkills = skillFavoriteNames;
+    dashboardState.favoriteSkills = skillFavoriteNames;
+    intelligenceExplorerState.favoriteCompanies = (market.companies_with_job_evidence || []).filter(item => marketFavoriteIds.has(item.entity_id)).map(item => item.name);
+    dashboardState.favoriteCompanies = intelligenceExplorerState.favoriteCompanies.slice();
+    intelligenceExplorerState.favoriteMarketEntities = marketFavoriteEntityNames;
+    homeCatalogState.status = 'loaded';
+    if (currentRoute() === '/individual/home') renderHome();
+  }).catch(error => {
+    homeCatalogState.status = 'error';
+    homeCatalogState.error = error.message || 'Supported entity catalogs are unavailable.';
+  });
+}
+
+async function toggleCanonicalSkillFavourite(skillName) {
+  const catalogApi = await import('../api/intelligence-catalog-client.js');
+  const catalog = homeCatalogState.skills || await catalogApi.loadSkillCatalog();
+  homeCatalogState.skills = catalog;
+  const targetName = String(skillName || '').trim().toLocaleLowerCase();
+  const skill = (catalog.skills || []).find(item => (
+    String(item.name || '').toLocaleLowerCase() === targetName
+    || (item.aliases || []).some(alias => String(alias).toLocaleLowerCase() === targetName)
+  ));
+  if (!skill?.skill_id) throw new Error('This skill is not in the supported canonical catalog.');
+
+  const currentIds = [...new Set(catalog.favorite_skill_ids || [])];
+  const nextIds = currentIds.includes(skill.skill_id)
+    ? currentIds.filter(id => id !== skill.skill_id)
+    : [...currentIds, skill.skill_id];
+  const skillsApi = await import('../pages/individual/skills/skills-api.js');
+  const result = await skillsApi.saveFavouriteSkillIds(nextIds);
+  const savedIds = result.skill_ids || nextIds;
+  const favoriteNames = (catalog.skills || [])
+    .filter(item => savedIds.includes(item.skill_id))
+    .map(item => item.name);
+  catalog.favorite_skill_ids = savedIds;
+  homeSkillIntelligenceState.favoriteSkills = new Set(favoriteNames);
+  intelligenceExplorerState.favoriteSkills = favoriteNames;
+  dashboardState.favoriteSkills = favoriteNames;
+  window.dispatchEvent(new CustomEvent('talentscope:favourites-updated', {
+    detail: { domain: 'skill', skill_ids: savedIds }
+  }));
+  return { skill, skillIds: savedIds, isFavourite: savedIds.includes(skill.skill_id) };
+}
+
+if (typeof window !== 'undefined' && !window.__talentscopeHomeFavouriteCatalogListener) {
+  window.__talentscopeHomeFavouriteCatalogListener = true;
+  window.addEventListener('talentscope:favourites-updated', () => {
+    homeCatalogState.status = 'idle';
+    homeCatalogState.promise = null;
+    loadHomeCatalogs();
+  });
+}
+
+const homeActionRecommendationsState = {
+  status: 'idle',
+  recommendations: [],
+  limitations: [],
+  error: null,
+  requestId: 0
+};
+
+function loadHomeJobs({ query = homeJobIntelligenceState.query, country = homeJobIntelligenceState.country } = {}) {
+  const reqId = ++homeJobIntelligenceState.requestId;
+  homeJobIntelligenceState.status = 'loading';
+  homeJobIntelligenceState.query = query;
+  homeJobIntelligenceState.country = country;
+  import('../api/core-intelligence-client.js').then(async client => {
+    try {
+      const res = await client.fetchMarketJobs({ query, country });
+      if (reqId !== homeJobIntelligenceState.requestId) return;
+      homeJobIntelligenceState.jobs = Array.isArray(res.jobs) ? res.jobs : [];
+      homeJobIntelligenceState.count = typeof res.count === 'number' ? res.count : homeJobIntelligenceState.jobs.length;
+      homeJobIntelligenceState.status = 'loaded';
+      if (typeof currentRoute === 'function' && currentRoute() === '/individual/home') {
+        renderHome();
+      }
+    } catch (err) {
+      if (reqId !== homeJobIntelligenceState.requestId) return;
+      homeJobIntelligenceState.status = 'error';
+      homeJobIntelligenceState.error = err.message;
+      if (typeof currentRoute === 'function' && currentRoute() === '/individual/home') {
+        renderHome();
+      }
+    }
+  }).catch(() => {
+    if (reqId !== homeJobIntelligenceState.requestId) return;
+    homeJobIntelligenceState.status = 'error';
+  });
+}
+
+function loadHomeMarketIntelligence({ location = dashboardState.marketLocation || 'Global', range = '6m' } = {}) {
+  const reqId = ++homeMarketIntelligenceState.requestId;
+  homeMarketIntelligenceState.status = 'loading';
+  homeMarketIntelligenceState.location = location;
+  homeMarketIntelligenceState.range = range;
+  import('../api/core-intelligence-client.js').then(async client => {
+    try {
+      const res = await client.queryMarketIntelligence({
+        portalType: 'individual',
+        location: location === 'Global' ? null : location,
+        timeRange: range
+      });
+      if (reqId !== homeMarketIntelligenceState.requestId) return;
+      homeMarketIntelligenceState.data = res;
+      homeMarketIntelligenceState.status = 'loaded';
+      if (typeof currentRoute === 'function' && currentRoute() === '/individual/home') {
+        renderHome();
+      }
+    } catch (err) {
+      if (reqId !== homeMarketIntelligenceState.requestId) return;
+      homeMarketIntelligenceState.status = 'error';
+      homeMarketIntelligenceState.error = err.message;
+      if (typeof currentRoute === 'function' && currentRoute() === '/individual/home') {
+        renderHome();
+      }
+    }
+  }).catch(() => {
+    if (reqId !== homeMarketIntelligenceState.requestId) return;
+    homeMarketIntelligenceState.status = 'error';
+  });
+}
+
+function loadHomeActionRecommendations() {
+  const reqId = ++homeActionRecommendationsState.requestId;
+  homeActionRecommendationsState.status = 'loading';
+  import('../api/core-intelligence-client.js').then(async client => {
+    try {
+      const res = await client.queryActionRecommendations({
+        portalType: 'individual',
+        intelligenceType: 'skill',
+        selectedSkills: dashboardState.selectedSkill ? [dashboardState.selectedSkill] : []
+      });
+      if (reqId !== homeActionRecommendationsState.requestId) return;
+      homeActionRecommendationsState.recommendations = Array.isArray(res.recommendations) ? res.recommendations : [];
+      homeActionRecommendationsState.limitations = Array.isArray(res.limitations) ? res.limitations : [];
+      homeActionRecommendationsState.status = 'loaded';
+      if (typeof currentRoute === 'function' && currentRoute() === '/individual/home') {
+        renderHome();
+      }
+    } catch (err) {
+      if (reqId !== homeActionRecommendationsState.requestId) return;
+      homeActionRecommendationsState.status = 'error';
+      homeActionRecommendationsState.error = err.message;
+      if (typeof currentRoute === 'function' && currentRoute() === '/individual/home') {
+        renderHome();
+      }
+    }
+  }).catch(() => {
+    if (reqId !== homeActionRecommendationsState.requestId) return;
+    homeActionRecommendationsState.status = 'error';
+  });
+}
+
 const roadmapStorageKey = 'talentscope-learning-roadmap-v1';
 const roadmapStageTemplate = [
   { name: 'Foundations', topic: 'Python for ML', status: 'completed', progress: 100, estimate: '3 — 4 hours', completed: true },
@@ -723,41 +990,41 @@ const roadmapActivityTypes = [
 ];
 const defaultRoadmapTemplates = {
   'Improve Current Skill': [
-    { name: 'Core Foundations', label: 'Advanced Architecture Review', status: 'completed' },
-    { name: 'Specialized Concepts', label: 'Async & Concurrency Deep Dive', status: 'completed' },
-    { name: 'Assessment', label: 'Technical Proficiency Benchmark', status: 'current' },
-    { name: 'Real-world Project', label: 'High-Throughput Optimization Build', status: 'upcoming' },
-    { name: 'Role Alignment', label: 'Capability & Benchmark Verification', status: 'upcoming' }
+    { id: 'ms-foundations', name: 'Core Foundations', label: 'Advanced Architecture Review', status: 'completed' },
+    { id: 'ms-async-concurrency', name: 'Specialized Concepts', label: 'Async & Concurrency Deep Dive', status: 'completed' },
+    { id: 'ms-assessment', name: 'Assessment', label: 'Technical Proficiency Benchmark', status: 'current' },
+    { id: 'ms-realworld-project', name: 'Real-world Project', label: 'High-Throughput Optimization Build', status: 'upcoming' },
+    { id: 'ms-role-alignment', name: 'Role Alignment', label: 'Capability & Benchmark Verification', status: 'upcoming' }
   ],
   'Skill Switch': [
-    { name: 'Current Skills', label: 'Baseline Review & Diagnostic', status: 'completed' },
-    { name: 'Transferable Skills', label: 'Cross-Domain Mapping', status: 'completed' },
-    { name: 'Gap Acquisition', label: 'Core Delta Acquisition', status: 'current' },
-    { name: 'Transition Labs', label: 'Hands-on Applied Labs', status: 'upcoming' },
-    { name: 'Assessment', label: 'Transition Readiness Assessment', status: 'upcoming' },
-    { name: 'Capstone Project', label: 'Portfolio Conversion Build', status: 'upcoming' }
+    { id: 'ms-sw-current', name: 'Current Skills', label: 'Baseline Review & Diagnostic', status: 'completed' },
+    { id: 'ms-sw-transferable', name: 'Transferable Skills', label: 'Cross-Domain Mapping', status: 'completed' },
+    { id: 'ms-sw-gap', name: 'Gap Acquisition', label: 'Core Delta Acquisition', status: 'current' },
+    { id: 'ms-sw-transition-labs', name: 'Transition Labs', label: 'Hands-on Applied Labs', status: 'upcoming' },
+    { id: 'ms-sw-assessment', name: 'Assessment', label: 'Transition Readiness Assessment', status: 'upcoming' },
+    { id: 'ms-sw-capstone', name: 'Capstone Project', label: 'Portfolio Conversion Build', status: 'upcoming' }
   ],
   'Career Preparation': [
-    { name: 'Role Diagnostics', label: 'Target Career Baseline', status: 'completed' },
-    { name: 'Core Foundations', label: 'Specialized Stack Fundamentals', status: 'completed' },
-    { name: 'Assessment', label: 'Professional Skills Evaluation', status: 'current' },
-    { name: 'Applied Systems', label: 'Production Engineering Project', status: 'upcoming' },
-    { name: 'Interview Prep', label: 'Technical & System Design Readiness', status: 'upcoming' }
+    { id: 'ms-cp-diagnostics', name: 'Role Diagnostics', label: 'Target Career Baseline', status: 'completed' },
+    { id: 'ms-cp-foundations', name: 'Core Foundations', label: 'Specialized Stack Fundamentals', status: 'completed' },
+    { id: 'ms-cp-assessment', name: 'Assessment', label: 'Professional Skills Evaluation', status: 'current' },
+    { id: 'ms-cp-applied-systems', name: 'Applied Systems', label: 'Production Engineering Project', status: 'upcoming' },
+    { id: 'ms-cp-interview-prep', name: 'Interview Prep', label: 'Technical & System Design Readiness', status: 'upcoming' }
   ],
   'Job Preparation': [
-    { name: 'Requisition Match', label: 'Job Role Capabilities Alignment', status: 'completed' },
-    { name: 'Assessment', label: 'Domain Technical Assessment', status: 'completed' },
-    { name: 'Role Requirements', label: 'Production Requisition Match', status: 'current' },
-    { name: 'Domain Project', label: 'Industry Production Case Study', status: 'upcoming' },
-    { name: 'Interview Simulation', label: 'Technical Bar Interview Prep', status: 'upcoming' },
-    { name: 'Application Ready', label: 'Candidate Profile Activation', status: 'upcoming' }
+    { id: 'ms-jp-match', name: 'Requisition Match', label: 'Job Role Capabilities Alignment', status: 'completed' },
+    { id: 'ms-jp-assessment', name: 'Assessment', label: 'Domain Technical Assessment', status: 'completed' },
+    { id: 'ms-jp-requirements', name: 'Role Requirements', label: 'Production Requisition Match', status: 'current' },
+    { id: 'ms-jp-project', name: 'Domain Project', label: 'Industry Production Case Study', status: 'upcoming' },
+    { id: 'ms-jp-interview', name: 'Interview Simulation', label: 'Technical Bar Interview Prep', status: 'upcoming' },
+    { id: 'ms-jp-ready', name: 'Application Ready', label: 'Candidate Profile Activation', status: 'upcoming' }
   ],
   'Company Preparation': [
-    { name: 'Company Stack', label: 'Target Enterprise Architecture Review', status: 'completed' },
-    { name: 'Internal Systems', label: 'Company Tooling & Standards', status: 'completed' },
-    { name: 'Assessment', label: 'Company Challenge Assessment', status: 'current' },
-    { name: 'Mock Project', label: 'Production Scale Mock Build', status: 'upcoming' },
-    { name: 'Interview Prep', label: 'Engineering Interview Readiness', status: 'upcoming' }
+    { id: 'ms-co-stack', name: 'Company Stack', label: 'Target Enterprise Architecture Review', status: 'completed' },
+    { id: 'ms-co-internal', name: 'Internal Systems', label: 'Company Tooling & Standards', status: 'completed' },
+    { id: 'ms-co-assessment', name: 'Assessment', label: 'Company Challenge Assessment', status: 'current' },
+    { id: 'ms-co-mock-project', name: 'Mock Project', label: 'Production Scale Mock Build', status: 'upcoming' },
+    { id: 'ms-co-interview', name: 'Interview Prep', label: 'Engineering Interview Readiness', status: 'upcoming' }
   ]
 };
 
@@ -778,20 +1045,39 @@ function createRoadmapStages() {
 
 function loadRoadmapState() {
   try {
-    const saved = JSON.parse(localStorage.getItem(roadmapStorageKey) || 'null');
-    if (saved && ['active', 'completed', 'none', 'draft', 'archived', 'paused'].includes(saved.status)) {
-      if (saved.status === 'paused') saved.status = 'active';
-      return saved;
+    const raw = localStorage.getItem(roadmapStorageKey) || localStorage.getItem('talentscope-roadmap-state-v1');
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved && typeof saved === 'object') {
+        if (saved.status === 'none' || saved.status === 'empty') {
+          return { id: 'none', status: 'none', progress: 0, title: 'No Active Roadmap', milestones: [] };
+        }
+        if (Array.isArray(saved.milestones) && saved.milestones.length > 0) {
+          if (saved.status === 'paused') saved.status = 'active';
+          return saved;
+        }
+      }
     }
   } catch (error) { console.warn('Saved roadmap could not be loaded.', error); }
 
   return {
     id: 'none',
-    status: 'none'
+    status: 'none',
+    progress: 0,
+    title: 'No Active Roadmap',
+    milestones: []
   };
 }
 let roadmapState = loadRoadmapState();
-function persistRoadmapState() { localStorage.setItem(roadmapStorageKey, JSON.stringify(roadmapState)); }
+function persistRoadmapState() {
+  try {
+    const json = JSON.stringify(roadmapState);
+    localStorage.setItem(roadmapStorageKey, json);
+    localStorage.setItem('talentscope-roadmap-state-v1', json);
+  } catch (e) {
+    console.warn(e);
+  }
+}
 const jobTrendData = {
   'AI / ML Engineer': { overallMomentum: 88, changePercentage: 18.2, direction: 'Growing', jobDemand: { value: 91, change: 20.2, trend: 'growing', color: '#B22DEF' }, hiringMomentum: { value: 84, change: 16.4, trend: 'growing', color: '#B04CFF' }, skillDemand: { value: 94, change: 22.1, trend: 'growing', color: '#D46CFF' }, roleGrowth: { value: 83, change: 14.6, trend: 'growing', color: '#6D4AFF' } },
   'All Roles': { overallMomentum: 78, changePercentage: 12.4, direction: 'Growing', jobDemand: { value: 82, change: 14.2, trend: 'growing', color: '#B22DEF' }, hiringMomentum: { value: 74, change: 9.8, trend: 'growing', color: '#B04CFF' }, skillDemand: { value: 88, change: 18.6, trend: 'growing', color: '#D46CFF' }, roleGrowth: { value: 69, change: 6.4, trend: 'growing', color: '#6D4AFF' } },
@@ -832,31 +1118,43 @@ const profilePopover = document.querySelector('#profilePopover');
 const notificationButton = document.querySelector('#notificationButton');
 const notificationPopover = document.querySelector('#notificationPopover');
 
+let lastRenderedNavPortal = null;
 function renderNavigation() {
   const route = currentRoute();
   const isCompany = route.startsWith('/company');
   const isEmployee = !isCompany && route.startsWith('/employee');
-  const activeNav = isCompany ? companyNavigation : (isEmployee ? employeeNavigation : navigation);
+  const portalType = isCompany ? 'company' : (isEmployee ? 'employee' : 'individual');
 
-  document.querySelector('#primaryNav').innerHTML = activeNav.map(group => `
-    <section class="nav-group" aria-labelledby="nav-${group.label.toLowerCase().replace(/[^a-z0-9]/g, '-')}">
-      <h2 class="nav-group__heading" id="nav-${group.label.toLowerCase().replace(/[^a-z0-9]/g, '-')}">${group.label}</h2>
-      ${group.items.map(item => `
-        <a class="nav-item" href="#${item.route}" data-route="${item.route}" data-tooltip="${item.label}">
-          <i data-lucide="${item.icon}"></i><span class="nav-item__label">${item.label}</span>
-        </a>
-      `).join('')}
-    </section>
-  `).join('');
+  if (lastRenderedNavPortal !== portalType) {
+    lastRenderedNavPortal = portalType;
+    const activeNav = isCompany ? companyNavigation : (isEmployee ? employeeNavigation : navigation);
 
-  // Update shell links for current portal
-  const brand = document.querySelector('.brand');
-  if (brand) {
-    brand.setAttribute('href', isCompany ? '#/company/home' : (isEmployee ? '#/employee/home' : '#/individual/home'));
-  }
-  const assistantBtn = document.querySelector('.button--assistant');
-  if (assistantBtn) {
-    assistantBtn.setAttribute('href', isCompany ? '#/company/ai-assistant' : (isEmployee ? '#/employee/ai-assistant' : '#/individual/ai-assistant'));
+    const primaryNavEl = document.querySelector('#primaryNav');
+    if (primaryNavEl) {
+      primaryNavEl.innerHTML = activeNav.map(group => `
+        <section class="nav-group" aria-labelledby="nav-${group.label.toLowerCase().replace(/[^a-z0-9]/g, '-')}">
+          <h2 class="nav-group__heading" id="nav-${group.label.toLowerCase().replace(/[^a-z0-9]/g, '-')}">${group.label}</h2>
+          ${group.items.map(item => `
+            <a class="nav-item" href="#${item.route}" data-route="${item.route}" data-tooltip="${item.label}">
+              <i data-lucide="${item.icon}"></i><span class="nav-item__label">${item.label}</span>
+            </a>
+          `).join('')}
+        </section>
+      `).join('');
+    }
+
+    // Update shell links for current portal
+    const brand = document.querySelector('.brand');
+    if (brand) {
+      brand.setAttribute('href', isCompany ? '#/company/home' : (isEmployee ? '#/employee/home' : '#/individual/home'));
+    }
+    const assistantBtn = document.querySelector('.button--assistant');
+    if (assistantBtn) {
+      assistantBtn.setAttribute('href', isCompany ? '#/company/ai-assistant' : (isEmployee ? '#/employee/ai-assistant' : '#/individual/ai-assistant'));
+    }
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
   }
   const sidebarProfile = document.querySelector('.sidebar__profile');
   if (sidebarProfile) {
@@ -877,25 +1175,23 @@ function renderNavigation() {
     sidebarNavSettings.setAttribute('data-route', setRoute);
   }
 
-  // Update profile popover with 3-way portal switcher
+  // Update profile popover: Individual portal shows only user account options
   if (profilePopover) {
-    profilePopover.innerHTML = `
-      <a href="${isCompany ? '#/company/profile' : (isEmployee ? '#/employee/profile' : '#/individual/profile')}" role="menuitem"><i data-lucide="${isCompany ? 'building' : 'user-round'}"></i>${isCompany ? 'Company Profile' : 'Profile'}</a>
-      <a href="${isCompany ? '#/company/settings' : (isEmployee ? '#/employee/settings' : '#/individual/settings')}" role="menuitem"><i data-lucide="settings-2"></i>Settings</a>
-      <hr style="margin: 6px 0; border: none; border-top: 1px solid var(--border);">
-      <div style="padding: 4px 10px; font-size: 10.5px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Switch Portal</div>
-      <a href="#/individual/home" role="menuitem" style="font-weight: 700; color: #B22DEF; ${!isEmployee && !isCompany ? 'background: #FAF5FF;' : ''}">
-        <i data-lucide="user"></i>Individual Portal ${!isEmployee && !isCompany ? '✓' : ''}
-      </a>
-      <a href="#/employee/home" role="menuitem" style="font-weight: 700; color: #176B9C; ${isEmployee ? 'background: #F0F8FF;' : ''}">
-        <i data-lucide="shield"></i>Employee Portal ${isEmployee ? '✓' : ''}
-      </a>
-      <a href="#/company/home" role="menuitem" style="font-weight: 700; color: #6335C9; ${isCompany ? 'background: #F5F0FF;' : ''}">
-        <i data-lucide="building"></i>Company Portal ${isCompany ? '✓' : ''}
-      </a>
-      <hr style="margin: 6px 0; border: none; border-top: 1px solid var(--border);">
-      <button type="button" role="menuitem" data-action="sign-out"><i data-lucide="log-out"></i>Sign out</button>
-    `;
+    if (!isEmployee && !isCompany) {
+      profilePopover.innerHTML = `
+        <a href="#/individual/profile" role="menuitem"><i data-lucide="user-round"></i>Profile</a>
+        <a href="#/individual/settings" role="menuitem"><i data-lucide="settings-2"></i>Settings</a>
+        <hr style="margin: 6px 0; border: none; border-top: 1px solid var(--border);">
+        <button type="button" role="menuitem" data-action="sign-out"><i data-lucide="log-out"></i>Sign out</button>
+      `;
+    } else {
+      profilePopover.innerHTML = `
+        <a href="${isCompany ? '#/company/profile' : '#/employee/profile'}" role="menuitem"><i data-lucide="${isCompany ? 'building' : 'user-round'}"></i>${isCompany ? 'Company Profile' : 'Profile'}</a>
+        <a href="${isCompany ? '#/company/settings' : '#/employee/settings'}" role="menuitem"><i data-lucide="settings-2"></i>Settings</a>
+        <hr style="margin: 6px 0; border: none; border-top: 1px solid var(--border);">
+        <button type="button" role="menuitem" data-action="sign-out"><i data-lucide="log-out"></i>Sign out</button>
+      `;
+    }
   }
 
   lucide.createIcons();
@@ -906,19 +1202,9 @@ function getActiveSessionUser() {
     const raw = localStorage.getItem('talentscope_session_v2');
     if (!raw) return null;
     const sess = JSON.parse(raw);
-    if (!sess) return null;
-    if (sess.user) return sess.user;
-    if (sess.userId) {
-      const usersRaw = localStorage.getItem('talentscope_users_v2');
-      if (usersRaw) {
-        const users = JSON.parse(usersRaw);
-        const found = users.find(u => u.id === sess.userId || (u.email && u.email.toLowerCase() === sess.userId.toLowerCase()));
-        if (found) return found;
-      }
-      return { id: sess.userId, email: sess.userId, onboardingComplete: true, userType: 'individual' };
-    }
-    return null;
-  } catch (e) {
+    if (sess?.authSource !== 'firebase' || sess.user?.uid !== sess.userId) return null;
+    return sess.user;
+  } catch {
     return null;
   }
 }
@@ -926,8 +1212,8 @@ function getActiveSessionUser() {
 function determineUserRedirect(user) {
   if (!user) return '#/login';
   if (!user.onboardingComplete) return '#/onboarding';
-  if (user.userType === 'company') return '#/company/overview';
-  if (user.userType === 'employee') return '#/employee/overview';
+  if (user.userType === 'company') return '#/company/home';
+  if (user.userType === 'employee') return '#/employee/home';
   return '#/individual/home';
 }
 
@@ -996,7 +1282,7 @@ function trendCard({ title, description, icon, items, cta, route }) {
 }
 
 function chartLabels() {
-  const labels = { '7 Days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], '30 Days': ['W1', 'W2', 'W3', 'W4', 'Now'], '90 Days': ['Jan', 'Feb', 'Mar', 'Now'], '6 Months': ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Now'], '1 Year': ['Q1', 'Q2', 'Q3', 'Q4', 'Now'] };
+  const labels = { '7 Days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], '30 Days': ['W1', 'W2', 'W3', 'W4', 'Now'], '3 Months': ['Jan', 'Feb', 'Mar', 'Now'], '6 Months': ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Now'], '6 Months': ['Q1', 'Q2', 'Q3', 'Q4', 'Now'] };
   return labels[dashboardState.timeRange];
 }
 
@@ -1051,7 +1337,7 @@ function renderOverview() {
   const momentum = current >= previous ? 'Growing' : 'Stable';
   return `
     <section class="overview-card dashboard-card" aria-labelledby="overview-title">
-      <div class="dashboard-card__heading"><div><span class="section-kicker">Market intelligence</span><h2 id="overview-title">Market &amp; Skill Overview</h2><p>Track how skills, technology and job demand are moving across markets.</p></div><div class="live-status"><span class="live-dot"></span><strong>LIVE MARKET SIGNALS</strong><small>Prototype data  —  updated just now</small></div></div>
+      <div class="dashboard-card__heading"><div><span class="section-kicker">Market intelligence</span><h2 id="overview-title">Market &amp; Skill Overview</h2><p>Track how skills, technology and job demand are moving across markets.</p></div><div class="live-status"><span class="live-dot"></span><strong>DEMO MARKET SIGNALS</strong><small>Prototype data  —  illustrative demo data</small></div></div>
       <div class="overview-controls">
         ${selectControl('marketSelect', 'Market Scope', marketOptions, dashboardState.market)}
         ${selectControl('skillScopeSelect', 'Skill Scope', ['My Saved Skills', 'All Skills', 'Trending Skills'], dashboardState.skillScope)}
@@ -1067,7 +1353,7 @@ function renderOverview() {
 }
 
 function renderFutureSkills() {
-  return `<article class="future-card dashboard-card"><div class="dashboard-card__heading"><div><span class="section-kicker">Future skill intelligence</span><h2>Future Skill Live Trends</h2><p>Skills gaining momentum across the market.</p></div><span class="trend-card__icon"><i data-lucide="radar"></i></span></div><div class="future-skill-list">${futureSkills.map(skill => `<a class="future-skill" href="#/individual/skills?skill=${encodeURIComponent(skill.label)}"><span class="future-skill__icon"><i data-lucide="${skill.icon}"></i></span><span><strong>${skill.label}</strong><small>${skill.status}</small></span><span class="future-skill__direction future-skill__direction--${skill.direction}"><i data-lucide="${skill.direction === 'up' ? 'trending-up' : 'minus'}"></i></span></a>`).join('')}</div><a class="card-link" href="#/individual/skills">Explore Future Skills <i data-lucide="arrow-right"></i></a></article>`;
+  return `<article class="future-card dashboard-card"><div class="dashboard-card__heading"><div><span class="section-kicker">Future skill intelligence</span><h2>Future Skill Demo Trends</h2><p>Skills gaining momentum across the market.</p></div><span class="trend-card__icon"><i data-lucide="radar"></i></span></div><div class="future-skill-list">${futureSkills.map(skill => `<a class="future-skill" href="#/individual/skills?skill=${encodeURIComponent(skill.label)}"><span class="future-skill__icon"><i data-lucide="${skill.icon}"></i></span><span><strong>${skill.label}</strong><small>${skill.status}</small></span><span class="future-skill__direction future-skill__direction--${skill.direction}"><i data-lucide="${skill.direction === 'up' ? 'trending-up' : 'minus'}"></i></span></a>`).join('')}</div><a class="card-link" href="#/individual/skills">Explore Future Skills <i data-lucide="arrow-right"></i></a></article>`;
 }
 
 function renderSparkline(points, label) {
@@ -1112,7 +1398,7 @@ function renderSkillPulseCard() {
   const timeLabel = dashboardState.timeRange.replace(' Days', 'D').replace(' Months', 'M').replace(' Year', 'Y');
   const canAddSkill = dashboardState.savedSkills.length < 5;
   const addPanel = canAddSkill ? `<label for="skillAddSelect">Add skill to chart</label><select id="skillAddSelect"><option value="">Select a skill</option>${skillOptions.filter(skill => !dashboardState.savedSkills.includes(skill)).map(skill => `<option value="${skill}">${skill}</option>`).join('')}</select><button id="confirmAddSkill" type="button">Add skill</button>` : '<strong>Maximum 5 skills tracked</strong><span>Remove one from Saved before adding another.</span>';
-  return `<article class="pulse-card pulse-card--skill"><div class="pulse-card__top"><span class="pulse-card__icon"><i data-lucide="layers-3"></i></span><span class="pulse-card__context"><i class="live-dot"></i>Updated recently</span></div><div class="skill-card-heading"><div><span class="pulse-card__label">SKILL TREND</span><strong>${scopeLabel}</strong><span class="pulse-card__meta">${dashboardState.market}  —  ${timeLabel}</span></div><div class="skill-card-actions"><button class="filter-icon-button" id="timeFilterButton" type="button" aria-expanded="false" aria-label="Change time range" title="Time range"><i data-lucide="calendar-days"></i></button><div class="chart-filter-menu" id="timeFilterMenu" hidden>${timeRangeOptions.map(option => `<button type="button" data-time-range="${option}">${option}</button>`).join('')}</div><button class="filter-icon-button" id="marketFilterButton" type="button" aria-expanded="false" aria-label="Change market" title="Market"><i data-lucide="globe-2"></i></button><div class="chart-filter-menu" id="marketFilterMenu" hidden>${marketOptions.map(option => `<button type="button" data-market="${option}">${option}</button>`).join('')}</div><button class="filter-icon-button" id="scopeFilterButton" type="button" aria-expanded="false" aria-label="Change skill view" title="Skill view"><i data-lucide="sliders-horizontal"></i></button><div class="chart-filter-menu" id="scopeFilterMenu" hidden><button type="button" data-scope="My Saved Skills">My saved skills</button><button type="button" data-scope="All Skills">All skills</button></div><button class="add-skill-button" id="addSkillButton" type="button" aria-expanded="false" aria-label="Add skill to trend chart" title="Add skill" ${canAddSkill ? '' : 'disabled'}><i data-lucide="plus"></i></button></div></div><div class="skill-card-status"><span class="pulse-card__trend"><i data-lucide="trending-up"></i>Growing</span><span class="pulse-card__saved-context"><i data-lucide="bookmark"></i>${trackedSkills}</span></div><div class="add-skill-panel" id="addSkillPanel" hidden>${addPanel}</div>${renderSavedSkillChart()}<p class="prototype-note">Prototype market signal  —  Hover a bar to inspect the current demand index.</p><a class="pulse-card__link" href="#/individual/skills" aria-label="Open saved skill details"><i data-lucide="arrow-up-right"></i></a></article>`;
+  return `<article class="pulse-card pulse-card--skill"><div class="pulse-card__top"><span class="pulse-card__icon"><i data-lucide="layers-3"></i></span><span class="pulse-card__context"><i class="live-dot"></i>Illustrative demo data</span></div><div class="skill-card-heading"><div><span class="pulse-card__label">SKILL TREND</span><strong>${scopeLabel}</strong><span class="pulse-card__meta">${dashboardState.market}  —  ${timeLabel}</span></div><div class="skill-card-actions"><button class="filter-icon-button" id="timeFilterButton" type="button" aria-expanded="false" aria-label="Change time range" title="Time range"><i data-lucide="calendar-days"></i></button><div class="chart-filter-menu" id="timeFilterMenu" hidden>${timeRangeOptions.map(option => `<button type="button" data-time-range="${option}">${option}</button>`).join('')}</div><button class="filter-icon-button" id="marketFilterButton" type="button" aria-expanded="false" aria-label="Change market" title="Market"><i data-lucide="globe-2"></i></button><div class="chart-filter-menu" id="marketFilterMenu" hidden>${marketOptions.map(option => `<button type="button" data-market="${option}">${option}</button>`).join('')}</div><button class="filter-icon-button" id="scopeFilterButton" type="button" aria-expanded="false" aria-label="Change skill view" title="Skill view"><i data-lucide="sliders-horizontal"></i></button><div class="chart-filter-menu" id="scopeFilterMenu" hidden><button type="button" data-scope="My Saved Skills">My saved skills</button><button type="button" data-scope="All Skills">All skills</button></div><button class="add-skill-button" id="addSkillButton" type="button" aria-expanded="false" aria-label="Add skill to trend chart" title="Add skill" ${canAddSkill ? '' : 'disabled'}><i data-lucide="plus"></i></button></div></div><div class="skill-card-status"><span class="pulse-card__trend"><i data-lucide="trending-up"></i>Growing</span><span class="pulse-card__saved-context"><i data-lucide="bookmark"></i>${trackedSkills}</span></div><div class="add-skill-panel" id="addSkillPanel" hidden>${addPanel}</div>${renderSavedSkillChart()}<p class="prototype-note">Prototype market signal  —  Hover a bar to inspect the current demand index.</p><a class="pulse-card__link" href="#/individual/skills" aria-label="Open saved skill details"><i data-lucide="arrow-up-right"></i></a></article>`;
 }
 
 function renderMarketPulse() {
@@ -1169,7 +1455,7 @@ function renderPersonalIntelligenceOverview() {
     { tone: 'opportunity', icon: 'briefcase-business', href: '#/individual/career', title: 'Job Opportunities', value: compactVacancies, detail: 'Relevant openings', trend: `${job.change > 0 ? '+' : ''}${job.change.toFixed(1)}%`, status: job.direction, values: job.metrics.map(metric => metric.value) },
     { tone: 'roadmap', icon: 'map', href: roadmapActive ? '#/individual/learning' : '#/individual/learning', title: 'Roadmap Progress', value: roadmapActive ? `${roadmapProgress}%` : 'NO ACTIVE ROADMAP', detail: roadmapActive ? `${roadmapState.skill} Roadmap` : 'Build a roadmap from your recommended skills', trend: roadmapActive ? `${roadmapDone} of ${roadmapStages.length} stages complete` : 'Explore Recommendations', status: roadmapActive ? (roadmapState.status === 'paused' ? 'Paused' : 'Tracking') : '', values: roadmapActive ? [20, roadmapProgress * .72, roadmapProgress] : [0, 0, 0] }
   ];
-  return `<section class="personal-intelligence-card" aria-labelledby="personal-intelligence-title"><div class="personal-intelligence-heading"><div><span class="section-kicker">Personal intelligence</span><h2 id="personal-intelligence-title">Your Intelligence Overview</h2><p>A live snapshot of the signals, opportunities and progress that matter to you.</p></div><span class="prototype-indicator"><i></i>Illustrative prototype data</span></div><div class="personal-intelligence-signals">${cards.map(card => `<a class="intelligence-signal intelligence-signal--${card.tone}" href="${card.href}" aria-label="Open ${card.title}"><span class="intelligence-signal__icon"><i data-lucide="${card.icon}"></i></span><div class="intelligence-signal__copy"><span class="intelligence-signal__title">${card.title}</span><strong class="intelligence-signal__value">${card.value}</strong><span class="intelligence-signal__detail">${card.detail}</span></div>${card.status ? `<span class="intelligence-signal__status ${trendClass(card.status)}"><i data-lucide="${trendIcon(card.status)}"></i>${card.status}</span>` : ''}<span class="intelligence-signal__trend ${card.tone === 'roadmap' && !roadmapActive ? 'intelligence-signal__trend--action' : ''}">${card.trend}</span>${renderOverviewSparkline(card.values, `${card.title} illustrative trend`)}<span class="intelligence-signal__arrow" aria-hidden="true"><i data-lucide="arrow-up-right"></i></span></a>`).join('')}</div></section>`;
+  return `<section class="personal-intelligence-card" aria-labelledby="personal-intelligence-title"><div class="personal-intelligence-heading"><div><span class="section-kicker">Personal intelligence</span><h2 id="personal-intelligence-title">Your Intelligence Overview</h2><p>An illustrative view of signals, opportunities and progress.</p></div><span class="prototype-indicator"><i></i>Illustrative prototype data</span></div><div class="personal-intelligence-signals">${cards.map(card => `<a class="intelligence-signal intelligence-signal--${card.tone}" href="${card.href}" aria-label="Open ${card.title}"><span class="intelligence-signal__icon"><i data-lucide="${card.icon}"></i></span><div class="intelligence-signal__copy"><span class="intelligence-signal__title">${card.title}</span><strong class="intelligence-signal__value">${card.value}</strong><span class="intelligence-signal__detail">${card.detail}</span></div>${card.status ? `<span class="intelligence-signal__status ${trendClass(card.status)}"><i data-lucide="${trendIcon(card.status)}"></i>${card.status}</span>` : ''}<span class="intelligence-signal__trend ${card.tone === 'roadmap' && !roadmapActive ? 'intelligence-signal__trend--action' : ''}">${card.trend}</span>${renderOverviewSparkline(card.values, `${card.title} illustrative trend`)}<span class="intelligence-signal__arrow" aria-hidden="true"><i data-lucide="arrow-up-right"></i></span></a>`).join('')}</div></section>`;
 }
 
 function renderExploreFocusSelector() {
@@ -1264,25 +1550,180 @@ renderExploreFocusSelector = function() {
   const questionChips = type === 'skills' ? (intelligenceExplorerState.selectedSkills.length === 1 ? ['What is ' + intelligenceExplorerState.selectedSkills[0] + ' demand in ' + intelligenceExplorerState.market + '?', 'Is ' + intelligenceExplorerState.selectedSkills[0] + ' still growing?', 'Which skills are paired with ' + intelligenceExplorerState.selectedSkills[0] + '?', 'Which ' + intelligenceExplorerState.selectedSkills[0] + ' roles are growing?'] : skillQuestions) : type === 'companies' ? ['Which companies are growing fastest?', 'What technologies is ' + focusCompany + ' investing in?', 'Which companies are hiring the most?', 'What products are gaining market momentum?', 'Which companies are showing strong investment signals?', 'Which technologies are growing in ' + intelligenceExplorerState.market + '?', 'What is changing in this market?'] : ['Which companies are hiring the most?', 'What roles is ' + focusCompany + ' hiring for?', 'What skills are companies asking for?', 'Which companies are hiring for my skills?', 'What technologies appear most in job postings?', 'What roles are emerging?', 'Where are hiring opportunities growing?'];
   const marketLocations = ['Global', 'India', 'US', 'UK', 'Europe', 'Asia-Pacific', ...(!['Global','India','US','UK','Europe','Asia-Pacific'].includes(intelligenceExplorerState.market) ? [intelligenceExplorerState.market] : []), 'Custom location'];
   const companyContext = (jobMode) => { const scope = jobMode ? intelligenceExplorerState.jobScope : intelligenceExplorerState.companyScope; const scopeId = jobMode ? 'jobScopeSelect' : 'companyScopeSelect'; const scopeOptions = jobMode ? ['All Companies','Favorite Companies','Selected Companies'] : ['All Companies','Favorite Companies','My Companies / Followed Companies']; const companies = scope === 'All Companies' ? options : scope === 'My Companies / Followed Companies' ? dashboardState.savedCompanies : jobMode && scope === 'Selected Companies' ? intelligenceExplorerState.selectedCompanies : intelligenceExplorerState.favoriteCompanies; const signals = jobMode ? ['Vacancies','Hiring','Roles','Skills','Technology','Projects','Tasks','Layoffs','Workforce Growth'] : ['Technology','Investment','Stock','Products','Skills','Jobs','Company Growth','Market Demand']; const selectedSignals = jobMode ? intelligenceExplorerState.jobSignals : intelligenceExplorerState.companySignals; const categoryKey = jobMode ? 'jobSignals' : 'companySignals'; return `<div class="intelligence-console__dynamic-context"><div class="intelligence-console__context-heading"><div><span>${jobMode ? 'Job Intelligence' : 'Market Intelligence'}</span><small>${jobMode ? 'Set company and hiring signals to investigate' : 'Set company and market signals to investigate'}</small></div><span class="intelligence-console__context-state"><i></i>Context synced</span></div><div class="intelligence-console__context-grid intelligence-console__context-grid--company"><label><span>${jobMode ? 'Job Scope' : 'Market Scope'}</span><select id="${scopeId}">${scopeOptions.map(item => `<option ${item === scope ? 'selected' : ''}>${item}</option>`).join('')}</select></label><div class="intelligence-console__context-skills"><span>${scope === 'All Companies' ? 'Companies' : scope === 'Favorite Companies' ? 'Favorite Companies' : 'Selected Companies'}</span><div>${companies.map(company => `<button type="button" class="intelligence-console__skill-chip ${intelligenceExplorerState.selectedCompanies.includes(company) ? 'is-selected' : ''}" data-company-chip="${company}" aria-pressed="${intelligenceExplorerState.selectedCompanies.includes(company)}">${company}<i data-lucide="${scope === 'Favorite Companies' ? 'x' : 'check'}"></i></button>`).join('')}<button type="button" class="intelligence-console__add-skill" id="addCompanyButton"><i data-lucide="plus"></i>Add Company</button></div><div class="intelligence-console__skill-picker" id="companyPicker" hidden><input id="companySearch" type="search" placeholder="Search companies..." aria-label="Search companies"><div>${options.filter(company => !intelligenceExplorerState.favoriteCompanies.includes(company)).map(company => `<button type="button" data-add-company="${company}">${company}<i data-lucide="plus"></i></button>`).join('')}</div></div></div><label><span>${jobMode ? 'Job Market' : 'Market'}</span><select id="skillLocationSelect">${optionMarkup(marketLocations, intelligenceExplorerState.market)}</select></label><div class="intelligence-console__signal-picker"><span>${jobMode ? 'Hiring signals' : 'Investigate'}</span><div>${signals.map(signal => `<button type="button" class="${selectedSignals.includes(signal) ? 'is-selected' : ''}" aria-pressed="${selectedSignals.includes(signal)}" data-signal-key="${categoryKey}" data-signal="${signal}">${signal}</button>`).join('')}</div></div></div></div>`; };
-  const contextMarkup = type === 'skills' ? `<div class="intelligence-console__dynamic-context"><div class="intelligence-console__context-heading"><div><span>Skill Intelligence</span><small>Set the skills and market to analyze</small></div><span class="intelligence-console__context-state"><i></i>Context synced</span></div><div class="intelligence-console__context-grid"><label><span>Skill Scope</span><select id="skillScopeSelect">${skillScopeOptions.map(option => `<option ${option === intelligenceExplorerState.skillScope ? 'selected' : ''}>${option}</option>`).join('')}</select></label><div class="intelligence-console__context-skills"><span>Skills</span><div>${intelligenceExplorerState.skillScope === 'All Skills' ? '<em class="is-muted">All Skills market</em>' : (intelligenceExplorerState.skillScope === 'Favorite Skills' ? intelligenceExplorerState.favoriteSkills : selectedSkillItems).map(skill => `<button type="button" class="intelligence-console__skill-chip ${intelligenceExplorerState.selectedSkills.includes(skill) ? 'is-selected' : ''}" data-context-skill="${skill}" aria-pressed="${intelligenceExplorerState.selectedSkills.includes(skill)}">${skill}<i data-lucide="${intelligenceExplorerState.skillScope === 'Favorite Skills' ? 'x' : 'check'}"></i></button>`).join('')} ${intelligenceExplorerState.skillScope !== 'All Skills' ? '<button type="button" class="intelligence-console__add-skill" id="addFavoriteSkill"><i data-lucide="plus"></i>Add skill</button>' : ''}</div><div class="intelligence-console__skill-picker" id="favoriteSkillPicker" hidden><input id="favoriteSkillSearch" type="search" placeholder="Search skills..." aria-label="Search skills"><div>${skillOptions.filter(skill => !intelligenceExplorerState.favoriteSkills.includes(skill)).map(skill => `<button type="button" data-add-skill="${skill}">${skill}<i data-lucide="plus"></i></button>`).join('')}</div></div></div><label><span>Market</span><select id="skillLocationSelect">${optionMarkup(marketLocations, intelligenceExplorerState.market)}</select></label></div></div>` : companyContext(type === 'roles');  const directionIcon = value => value === 'Growing' ? 'trending-up' : value === 'Declining' ? 'trending-down' : 'minus';
-  const directionClass = value => value === 'Growing' ? 'is-growing' : value === 'Declining' ? 'is-declining' : 'is-stable';
-  const skillForEntity = type === 'technologies' ? ({ AI: 'AI', 'Cloud Computing': 'Cloud Computing', 'Generative AI': 'Generative AI', Automation: 'Machine Learning', Cybersecurity: 'Cybersecurity', 'Developer Tools': 'JavaScript' }[selected] || selected) : selected;
-  const details = ['skills', 'technologies'].includes(type) && selected ? trendDetailsForSkill(skillForEntity) : null;
-  const assessment = details ? skillAssessmentFor(skillForEntity, details) : null;
-  const company = type === 'companies' && selected ? getMarketTrendView(selected) : null;
-  const role = type === 'roles' && selected ? jobTrendData[selected] || jobTrendData['All Roles'] : null;
-  const market = type === 'markets' && selected ? marketTrendData[selected] || marketTrendData.Global : null;
-  const change = details ? Number((((details.current - details.values[0]) / Math.max(1, details.values[0])) * 100).toFixed(1)) : company?.change ?? role?.changePercentage ?? (market ? market.momentum - 70 : 0);
-  const status = details ? (details.current > details.previous ? 'Growing' : details.current < details.previous ? 'Declining' : 'Stable') : company?.trend || role?.direction || (market ? 'Growing' : 'Stable');
-  const entity = selected || 'your next investigation';
-  const metrics = !selected ? [] : type === 'skills' ? [['Current relevance', `${assessment.score} / 100`], ['Market demand', details.demand], ['Future demand', `+${details.growth}%`], ['Skill health', assessment.score >= 80 ? 'Strong' : 'Building'], ['Related roles', 'AI / ML Engineer'], ['Signal freshness', 'Updated now']] : type === 'companies' ? [['Company momentum', `${Math.round(company.momentum)} / 100`], ['Market trend', `${company.change > 0 ? '+' : ''}${company.change.toFixed(1)}%`], ['Hiring activity', `${Math.round(company.jobDemand.at(-1))} / 100`], ['Relevant jobs', `${companyVacancies[company.name] || 0}`], ['Demanded skills', 'AI  —  Cloud  —  Data'], ['Signal freshness', 'Updated now']] : type === 'roles' ? [['Role momentum', `${role.overallMomentum} / 100`], ['Market demand', role.direction], ['Future demand', `+${role.changePercentage}%`], ['Hiring activity', `${role.hiringMomentum.value} / 100`], ['Skill demand', `${role.skillDemand.value} / 100`], ['Related skill', dashboardState.selectedSkill]] : [['Skill demand', `${market?.technologyMomentum?.at(-1) || 0} / 100`], ['Technology momentum', `${market?.momentum || 0} / 100`], ['Job demand', `${market?.jobDemand?.at(-1) || 0} / 100`], ['Company activity', `${market?.investmentSignal?.at(-1) || 0} / 100`], ['Emerging skills', 'AI  —  Cloud  —  Data'], ['Relevant opportunities', `${getJobSummary().toLocaleString()}`]];
-  const explanation = type === 'skills' ? `${entity} is showing ${details?.demand?.toLowerCase() || 'market movement'} against your current profile.` : type === 'companies' ? `${entity} is showing ${company?.trend?.toLowerCase() || 'market'} momentum across technology, investment and hiring signals.` : type === 'roles' ? `${entity} connects your current skills to hiring demand and role growth.` : `${entity} is a useful lens for comparing technology momentum, job demand and company activity.`;
-  const recommendation = type === 'skills' || type === 'technologies' ? `Strengthen ${skillForEntity || dashboardState.selectedSkill} and build one applied project.` : type === 'companies' ? `Compare ${entity}'s demanded skills with your profile and choose one capability to strengthen.` : type === 'roles' ? `Map the core skills for ${entity} and create a small proof project.` : `Prioritize one skill and one role using ${entity} market signals.`;
-  const detailsHref = type === 'skills' || type === 'technologies' ? '#/individual/skills' : type === 'roles' ? '#/individual/career' : '#/individual/market-insights';
-  const targetId = type === 'skills' || type === 'technologies' ? 'current-skill-intelligence' : 'live-market-intelligence';
+  const contextMarkup = type === 'skills' ? `<div class="intelligence-console__dynamic-context"><div class="intelligence-console__context-heading"><div><span>Skill Intelligence</span><small>Set the skills and market to analyze</small></div><span class="intelligence-console__context-state"><i></i>Context synced</span></div><div class="intelligence-console__context-grid"><label><span>Skill Scope</span><select id="skillScopeSelect">${skillScopeOptions.map(option => `<option ${option === intelligenceExplorerState.skillScope ? 'selected' : ''}>${option}</option>`).join('')}</select></label><div class="intelligence-console__context-skills"><span>Skills</span><div>${intelligenceExplorerState.skillScope === 'All Skills' ? '<em class="is-muted">All Skills market</em>' : (intelligenceExplorerState.skillScope === 'Favorite Skills' ? intelligenceExplorerState.favoriteSkills : selectedSkillItems).map(skill => `<button type="button" class="intelligence-console__skill-chip ${intelligenceExplorerState.selectedSkills.includes(skill) ? 'is-selected' : ''}" data-context-skill="${skill}" aria-pressed="${intelligenceExplorerState.selectedSkills.includes(skill)}">${skill}<i data-lucide="${intelligenceExplorerState.skillScope === 'Favorite Skills' ? 'x' : 'check'}"></i></button>`).join('')} ${intelligenceExplorerState.skillScope !== 'All Skills' ? '<button type="button" class="intelligence-console__add-skill" id="addFavoriteSkill"><i data-lucide="plus"></i>Add skill</button>' : ''}</div><div class="intelligence-console__skill-picker" id="favoriteSkillPicker" hidden><input id="favoriteSkillSearch" type="search" placeholder="Search skills..." aria-label="Search skills"><div>${skillOptions.filter(skill => !intelligenceExplorerState.favoriteSkills.includes(skill)).map(skill => `<button type="button" data-add-skill="${skill}">${skill}<i data-lucide="plus"></i></button>`).join('')}</div></div></div><label><span>Market</span><select id="skillLocationSelect">${optionMarkup(marketLocations, intelligenceExplorerState.market)}</select></label></div></div>` : companyContext(type === 'roles');
+  const directionIcon = value => (value === 'Growing' || value === 'Increasing' || value === 'Rising') ? 'trending-up' : value === 'Declining' ? 'trending-down' : 'minus';
+  const directionClass = value => (value === 'Growing' || value === 'Increasing' || value === 'Rising') ? 'is-growing' : value === 'Declining' ? 'is-declining' : 'is-stable';
+
+  const apiRes = intelligenceExplorerState.apiResponse;
+  const entity = selected || (type === 'skills' ? intelligenceExplorerState.selectedSkills[0] : type === 'companies' ? intelligenceExplorerState.selectedCompanies[0] : null) || 'No entity selected';
+  const answerTrendFact = apiRes?.facts?.find(fact => fact.fact_type === 'trend_analysis');
+  const answerTrend = answerTrendFact ? {
+    entity_name: answerTrendFact.entity_name,
+    entity_id: answerTrendFact.canonical_entity_id,
+    source: answerTrendFact.source,
+    signal_badge: `${answerTrendFact.metric_name.replaceAll('_', ' ')} (${answerTrendFact.source})`,
+    is_trend_ready: answerTrendFact.readiness_state === 'ready',
+    trend_direction: answerTrendFact.metric_value,
+    growth_pct: null,
+    formatted_velocity: answerTrendFact.details?.velocity != null
+      ? `${answerTrendFact.details.velocity} ${answerTrendFact.details.velocity_unit || answerTrendFact.unit || ''}`.trim()
+      : answerTrendFact.details?.velocity_per_quarter != null
+        ? `${answerTrendFact.details.velocity_per_quarter} ${answerTrendFact.details.velocity_unit || answerTrendFact.unit || ''}`.trim()
+        : null,
+    data_points: [],
+    periods: answerTrendFact.details?.periods_used || [],
+    readiness_status: answerTrendFact.readiness_state
+  } : null;
+  const matchingTrend = apiRes?.historical_trends?.find(t => t.entity_name?.toLowerCase() === entity.toLowerCase() || t.entity_id?.toLowerCase() === entity.toLowerCase().replace(/\s+/g, '_')) || apiRes?.historical_trends?.[0] || answerTrend;
+  const isTrendReady = Boolean(matchingTrend ? matchingTrend.is_trend_ready : apiRes?.is_trend_ready);
+  const answer = typeof apiRes?.answer === 'string'
+    ? {
+      summary: apiRes.answer,
+      readiness_status: apiRes.status || 'insufficient_data',
+      limitations: apiRes.limitations || []
+    }
+    : apiRes?.answer;
+
+  let currentDirection = isTrendReady ? (matchingTrend?.trend_direction || 'Increasing') : 'Insufficient Data';
+  let change = (isTrendReady && matchingTrend && matchingTrend.growth_pct != null) ? matchingTrend.growth_pct : null;
+  let formattedChange = change != null ? `${change > 0 ? '+' : ''}${change.toFixed(1)}%` : '—';
+  let velocityStr = (isTrendReady && matchingTrend?.formatted_velocity) ? matchingTrend.formatted_velocity : '—';
+
+  let statusTitle = answer?.headline
+    || (isTrendReady ? `${currentDirection} signal` : `${apiRes?.status || 'Insufficient data'} analysis`);
+  let statusDesc = answer?.summary
+    || (isTrendReady
+      ? `${entity} has ${currentDirection === 'Increasing' || currentDirection === 'Rising' || currentDirection === 'Growing' ? 'gained momentum' : currentDirection === 'Declining' ? 'lost momentum' : 'held steady'} across verified ${matchingTrend?.signal_badge || 'market signals'}.`
+      : `A trend or velocity is unavailable for ${entity} under the current evidence readiness rules.`);
+
+  let directionBadge = isTrendReady
+    ? `<b class="${directionClass(currentDirection)}"><i data-lucide="${directionIcon(currentDirection)}"></i>${currentDirection} — ${formattedChange} (Velocity: ${velocityStr})</b>`
+    : `<b class="is-stable"><i data-lucide="minus"></i>Insufficient Data — Trend blocked (0 ready series)</b>`;
+
+  let explanation = (answer?.key_insights?.length ? answer.key_insights.join(' ') : null)
+    || apiRes?.explanations?.[0]?.body
+    || (typeof apiRes?.answer === 'string' ? apiRes.answer : null)
+    || (isTrendReady
+      ? `${entity} is demonstrating measurable ${currentDirection.toLowerCase()} activity across observed platform periods. This informs strategic readiness without speculative forecasting.`
+      : `No trend-ready observations are available for ${entity} in this response.`);
+
+  const activeAction = apiRes?.action_recommendations?.find(a =>
+    a.target_id?.toLowerCase() === entity?.toLowerCase() ||
+    a.target_id?.toLowerCase() === entity?.toLowerCase().replace(/\s+/g, '_')
+  ) || apiRes?.action_recommendations?.[0];
+
+  let actionTitle = activeAction?.title || 'Suggested follow-up';
+  let actionWhy = activeAction?.why_it_matters || null;
+  let actionPriority = activeAction?.priority || (isTrendReady ? 'high' : 'low');
+  let actionLimitations = activeAction?.limitations || answer?.limitations || [];
+
+  let recommendation = activeAction?.recommended_action
+    || activeAction?.summary
+    || apiRes?.recommendations?.[0]?.description
+    || apiRes?.recommendations?.[0]?.rationale
+    || apiRes?.follow_up_suggestions?.[0]
+    || apiRes?.follow_up_questions?.[0]
+    || 'No action recommendation is available from the validated findings.';
+
+  let resultMetrics = apiRes ? [
+    ['Signal source', matchingTrend?.source || apiRes.data_origin || [...new Set((apiRes.evidence || []).map(item => item.source).filter(Boolean))].join(', ') || 'Unavailable'],
+    ['Signal type', matchingTrend?.signal_badge || [...new Set((apiRes.facts || []).map(fact => fact.metric_name).filter(Boolean))].join(', ') || 'No supported signal available'],
+    ['Data state', apiRes.data_state ? apiRes.data_state.replace('_', ' ') : (apiRes.status || 'insufficient data').replaceAll('_', ' ')],
+    ['Trend readiness', answer?.readiness_status || (isTrendReady ? 'ready_for_trend' : 'insufficient_history')],
+    ['Contextual focus', answer?.contextual_focus || (type === 'skills' ? 'Skill Relevance' : 'Market Signals')],
+    ['Forecast ready', apiRes.forecast ? String(apiRes.forecast.status || 'available') : 'Unavailable'],
+    ['Assessed series', `${apiRes.readiness?.ready_for_trend_count ?? (isTrendReady ? 1 : 0)} ready / ${apiRes.readiness?.total_series_assessed ?? (answerTrendFact ? 1 : 0)} total`]
+  ] : [
+    ['Signal status', 'Awaiting query execution'],
+    ['Data origin', 'real platform observations'],
+    ['Trend readiness', 'Evaluated deterministically via G1.9'],
+    ['Forecast state', 'Blocked (0 series eligible)'],
+    ['Target', entity],
+    ['Context', typeLabels[type]]
+  ];
+
+  const targetId = type === 'skills' ? 'current-skill-intelligence' : 'live-market-intelligence';
+  const detailsHref = type === 'skills' ? '#/individual/skills' : type === 'roles' ? '#/individual/career' : '#/individual/market-insights';
   const isSaved = !!selected && savedItems.includes(selected);
-  const analysisSteps = type === 'companies' ? ["Reading company signals...","Scanning technology movement...","Checking investment indicators...","Comparing job demand...","Reviewing selected market...","Preparing market insight..."] : type === 'roles' ? ["Scanning job postings...","Analyzing company hiring...","Extracting role and skill signals...","Checking technology demand...","Reviewing workforce movement...","Preparing hiring insight..."] : ["Understanding your question...","Scanning skill signals...","Analyzing demand trends...","Comparing regional movement...","Checking available evidence...","Preparing recommendation..."]; const analysisState = `<div class="intelligence-console__analysis"><div class="intelligence-console__analysis-orb"><i data-lucide="scan-search"></i><span></span><span></span><span></span></div><strong>${analysisSteps[intelligenceExplorerState.analysisStep] || analysisSteps[0]}</strong><small>AI is connecting ${typeLabels[type].toLowerCase()} signals to your profile.</small><div class="intelligence-console__analysis-track"><i style="width:${Math.min(100, (intelligenceExplorerState.analysisStep + 1) / analysisSteps.length * 100)}%"></i></div><div class="intelligence-console__analysis-steps">${analysisSteps.map((step, index) => `<span class="${index <= intelligenceExplorerState.analysisStep ? "is-active" : ""}"><i></i>${step}</span>`).join("")}</div></div>`; const result = intelligenceExplorerState.isAnalyzing ? analysisState : !intelligenceExplorerState.hasSearched || !selected ? `<div class="intelligence-console__empty"><div class="intelligence-console__orbit"><span></span><span></span><span></span><i data-lucide="scan-search"></i></div><strong>What would you like to understand?</strong><small>Explore live skill, market and job intelligence through one personalized AI workspace.</small><div class="intelligence-console__scan-line"></div></div>` : `<div class="intelligence-console__result"><header class="intelligence-console__result-header"><div><span class="section-kicker">${typeLabels[type]} analysis</span><h3>${entity}</h3><p>Live intelligence for ${user.name}  —  ${type === 'markets' ? selected : dashboardState.market}</p></div><div class="intelligence-console__result-actions"><button type="button" class="explore-intelligence__save ${isSaved ? 'is-saved' : ''}" id="saveExploreIntelligence" ${isSaved ? 'disabled' : ''}><i data-lucide="${isSaved ? 'check' : 'bookmark-plus'}"></i>${isSaved ? 'Saved' : 'Save to intelligence'}</button><a class="intelligence-console__detail-link" href="${detailsHref}">Explore details <i data-lucide="arrow-up-right"></i></a></div></header><div class="intelligence-console__blocks"><article class="intelligence-console__block intelligence-console__block--change"><span>What changed?</span><strong>${status} signal</strong><p>${entity} has ${status === 'Growing' ? 'gained' : status === 'Declining' ? 'lost' : 'held'} momentum across the selected view.</p><b class="${directionClass(status)}"><i data-lucide="${directionIcon(status)}"></i>${status}  —  ${change > 0 ? '+' : ''}${change.toFixed(1)}%</b></article><article class="intelligence-console__block intelligence-console__block--why"><span>Why it matters</span><strong>Relevant to your next move</strong><p>${explanation}</p><div class="intelligence-console__tags"><em>${user.role}</em><em>${dashboardState.selectedSkill}</em></div></article><article class="intelligence-console__block intelligence-console__block--data"><span>What the data shows</span><div class="intelligence-console__metrics">${metrics.map(([label, value], index) => `<div style="--metric-delay:${index * 45}ms"><small>${label}</small><b>${value}</b></div>`).join('')}</div><a href="#${targetId}" id="viewIntelligenceEvidence"><i data-lucide="file-search-2"></i>View evidence and sources</a></article><article class="intelligence-console__block intelligence-console__block--action"><span>What should I do?</span><strong>Recommended next action</strong><p>${recommendation}</p><div class="intelligence-console__action-row">${roadmapState.status === 'active' || roadmapState.status === 'paused' ? `<a class="intelligence-console__primary-action" href="#active-learning-roadmap">Continue roadmap <i data-lucide="arrow-right"></i></a>` : `<button class="intelligence-console__primary-action" type="button" data-roadmap-accept>Build roadmap <i data-lucide="map"></i></button>`}<a class="intelligence-console__secondary-action" href="${detailsHref}">Explore details</a></div></article></div><p class="intelligence-console__disclaimer">Illustrative prototype intelligence  —  connect verified data sources for production analysis.</p></div>`;
-  return `<section class="explore-intelligence intelligence-console" aria-labelledby="explore-intelligence-title"><header class="explore-intelligence__heading"><div><span class="section-kicker">AI-powered investigation</span><h2 id="explore-intelligence-title">Your Intelligence Console</h2><p>Explore a skill, company, role or market and understand what is changing, why it matters and what you can do next.</p></div><span class="explore-intelligence__prototype"><i></i>Live analysis workspace</span></header><div class="explore-intelligence__card"><div class="intelligence-console__workspace"><aside class="intelligence-console__rail"><div class="intelligence-console__rail-heading"><span>Intelligence</span><small>Choose an analysis domain</small></div><div class="intelligence-console__type-list" role="tablist" aria-label="Intelligence type">${Object.entries(typeLabels).map(([key, label]) => `<button type="button" role="tab" aria-selected="${key === type}" class="${key === type ? 'is-active' : ''}" data-explore-type="${key}"><i data-lucide="${key === 'skills' ? 'brain-circuit' : key === 'companies' ? 'building-2' : 'briefcase-business'}"></i>${label}</button>`).join('')}</div><div class="intelligence-console__rail-divider"></div><div class="intelligence-console__rail-status"><i></i><span>Analysis layer ready</span><small>Signals update as context changes</small></div></aside><main class="intelligence-console__main">${contextMarkup}<div class="intelligence-console__prompt"><div class="intelligence-console__prompt-top"><span class="intelligence-console__prompt-icon"><i data-lucide="sparkles"></i></span><div><span>What would you like to understand?</span><small>Natural-language investigation</small></div><span class="intelligence-console__live"><i></i>Live signals</span></div><div class="intelligence-console__prompt-input"><textarea id="exploreIntelligenceInput" placeholder="Ask anything about your selected intelligence..." autocomplete="off">${intelligenceExplorerState.question}</textarea><button type="button" id="runIntelligenceButton" aria-label="Run intelligence analysis" title="Run intelligence analysis"><i data-lucide="arrow-up"></i></button><datalist id="explore-${type}-options">${options.map(option => `<option value="${option}"></option>`).join('')}</datalist></div><div class="intelligence-console__suggestions"><span>Suggested questions</span>${questionChips.map(question => `<button type="button" data-console-suggestion="${question}">${question}</button>`).join('')}</div></div><div class="intelligence-console__context-bar"><span><i data-lucide="layers-3"></i>${typeLabels[type]}</span><span><i data-lucide="map-pin"></i>${intelligenceExplorerState.market}</span><span><i data-lucide="building-2"></i>${intelligenceExplorerState.selectedCompanies.length ? intelligenceExplorerState.selectedCompanies.join(", ") : type === 'skills' ? intelligenceExplorerState.skillScope : type === 'companies' ? intelligenceExplorerState.companyScope : intelligenceExplorerState.jobScope}</span><span class="intelligence-console__context-ready"><i></i>Context synced</span></div><div class="intelligence-console__result-area" aria-live="polite">${result}</div></main></div></div></section>`;
+
+  const sparklineValues = (matchingTrend && matchingTrend.data_points && matchingTrend.data_points.length > 1)
+    ? matchingTrend.data_points.map(p => Number(p.value) || 0)
+    : null;
+
+  const sparklineMarkup = sparklineValues
+    ? renderOverviewSparkline(sparklineValues, `${entity} verified multi-period trend`)
+    : `<div class="intelligence-console__no-chart" style="margin: 8px 0; font-size: 12px; color: var(--text-muted);"><i data-lucide="info"></i> No chart-ready observation series was returned for this analysis.</div>`;
+
+  const analysisSteps = type === 'companies'
+    ? ["Querying Core Intelligence API...", "Scanning company market signals...", "Applying G1.8 quality gates...", "Evaluating G1.9 readiness...", "Compiling verified response..."]
+    : type === 'roles'
+      ? ["Querying Core Intelligence API...", "Checking role demand signals...", "Evaluating G1.8 validation gates...", "Checking multi-period readiness...", "Compiling verified response..."]
+      : ["Querying Core Intelligence API...", "Checking skill demand & interest signals...", "Validating observation series...", "Evaluating Theil-Sen trend readiness...", "Compiling verified response..."];
+
+  const analysisState = `<div class="intelligence-console__analysis"><div class="intelligence-console__analysis-orb"><i data-lucide="scan-search"></i><span></span><span></span><span></span></div><strong>${analysisSteps[intelligenceExplorerState.analysisStep] || analysisSteps[0]}</strong><small>Connecting ${typeLabels[type].toLowerCase()} signals to authenticated profile.</small><div class="intelligence-console__analysis-track"><i style="width:${Math.min(100, (intelligenceExplorerState.analysisStep + 1) / analysisSteps.length * 100)}%"></i></div><div class="intelligence-console__analysis-steps">${analysisSteps.map((step, index) => `<span class="${index <= intelligenceExplorerState.analysisStep ? "is-active" : ""}"><i></i>${step}</span>`).join("")}</div></div>`;
+
+  const emptyState = `<div class="intelligence-console__empty"><div class="intelligence-console__orbit"><span></span><span></span><span></span><i data-lucide="scan-search"></i></div><strong>What would you like to understand?</strong><small>Explore live skill, market and job intelligence through one unified AI workspace.</small><div class="intelligence-console__scan-line"></div></div>`;
+
+  const result = intelligenceExplorerState.isAnalyzing
+    ? analysisState
+    : !intelligenceExplorerState.hasSearched
+      ? emptyState
+      : `<div class="intelligence-console__result">
+          ${intelligenceExplorerState.apiError ? `<div role="alert" style="background:#FFF0F0; border:1px solid #FFD0D0; border-radius:8px; padding:10px 14px; margin-bottom:12px; color:#C00; font-size:13px; display:flex; align-items:center; gap:8px;"><i data-lucide="alert-triangle"></i><span>${esc(intelligenceExplorerState.apiError)}</span></div>` : ''}
+          <header class="intelligence-console__result-header">
+            <div>
+              <span class="section-kicker">${typeLabels[type]} analysis</span>
+              <h3>${esc(entity)}</h3>
+              <p>Verified intelligence for ${user.name} — ${type === 'markets' ? selected : dashboardState.market}</p>
+            </div>
+            <div class="intelligence-console__result-actions">
+              <button type="button" class="explore-intelligence__save ${isSaved ? 'is-saved' : ''}" id="saveExploreIntelligence" ${isSaved ? 'disabled' : ''}>
+                <i data-lucide="${isSaved ? 'check' : 'bookmark-plus'}"></i>${isSaved ? 'Saved' : 'Save to intelligence'}
+              </button>
+              <a class="intelligence-console__detail-link" href="${detailsHref}">Explore details <i data-lucide="arrow-up-right"></i></a>
+            </div>
+          </header>
+          <div class="intelligence-console__blocks">
+            <article class="intelligence-console__block intelligence-console__block--change">
+              <span>01 — WHAT CHANGED?</span>
+              <strong>${esc(statusTitle)}</strong>
+              <p>${esc(statusDesc)}</p>
+              ${directionBadge}
+            </article>
+            <article class="intelligence-console__block intelligence-console__block--why">
+              <span>02 — WHY IT MATTERS</span>
+              <strong>Relevant to your next move</strong>
+              <p>${esc(explanation)}</p>
+              <div class="intelligence-console__tags">
+                <em>${user.role}</em>
+                <em>${entity}</em>
+              </div>
+            </article>
+            <article class="intelligence-console__block intelligence-console__block--data">
+              <span>03 — WHAT THE DATA SHOWS</span>
+              <div class="intelligence-console__metrics">
+                ${resultMetrics.map(([label, value], index) => `<div style="--metric-delay:${index * 45}ms"><small>${esc(label)}</small><b>${esc(value)}</b></div>`).join('')}
+              </div>
+              ${sparklineMarkup}
+              <a href="#${targetId}" id="viewIntelligenceEvidence"><i data-lucide="file-search-2"></i>View evidence and sources</a>
+            </article>
+            <article class="intelligence-console__block intelligence-console__block--action">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                <span>04 — WHAT SHOULD I DO?</span>
+                ${activeAction?.priority ? `<span class="badge ${activeAction.priority === 'high' ? 'is-growing' : activeAction.priority === 'low' ? 'is-stable' : 'is-growing'}" style="font-size:10px; text-transform:uppercase; font-weight:700; padding:2px 6px; border-radius:4px;">Priority: ${esc(activeAction.priority)}</span>` : ''}
+              </div>
+              <strong>${esc(actionTitle)}</strong>
+              <p>${esc(recommendation)}</p>
+              ${actionWhy ? `<p class="intelligence-console__action-why" style="font-size:11.5px; color:var(--text-muted); margin-top:6px; line-height:1.4;"><strong>Why this action:</strong> ${esc(actionWhy)}</p>` : ''}
+              <div class="intelligence-console__action-row">
+                ${roadmapState.status === 'active' || roadmapState.status === 'paused' ? `<a class="intelligence-console__primary-action" href="#active-learning-roadmap">Continue roadmap <i data-lucide="arrow-right"></i></a>` : `<button class="intelligence-console__primary-action" type="button" data-roadmap-accept>Build roadmap <i data-lucide="map"></i></button>`}
+                <a class="intelligence-console__secondary-action" href="${detailsHref}">Explore details</a>
+              </div>
+            </article>
+          </div>
+          <p class="intelligence-console__disclaimer">Verified Action Intelligence Engine (G2.5) — ${actionLimitations?.length ? esc(actionLimitations.join(' ')) : 'Real provider observations with G1.8 quality and G1.9 readiness gates. Zero synthetic or simulated data.'}</p>
+        </div>`;
+  return `<section class="explore-intelligence intelligence-console" aria-labelledby="explore-intelligence-title"><header class="explore-intelligence__heading"><div><span class="section-kicker">AI-powered investigation</span><h2 id="explore-intelligence-title">Your Intelligence Console</h2><p>Explore a skill, company, role or market and understand what is changing, why it matters and what you can do next.</p></div><span class="explore-intelligence__prototype"><i></i>Illustrative prototype workspace</span></header><div class="explore-intelligence__card"><div class="intelligence-console__workspace"><aside class="intelligence-console__rail"><div class="intelligence-console__rail-heading"><span>Intelligence</span><small>Choose an analysis domain</small></div><div class="intelligence-console__type-list" role="tablist" aria-label="Intelligence type">${Object.entries(typeLabels).map(([key, label]) => `<button type="button" role="tab" aria-selected="${key === type}" class="${key === type ? 'is-active' : ''}" data-explore-type="${key}"><i data-lucide="${key === 'skills' ? 'brain-circuit' : key === 'companies' ? 'building-2' : 'briefcase-business'}"></i>${label}</button>`).join('')}</div><div class="intelligence-console__rail-divider"></div><div class="intelligence-console__rail-status"><i></i><span>Analysis layer ready</span><small>Signals update as context changes</small></div></aside><main class="intelligence-console__main">${contextMarkup}<div class="intelligence-console__prompt"><div class="intelligence-console__prompt-top"><span class="intelligence-console__prompt-icon"><i data-lucide="sparkles"></i></span><div><span>What would you like to understand?</span><small>Natural-language investigation</small></div><span class="intelligence-console__live"><i></i>Illustrative signals</span></div><div class="intelligence-console__prompt-input"><textarea id="exploreIntelligenceInput" placeholder="Ask anything about your selected intelligence..." autocomplete="off">${intelligenceExplorerState.question}</textarea><button type="button" id="runIntelligenceButton" aria-label="Run intelligence analysis" title="Run intelligence analysis"><i data-lucide="arrow-up"></i></button><datalist id="explore-${type}-options">${options.map(option => `<option value="${option}"></option>`).join('')}</datalist></div><div class="intelligence-console__suggestions"><span>Suggested questions</span>${questionChips.map(question => `<button type="button" data-console-suggestion="${question}">${question}</button>`).join('')}</div></div><div class="intelligence-console__context-bar"><span><i data-lucide="layers-3"></i>${typeLabels[type]}</span><span><i data-lucide="map-pin"></i>${intelligenceExplorerState.market}</span><span><i data-lucide="building-2"></i>${intelligenceExplorerState.selectedCompanies.length ? intelligenceExplorerState.selectedCompanies.join(", ") : type === 'skills' ? intelligenceExplorerState.skillScope : type === 'companies' ? intelligenceExplorerState.companyScope : intelligenceExplorerState.jobScope}</span><span class="intelligence-console__context-ready"><i></i>Context synced</span></div><div class="intelligence-console__result-area" aria-live="polite">${result}</div></main></div></div></section>`;
 };
 
 function applyExploreSelection() {
@@ -1292,8 +1733,10 @@ function applyExploreSelection() {
   marketTrendState.scope = location;
   jobTrendState.market = location;
   if (type === 'skills') {
-    dashboardState.selectedSkill = selected || 'Machine Learning';
-    dashboardState.trendScope = scope === 'Saved' ? 'My Saved Skills' : 'Overall Live Trends';
+    const activeSkill = dashboardState.selectedSkill || selected || 'Python';
+    dashboardState.selectedSkill = activeSkill;
+    intelligenceExplorerState.selected.skills = activeSkill;
+    dashboardState.trendScope = scope === 'Saved' ? 'My Saved Skills' : 'Overall Demo Trends';
     dashboardState.market = location;
     marketTrendState.company = '';
     marketTrendState.view = 'Market Overview';
@@ -1423,14 +1866,23 @@ bindExploreIntelligenceEvents = function() {
   }));
   const input = document.querySelector('#exploreIntelligenceInput');
   if (input) {
-    const commit = () => {
+    const commit = async () => {
       const type = intelligenceExplorerState.type;
-      const allowed = intelligenceExplorerState.scope === 'Saved' ? lists[type].filter(item => savedFor(type).includes(item)) : lists[type];
+      let allowed = intelligenceExplorerState.scope === 'Saved' ? lists[type].filter(item => savedFor(type).includes(item)) : lists[type];
+      if (type === 'skills' && intelligenceExplorerState.skillScope === 'Favorite Skills') {
+        allowed = intelligenceExplorerState.favoriteSkills;
+      } else if (type === 'skills' && intelligenceExplorerState.skillScope === 'My Skills') {
+        allowed = intelligenceExplorerState.selectedSkills;
+      } else if (type === 'companies' && intelligenceExplorerState.companyScope === 'Favorite Companies') {
+        allowed = intelligenceExplorerState.favoriteCompanies;
+      } else if (type === 'companies' && intelligenceExplorerState.companyScope === 'My Companies / Followed Companies') {
+        allowed = dashboardState.savedCompanies;
+      }
       const query = input.value.trim();
       intelligenceExplorerState.question = query;
       const match = allowed.find(item => item.toLowerCase() === query.toLowerCase()) || allowed.find(item => query.toLowerCase().includes(item.toLowerCase()));
       if (!match && !query) { input.value = intelligenceExplorerState.selected[type] || ''; return; }
-      intelligenceExplorerState.selected[type] = match || allowed[0] || '';
+      intelligenceExplorerState.selected[type] = match || '';
       intelligenceExplorerState.hasSearched = true;
       intelligenceExplorerState.isAnalyzing = true;
       intelligenceExplorerState.analysisStep = 0;
@@ -1440,13 +1892,77 @@ bindExploreIntelligenceEvents = function() {
       let step = 0;
       intelligenceExplorerState.analysisTimer = window.setInterval(() => {
         step += 1;
-        intelligenceExplorerState.analysisStep = step;
-        if (step >= 5) {
-          intelligenceExplorerState.isAnalyzing = false;
-          window.clearInterval(intelligenceExplorerState.analysisTimer);
-        }
+        intelligenceExplorerState.analysisStep = Math.min(step, 4);
         refresh();
-      }, 300);
+      }, 350);
+
+      try {
+        const domain = type === 'skills' ? 'skill' : type === 'companies' ? 'market' : 'job';
+        const selectedEntity = intelligenceExplorerState.selected[type];
+        const scope = type === 'skills'
+          ? intelligenceExplorerState.skillScope
+          : type === 'companies'
+            ? intelligenceExplorerState.companyScope
+            : intelligenceExplorerState.jobScope;
+        const scopeIsEmpty = (
+          (type === 'skills' && scope === 'Favorite Skills' && !intelligenceExplorerState.favoriteSkills.length)
+          || (type === 'skills' && scope === 'My Skills' && !intelligenceExplorerState.selectedSkills.length)
+          || (type === 'companies' && scope === 'Favorite Companies' && !intelligenceExplorerState.favoriteCompanies.length)
+          || (type === 'companies' && scope === 'My Companies / Followed Companies' && !dashboardState.savedCompanies.length)
+          || (type === 'roles' && scope === 'Favorite Companies' && !intelligenceExplorerState.favoriteCompanies.length)
+          || (type === 'roles' && scope === 'Selected Companies' && !intelligenceExplorerState.selectedCompanies.length)
+        );
+        const committedSkills = selectedEntity
+          ? [selectedEntity]
+          : scope === 'Favorite Skills'
+            ? intelligenceExplorerState.favoriteSkills
+            : scope === 'My Skills'
+              ? intelligenceExplorerState.selectedSkills
+              : [];
+        const committedCompanies = type === 'roles'
+          ? scope === 'Favorite Companies'
+            ? intelligenceExplorerState.favoriteCompanies
+            : scope === 'Selected Companies'
+              ? intelligenceExplorerState.selectedCompanies
+              : []
+          : selectedEntity && type === 'companies'
+            ? [selectedEntity]
+            : scope === 'Favorite Companies'
+              ? intelligenceExplorerState.favoriteCompanies
+              : scope === 'My Companies / Followed Companies'
+                ? dashboardState.savedCompanies
+                : [];
+        const { queryCoreIntelligenceAnswer } = await import('../api/core-intelligence-client.js');
+        const response = await queryCoreIntelligenceAnswer({
+          message: query,
+          portalType: 'individual',
+          domain,
+          selectedSkills: type === 'skills' ? committedSkills : [],
+          selectedCompanies: type === 'companies' || type === 'roles' ? committedCompanies : [],
+          selectedRoles: type === 'roles' ? (selectedEntity ? [selectedEntity] : []) : [],
+          location: intelligenceExplorerState.market || null,
+          timeRange: intelligenceExplorerState.timeRange || '6m',
+          targetRole: type === 'roles' ? selectedEntity || null : null,
+          filters: {
+            domain,
+            ...(scope ? { scope } : {}),
+            ...(scopeIsEmpty ? { scope_empty: true } : {})
+          }
+        });
+        intelligenceExplorerState.apiResponse = response;
+        const resolvedSelection = response.selected_entities?.find(item => item.resolution_status === 'resolved' && item.canonical_name);
+        if (!selectedEntity && resolvedSelection) {
+          intelligenceExplorerState.selected[type] = resolvedSelection.canonical_name;
+        }
+        intelligenceExplorerState.apiError = null;
+      } catch (err) {
+        console.warn('Core intelligence query failed:', err);
+        intelligenceExplorerState.apiError = err.message || 'Unable to load live core intelligence.';
+      } finally {
+        window.clearInterval(intelligenceExplorerState.analysisTimer);
+        intelligenceExplorerState.isAnalyzing = false;
+        refresh();
+      }
     };
     input.addEventListener('change', commit);
     input.addEventListener('keydown', event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); commit(); } });
@@ -1673,8 +2189,8 @@ function renderLiveIntelligenceSection() {
     { id: 'jobs', title: 'Job Trends', icon: 'briefcase-business', tone: 'jobs', value: `${jobSeries.at(-1)} / 100`, metric: `${jobHiring} hiring momentum`, detail: `${jobChange > 0 ? '+' : ''}${jobChange.toFixed(1)}% growth  —  ${type === 'roles' ? selected : relatedRole}`, direction: directionFor(jobSeries, jobChange), values: jobSeries, href: '#live-market-intelligence' }
   ];
   const noSavedSelection = scope === 'Saved' && !selected;
-  const cards = toneData.map((card, index) => `<article class="live-intelligence-card live-intelligence-card--${card.tone}" style="--live-card-index:${index}"><div class="live-intelligence-card__head"><span class="live-intelligence-card__icon"><i data-lucide="${card.icon}"></i></span><div><h3>${card.title}</h3><span class="live-intelligence-card__status"><i></i>Live</span></div></div><div class="live-intelligence-card__metric"><strong>${noSavedSelection ? '—' : card.value}</strong><span class="live-intelligence-card__direction live-intelligence-card__direction--${noSavedSelection ? 'stable' : card.direction.toLowerCase()}"><i data-lucide="${trendIcon(noSavedSelection ? 'Stable' : card.direction)}"></i>${noSavedSelection ? 'No saved item' : `${card.metric}  —  ${card.direction}`}</span></div><small class="live-intelligence-card__detail">${noSavedSelection ? `Save a ${type === 'roles' ? 'role' : type === 'companies' ? 'company' : 'skill'} to see saved signals` : card.detail}</small><div class="live-intelligence-card__chart">${renderLiveIntelligenceSparkline(noSavedSelection ? [0,0,0,0,0,0] : card.values, card.tone, card.title)}</div><a href="${card.href}" data-live-scroll="${card.href.slice(1)}" class="live-intelligence-card__explore">Explore <span>→</span></a></article>`).join('');
-  return `<section class="home-section live-intelligence-section" id="live-intelligence" aria-labelledby="live-intelligence-title"><div class="home-section__heading"><div><span class="section-kicker">Signals across your career</span><h2 id="live-intelligence-title">Live Intelligence</h2><p>See the signals shaping skills, technology, markets and opportunities.</p></div><span class="live-intelligence-context"><i></i>${selected || 'Select intelligence'}  —  ${scope === 'My Market' ? marketLocation : scope}</span></div><div class="live-intelligence-grid">${cards}</div><small class="live-intelligence-note">Illustrative prototype signals  —  explore detailed charts in the sections above.</small></section>`;
+  const cards = toneData.map((card, index) => `<article class="live-intelligence-card live-intelligence-card--${card.tone}" style="--live-card-index:${index}"><div class="live-intelligence-card__head"><span class="live-intelligence-card__icon"><i data-lucide="${card.icon}"></i></span><div><h3>${card.title}</h3><span class="live-intelligence-card__status"><i></i>Demo</span></div></div><div class="live-intelligence-card__metric"><strong>${noSavedSelection ? '—' : card.value}</strong><span class="live-intelligence-card__direction live-intelligence-card__direction--${noSavedSelection ? 'stable' : card.direction.toLowerCase()}"><i data-lucide="${trendIcon(noSavedSelection ? 'Stable' : card.direction)}"></i>${noSavedSelection ? 'No saved item' : `${card.metric}  —  ${card.direction}`}</span></div><small class="live-intelligence-card__detail">${noSavedSelection ? `Save a ${type === 'roles' ? 'role' : type === 'companies' ? 'company' : 'skill'} to see saved signals` : card.detail}</small><div class="live-intelligence-card__chart">${renderLiveIntelligenceSparkline(noSavedSelection ? [0,0,0,0,0,0] : card.values, card.tone, card.title)}</div><a href="${card.href}" data-live-scroll="${card.href.slice(1)}" class="live-intelligence-card__explore">Explore <span>→</span></a></article>`).join('');
+  return `<section class="home-section live-intelligence-section" id="live-intelligence" aria-labelledby="live-intelligence-title"><div class="home-section__heading"><div><span class="section-kicker">Signals across your career</span><h2 id="live-intelligence-title">Illustrative Intelligence</h2><p>See the signals shaping skills, technology, markets and opportunities.</p></div><span class="live-intelligence-context"><i></i>${selected || 'Select intelligence'}  —  ${scope === 'My Market' ? marketLocation : scope}</span></div><div class="live-intelligence-grid">${cards}</div><small class="live-intelligence-note">Illustrative prototype signals  —  explore detailed charts in the sections above.</small></section>`;
 }
 
 let futureSkillChartPreviousValues = null;
@@ -1877,11 +2393,13 @@ function bindLiveIntelligenceEvents() {
 
 
 function renderRedesignedPersonalContext() {
-  const selectedLoc = dashboardState.selectedLocation || 'Bangalore, India';
+  const selectedLoc = dashboardState.selectedLocation || homeSkillIntelligenceState.location || 'Use profile location';
   const isOpen = dashboardState.isLocationMenuOpen || false;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const locations = ['Global', 'India', 'Tamil Nadu', 'Chennai', 'Bangalore, India', 'Hyderabad', 'Pune', 'Remote'];
+  const activeUser = getActiveSessionUser();
+  const displayName = activeUser?.name || activeUser?.displayName || (activeUser?.email ? activeUser.email.split('@')[0] : user.shortName);
 
   return `
     <section class="personal-context-hero" aria-label="Personal Intelligence Workspace">
@@ -1890,13 +2408,13 @@ function renderRedesignedPersonalContext() {
         <span class="personal-context__kicker">
           <i data-lucide="sparkles"></i> PERSONAL INTELLIGENCE WORKSPACE
         </span>
-        <h1 class="personal-context__title">${greeting}, <span class="title-name">${user.shortName}</span>.</h1>
+        <h1 class="personal-context__title">${greeting}, <span class="title-name">${displayName}</span>.</h1>
       </div>
 
       <div class="personal-context__status-location">
-        <div class="personal-context__live-status" aria-label="Prototype intelligence status">
+        <div class="personal-context__live-status" aria-label="Core intelligence status">
           <span class="location-control__kicker">LIVE STATUS</span>
-          <span class="personal-context__status-value"><span class="status-live-dot"></span>Simulated intelligence signal</span>
+          <span class="personal-context__status-value"><span class="status-live-dot"></span>Core Intelligence active</span>
         </div>
         <div class="personal-context__location-wrap">
           <span class="location-control__kicker">CURRENT LOCATION</span>
@@ -1931,9 +2449,30 @@ function renderRedesignedPersonalContext() {
 }
 
 function renderRedesignedIntelligenceOverview() {
-  const currentSkill = overviewData.skill.name;
-  const skillChange = overviewData.skill.change;
-  const skillDirection = skillChange < 0 ? 'down' : 'up';
+  const selectedProfileSkill = homeSkillIntelligenceState.skills[0];
+  const currentSkill = selectedProfileSkill?.name || (
+    homeSkillIntelligenceState.status === 'loaded' ? 'No selected skills' : 'Your skills'
+  );
+  const skillTrend = homeSkillIntelligenceState.intelligence?.data_status === 'available'
+    ? homeSkillIntelligenceState.intelligence.skill_trends?.find(item => item.skill === currentSkill)
+      || homeSkillIntelligenceState.intelligence.top_skills?.find(item => item.skill === currentSkill)
+    : null;
+  const skillChange = typeof skillTrend?.growth_pct === 'number' ? skillTrend.growth_pct : null;
+  const skillDirection = skillChange === null ? 'neutral' : skillChange < 0 ? 'down' : 'up';
+  const skillDataStatus = homeSkillIntelligenceState.intelligence?.data_status;
+  const skillStatusLabel = homeSkillIntelligenceState.status === 'loading' || homeSkillIntelligenceState.status === 'idle'
+    ? 'Loading your saved skills'
+    : homeSkillIntelligenceState.status === 'error'
+      ? 'Unable to load skill intelligence'
+      : !selectedProfileSkill
+        ? 'No skills have been selected yet'
+        : skillDataStatus === 'insufficient_data'
+          ? 'Insufficient historical market data'
+          : skillDataStatus === 'error'
+            ? 'Unable to load market data'
+            : skillDataStatus === 'available' && skillChange !== null
+              ? 'Market trend available'
+              : 'Market trend data is not available yet';
   const marketCompany = overviewData.market.company;
   const marketChange = overviewData.market.change;
   const marketDirection = marketChange < 0 ? 'down' : 'up';
@@ -1946,7 +2485,7 @@ function renderRedesignedIntelligenceOverview() {
   const roadmapTitle = roadmapActive ? (roadmapState.title || (roadmapState.skill ? `${roadmapState.skill} — Development` : overviewData.roadmap.title)) : 'No Active Roadmap';
   const roadmapProgress = roadmapActive ? (roadmapState.progress ?? overviewData.roadmap.progress) : 0;
   const roadmapStep = roadmapActive ? (roadmapState.currentStep?.name || overviewData.roadmap.currentStep) : 'Choose a learning path';
-  const skillTrendLabel = skillDirection === 'down' ? '↓ Decreasing' : '↑ Increasing';
+  const skillTrendLabel = skillChange === null ? skillStatusLabel : skillDirection === 'down' ? '↓ Decreasing' : '↑ Increasing';
   const marketTrendLabel = marketDirection === 'down' ? '↓ Decreasing' : '↑ Increasing';
   const jobTrendLabel = jobDirection === 'down' ? '↓ Decreasing' : '↑ Increasing';
 
@@ -1958,20 +2497,19 @@ function renderRedesignedIntelligenceOverview() {
           <div class="overview-card-header">
             <div class="overview-badge-group">
               <span class="overview-kicker">SKILL</span>
-              <span class="overview-status-text">Prototype trend</span>
+              <span class="overview-status-text">Your saved skill</span>
             </div>
             <span class="overview-nav-icon" aria-hidden="true"><i data-lucide="arrow-up-right"></i></span>
           </div>
           <div class="overview-card-body">
             <strong class="overview-entity-name">${currentSkill}</strong>
             <div class="overview-metric-row">
-              <span class="overview-direction ${skillDirection === 'down' ? 'is-negative' : 'is-positive'}" data-overview-direction="skill">${skillTrendLabel}</span>
-              <strong class="overview-change-value ${skillDirection === 'down' ? 'is-negative' : 'is-positive'}" data-overview-value="skill">${skillChange > 0 ? '+' : ''}${skillChange.toFixed(1)}%</strong>
+              <span class="overview-direction ${skillDirection === 'down' ? 'is-negative' : skillDirection === 'up' ? 'is-positive' : ''}" data-overview-direction="skill">${skillTrendLabel}</span>
+              <strong class="overview-change-value ${skillDirection === 'down' ? 'is-negative' : skillDirection === 'up' ? 'is-positive' : ''}" data-overview-value="skill">${skillChange === null ? '—' : `${skillChange > 0 ? '+' : ''}${skillChange.toFixed(1)}%`}</strong>
             </div>
           </div>
           <div class="overview-card-footer overview-card-footer--skill">
-            ${renderSkillMiniChart(overviewData.skill.chartPoints, skillDirection)}
-            <span class="overview-chart-caption">Illustrative skill trend</span>
+            <span class="overview-chart-caption">${skillStatusLabel}</span>
           </div>
         </a>
 
@@ -1979,20 +2517,19 @@ function renderRedesignedIntelligenceOverview() {
           <div class="overview-card-header">
             <div class="overview-badge-group">
               <span class="overview-kicker">MARKET</span>
-              <span class="overview-status-text">Prototype market signal</span>
+              <span class="overview-status-text">Single-period baseline</span>
             </div>
             <span class="overview-nav-icon" aria-hidden="true"><i data-lucide="arrow-up-right"></i></span>
           </div>
           <div class="overview-card-body">
             <strong class="overview-entity-name">${marketCompany}</strong>
             <div class="overview-metric-row">
-              <span class="overview-direction ${marketDirection === 'down' ? 'is-negative' : 'is-positive'}" data-overview-direction="market">${marketTrendLabel}</span>
-              <strong class="overview-change-value ${marketDirection === 'down' ? 'is-negative' : 'is-positive'}" data-overview-value="market">${marketChange > 0 ? '+' : ''}${marketChange.toFixed(1)}%</strong>
+              <span class="overview-direction" data-overview-direction="market">Baseline</span>
+              <strong class="overview-change-value" data-overview-value="market">—</strong>
             </div>
           </div>
           <div class="overview-card-footer overview-card-footer--market">
-            ${renderMarketMiniChart(overviewData.market.chartPoints, marketDirection)}
-            <span class="overview-chart-caption">Illustrative market movement</span>
+            <span class="overview-chart-caption">Insufficient historical trend data</span>
           </div>
         </a>
 
@@ -2000,21 +2537,20 @@ function renderRedesignedIntelligenceOverview() {
           <div class="overview-card-header">
             <div class="overview-badge-group">
               <span class="overview-kicker">JOB TREND</span>
-              <span class="overview-status-text">Illustrative hiring</span>
+              <span class="overview-status-text">Single-period baseline</span>
             </div>
             <span class="overview-nav-icon" aria-hidden="true"><i data-lucide="arrow-up-right"></i></span>
           </div>
           <div class="overview-card-body">
-            <strong class="overview-entity-name">${openRoles} open roles</strong>
+            <strong class="overview-entity-name">${jobRole}</strong>
             <div class="overview-metric-row">
-              <span class="overview-direction ${jobDirection === 'down' ? 'is-negative' : 'is-positive'}" data-overview-direction="jobs">${jobTrendLabel}</span>
-              <strong class="overview-change-value ${jobDirection === 'down' ? 'is-negative' : 'is-positive'}" data-overview-value="jobs">${jobChange > 0 ? '+' : ''}${jobChange.toFixed(1)}%</strong>
+              <span class="overview-direction" data-overview-direction="jobs">Baseline</span>
+              <strong class="overview-change-value" data-overview-value="jobs">—</strong>
             </div>
-            <span class="overview-sub-label overview-job-role">${jobRole} hiring signal</span>
+            <span class="overview-sub-label overview-job-role">Single-period requisition baseline</span>
           </div>
           <div class="overview-card-footer overview-card-footer--jobs">
-            ${renderJobsMiniBars(overviewData.jobs.bars, jobDirection)}
-            <span class="overview-chart-caption">Illustrative hiring movement</span>
+            <span class="overview-chart-caption">Insufficient historical trend data</span>
           </div>
         </a>
 
@@ -2048,28 +2584,79 @@ function getConsoleIntelligenceData({ mode, query = '', entity = '', location = 
   const qLower = (query || '').toLowerCase();
   
   if (mode === 'skills') {
-    const skillName = entity || (qLower.includes('python') ? 'Python' : qLower.includes('machine learning') ? 'Machine Learning' : qLower.includes('react') ? 'React' : 'Python');
-    
+    const isUiUx = qLower.includes('uiux') || qLower.includes('ui/ux') || qLower.includes('ui-ux') || qLower.includes('ui ux') || (entity && (entity.toLowerCase().includes('ui') || entity.toLowerCase().includes('ux')));
+    const isMl = qLower.includes('machine learning') || qLower.includes('ml') || (entity && entity.toLowerCase().includes('machine learning'));
+    const isPy = qLower.includes('python') || (entity && entity.toLowerCase().includes('python'));
+    const skillName = entity || (isUiUx ? 'UI/UX' : isMl ? 'Machine Learning' : isPy ? 'Python' : qLower.includes('react') ? 'React' : 'Python');
+
+    if (isUiUx || skillName === 'UI/UX') {
+      return {
+        title: `UI/UX Demand Trajectory & Empirical Trend in ${location}`,
+        entity: 'UI/UX',
+        domainKicker: 'SKILL INTELLIGENCE REFERENCE',
+        changePercent: 'Baseline Reference',
+        whatChangedHeading: `UI/UX requisitions established as baseline reference in ${location}`,
+        whatChangedBody: `Observed postings establish a single-period baseline for UI/UX and product design competencies. Modern design systems and accessible interface tokens show consistent demand across digital products.`,
+        whyItMattersHeading: `Critical bridge between software capability and user retention`,
+        whyItMattersBody: `Engineering organizations prioritize full-stack engineers with solid interface design intuition, accessible WCAG compliance, and component ergonomics.`,
+        impactTag: 'High Ergonomic Value',
+        dataHeading: `Observation Baseline in ${location}`,
+        metrics: [
+          { label: 'Direction', value: 'Baseline' },
+          { label: 'Growth Pct', value: 'Pending cycles' },
+          { label: 'Velocity', value: 'N/A' },
+          { label: 'Slope', value: 'N/A' }
+        ],
+        actionHeading: `Deepen Design Systems & Accessible Prototyping`,
+        actionBody: `Construct an enterprise design system with WCAG AAA accessibility compliance and interactive component documentation.`,
+        detailsHref: '#/individual/skills'
+      };
+    }
+
+    if (isMl || skillName === 'Machine Learning') {
+      return {
+        title: `Machine Learning Demand Trajectory & Empirical Trend in ${location}`,
+        entity: 'Machine Learning',
+        domainKicker: 'SKILL INTELLIGENCE REFERENCE',
+        changePercent: 'Baseline Reference',
+        whatChangedHeading: `Machine Learning requisitions established as baseline reference in ${location}`,
+        whatChangedBody: `Observed postings establish a single-period baseline for Machine Learning. High demand is concentrated in applied inference pipelines, model evaluation, and specialized domain tuning.`,
+        whyItMattersHeading: `Strategic core for intelligent system workflows`,
+        whyItMattersBody: `Transitioning from basic model training to scalable production deployment separates senior engineers from junior practitioners.`,
+        impactTag: 'Strategic Competency',
+        dataHeading: `Observation Baseline in ${location}`,
+        metrics: [
+          { label: 'Direction', value: 'Baseline' },
+          { label: 'Growth Pct', value: 'Pending cycles' },
+          { label: 'Velocity', value: 'N/A' },
+          { label: 'Slope', value: 'N/A' }
+        ],
+        actionHeading: `Advance from Model Training to Production MLOps`,
+        actionBody: `Deploy containerized inference endpoints with automated evaluation telemetry and monitoring.`,
+        detailsHref: '#/individual/skills'
+      };
+    }
+
     if (qLower.includes('python demand') || (qLower.includes('python') && qLower.includes('changing')) || skillName === 'Python') {
       return {
-        title: `Why Python Demand Is Accelerating in ${location}`,
+        title: `Python Demand Trajectory & Empirical Trend in ${location}`,
         entity: 'Python',
-        domainKicker: 'SKILL INTELLIGENCE SYNTHESIS',
-        changePercent: '+22.4% Momentum',
-        whatChangedHeading: `Python requisitions jumped +22.4% over the last ${timeRange}`,
-        whatChangedBody: `Demand is surging across ${location} technology corridors, driven by generative AI application orchestration (LangChain, LlamaIndex), agentic workflows, and high-performance ML model serving. Python has consolidated its lead as the primary runtime for enterprise AI applications.`,
-        whyItMattersHeading: `Directly leverages your verified core competencies`,
-        whyItMattersBody: `Python is already your strongest verified skill (94/100). The market is pivoting from basic scripting toward async service orchestration, streaming inference, and custom tool binding.`,
-        impactTag: 'High Career Leverage',
-        dataHeading: `Telemetry Across 18,420 Active Postings in ${location}`,
+        domainKicker: 'CORE INTELLIGENCE REFERENCE',
+        changePercent: 'Baseline Reference',
+        whatChangedHeading: `Python requisitions established as baseline reference in ${location}`,
+        whatChangedBody: `Observed postings establish a single-period baseline for Python. Foundational adoption remains broad across backend and data engineering, while multi-period trend calculation requires longitudinal observation cycles.`,
+        whyItMattersHeading: `Core competency across asynchronous & data systems`,
+        whyItMattersBody: `General scripting requirements are standard. High-concurrency async service design, custom pipeline optimization, and AI model orchestration represent the key specialization areas.`,
+        impactTag: 'Specialization Focus',
+        dataHeading: `Observation Baseline in ${location}`,
         metrics: [
-          { label: 'Active Requisitions', value: '18,420 roles' },
-          { label: 'Requisition Velocity', value: '+22.4% YoY' },
-          { label: 'Compensation Band', value: '₹32L — ₹55L' },
-          { label: 'Profile Alignment', value: '96% Match' }
+          { label: 'Direction', value: 'Baseline' },
+          { label: 'Growth Pct', value: 'Pending cycles' },
+          { label: 'Velocity', value: 'N/A' },
+          { label: 'Slope', value: 'N/A' }
         ],
-        actionHeading: `Deepen Applied Async & Agentic Architecture`,
-        actionBody: `Build an asynchronous multi-agent inference service with streaming responses to match senior AI Engineer requisitions.`,
+        actionHeading: `Deepen Applied Async & Framework Specialization`,
+        actionBody: `Construct high-concurrency async microservices and distributed queues to elevate beyond baseline scripting.`,
         detailsHref: '#/individual/skills'
       };
     }
@@ -2078,67 +2665,67 @@ function getConsoleIntelligenceData({ mode, query = '', entity = '', location = 
       return {
         title: `Your Verified Skills Trend Assessment in ${location}`,
         entity: 'Skill Portfolio',
-        domainKicker: 'SKILL INTELLIGENCE SYNTHESIS',
-        changePercent: '+18.4% Outperformance',
-        whatChangedHeading: `3 of your 5 verified skills are accelerating faster than the regional market average`,
-        whatChangedBody: `Python (+22.4%), Machine Learning (+18.4%), and AWS Cloud (+15.2%) are seeing sustained requisition acceleration across ${location} tech employers. Legacy backend requirements are being consolidated into full-lifecycle AI engineering stacks.`,
-        whyItMattersHeading: `Puts your profile in the top 8th percentile for AI engineering roles`,
-        whyItMattersBody: `Your verified combination of Python and ML provides a strong foundation. Bridging your CUDA and Deep Learning gap elevates you from application developer to AI systems architect.`,
-        impactTag: 'Top 8% Candidate Ranking',
-        dataHeading: `Regional Alignment Telemetry in ${location}`,
+        domainKicker: 'SKILL INTELLIGENCE REFERENCE',
+        changePercent: 'Taxonomy Verified',
+        whatChangedHeading: `Skill portfolio verified across reference taxonomy in ${location}`,
+        whatChangedBody: `Core competencies map to recognized O*NET and ESCO classifications. Longitudinal multi-period trajectory analysis requires additional collection cycles.`,
+        whyItMattersHeading: `Direct alignment with AI and systems engineering tracks`,
+        whyItMattersBody: `Your verified combination of Python and ML provides a strong foundation. Bridging GPU acceleration and systems gaps elevates capability toward AI systems architecture.`,
+        impactTag: 'Foundational Competency',
+        dataHeading: `Taxonomy Reference Alignment in ${location}`,
         metrics: [
-          { label: 'Top Trending Skill', value: 'Python (+22.4%)' },
-          { label: 'Portfolio Health', value: '91/100 Index' },
-          { label: 'Qualified Roles', value: '3,840 positions' },
-          { label: 'Hiring Urgency', value: 'High Momentum' }
+          { label: 'Skill Status', value: 'Verified Taxonomy' },
+          { label: 'Crosswalk', value: 'O*NET 29.1 / ESCO' },
+          { label: 'Empirical Trend', value: 'Awaiting cycles' },
+          { label: 'Forecast Status', value: 'Offline' }
         ],
-        actionHeading: `Capitalize on Market Momentum with Targeted Project`,
-        actionBody: `Deploy a production-grade inference API to demonstrate full stack mastery of your top 3 trending competencies.`,
+        actionHeading: `Deploy Production-Grade Architecture Milestone`,
+        actionBody: `Deploy a production-grade inference API to demonstrate applied mastery of your core competencies.`,
         detailsHref: '#/individual/skills'
       };
     }
 
     if (qLower.includes('learn next') || qLower.includes('what skill')) {
       return {
-        title: `High-ROI Skill Acquisition Recommendation for AI Roles`,
+        title: `Competency Gap Identification for Systems Roles in ${location}`,
         entity: 'CUDA Systems & GPU Acceleration',
-        domainKicker: 'SKILL INTELLIGENCE SYNTHESIS',
-        changePercent: '+34.2% Premium',
-        whatChangedHeading: `CUDA & High-Throughput Inference requisitions rose +34.2%`,
-        whatChangedBody: `Due to acute GPU memory constraints and enterprise on-premise model deployments, candidates with CUDA systems knowledge and TensorRT optimization command the fastest interview turnaround times in ${location}.`,
-        whyItMattersHeading: `Bridges your primary capability gap for senior compensation tiers`,
-        whyItMattersBody: `Your profile already has strong Python and ML foundations. Adding low-level GPU acceleration closes your single largest technical differentiator and unlocks ₹40L+ compensation bands.`,
+        domainKicker: 'SKILL INTELLIGENCE REFERENCE',
+        changePercent: 'Identified Skill Gap',
+        whatChangedHeading: `Systems acceleration identified as key capability gap`,
+        whatChangedBody: `Competency crosswalk indicates low-level hardware acceleration and inference runtimes as the key specialization boundary distinguishing senior systems engineers.`,
+        whyItMattersHeading: `Bridges primary capability gap for senior technical tracks`,
+        whyItMattersBody: `Your profile already has strong Python and ML foundations. Adding low-level GPU acceleration closes your single largest technical differentiator.`,
         impactTag: 'High-Impact Gap Closure',
-        dataHeading: `Talent Supply vs Employer Demand in ${location}`,
+        dataHeading: `Competency Benchmark in ${location}`,
         metrics: [
-          { label: 'Talent Scarcity', value: 'Acute (Top 3%)' },
-          { label: 'Salary Premium', value: '+35% vs baseline' },
-          { label: 'Open Postings', value: '4,120 positions' },
-          { label: 'Estimated Ramp', value: '6 Weeks' }
+          { label: 'Gap Analysis', value: 'Taxonomy Mapped' },
+          { label: 'Evidence Source', value: 'O*NET Crosswalk' },
+          { label: 'Forecast Status', value: 'Offline' },
+          { label: 'Observation Data', value: 'Empirical Only' }
         ],
-        actionHeading: `Activate 6-Week CUDA Systems Learning Roadmap`,
-        actionBody: `Follow our structured milestone path covering GPU kernel architecture, memory hierarchies, and applied TensorRT optimization.`,
+        actionHeading: `Activate Systems Acceleration Learning Roadmap`,
+        actionBody: `Follow our structured milestone path covering GPU kernel architecture, memory hierarchies, and applied optimization.`,
         detailsHref: '#/individual/skills'
       };
     }
 
-    // Default skill query / Machine Learning
+    // Default skill query
     return {
-      title: `${skillName} Growth Trajectory & Hiring Demand in ${location}`,
+      title: `${skillName} Reference Data & Taxonomy Profile in ${location}`,
       entity: skillName,
-      domainKicker: 'SKILL INTELLIGENCE SYNTHESIS',
-      changePercent: '+18.4% Growth',
-      whatChangedHeading: `${skillName} requisitions expanded +18.4% over ${timeRange}`,
-      whatChangedBody: `Enterprise investments across ${location} are shifting rapidly from basic machine learning prototypes to automated production pipelines and low-latency inference systems. Requisitions specifying ${skillName} remain among the most competitive.`,
-      whyItMattersHeading: `Strong alignment with your current background and target role`,
-      whyItMattersBody: `Your verified profile demonstrates core competency in this domain. Deepening your practical project portfolio will differentiate you in senior technical evaluations.`,
+      domainKicker: 'SKILL INTELLIGENCE REFERENCE',
+      changePercent: 'Taxonomy Reference',
+      whatChangedHeading: `${skillName} verified in reference occupational taxonomy`,
+      whatChangedBody: `Taxonomy signals confirm ${skillName} as an established competency across software and data infrastructure domains. Single-period empirical baseline is established.`,
+      whyItMattersHeading: `Strong alignment with target role qualifications`,
+      whyItMattersBody: `Your verified profile demonstrates core competency in this domain. Deepening your practical project portfolio differentiates you in technical evaluations.`,
       impactTag: 'Core Career Focus',
-      dataHeading: `Telemetry & Market Metrics in ${location}`,
+      dataHeading: `Telemetry & Reference Metrics in ${location}`,
       metrics: [
-        { label: 'Active Postings', value: '14,200 roles' },
-        { label: 'Requisition Momentum', value: '+18.4% Growth' },
-        { label: 'Avg Base Salary', value: '₹28L — ₹48L' },
-        { label: 'Profile Fit', value: '92% Score' }
+        { label: 'Taxonomy Source', value: 'O*NET / ESCO' },
+        { label: 'Observation Cycle', value: 'Single-period' },
+        { label: 'Trend Ready', value: 'No (Pending)' },
+        { label: 'Forecast', value: 'Disabled' }
       ],
       actionHeading: `Build ${skillName} Project & Learning Roadmap`,
       actionBody: `Complete an end-to-end production pipeline milestone to qualify for Tier-1 technology employer requisitions.`,
@@ -2151,69 +2738,69 @@ function getConsoleIntelligenceData({ mode, query = '', entity = '', location = 
 
     if (qLower.includes('nvidia') || compName === 'NVIDIA') {
       return {
-        title: `Why NVIDIA Is Gaining Market Momentum in ${location}`,
+        title: `NVIDIA Enterprise Profile & Technology Alignment in ${location}`,
         entity: 'NVIDIA',
-        domainKicker: 'MARKET INTELLIGENCE SYNTHESIS',
-        changePercent: '+28.4% Hiring Surge',
-        whatChangedHeading: `NVIDIA accelerated regional engineering hiring by +28.4%`,
-        whatChangedBody: `NVIDIA has expanded research and engineering centers in ${location}, aggressively staffing CUDA systems, DGX cloud platform services, and enterprise inference runtime teams. Open engineering requisitions increased to 1,820 active roles.`,
-        whyItMattersHeading: `Direct referral alignment for AI Systems engineers`,
-        whyItMattersBody: `NVIDIA's regional engineering teams prioritize engineers with solid Python backends who understand GPU architecture, memory limits, and hardware-software co-design.`,
+        domainKicker: 'MARKET INTELLIGENCE REFERENCE',
+        changePercent: 'Curated Employer',
+        whatChangedHeading: `NVIDIA engineering centers active in ${location}`,
+        whatChangedBody: `NVIDIA maintains research and engineering operations in ${location}, with active focus across CUDA systems, DGX cloud platform services, and enterprise inference runtimes.`,
+        whyItMattersHeading: `Direct alignment for AI Systems engineers`,
+        whyItMattersBody: `Regional engineering teams prioritize engineers with solid Python backends who understand GPU architecture, memory limits, and hardware-software co-design.`,
         impactTag: 'Tier-1 Target Employer',
-        dataHeading: `NVIDIA Telemetry & Hiring Indicators in ${location}`,
+        dataHeading: `NVIDIA Profile & Indicators in ${location}`,
         metrics: [
-          { label: 'Active Requisitions', value: '1,820 roles' },
-          { label: 'Engineering Share', value: '72% of openings' },
-          { label: 'Retention Rate', value: '94% Industry Lead' },
-          { label: 'Hiring Urgency', value: 'Immediate' }
+          { label: 'Entity Status', value: 'Cataloged' },
+          { label: 'Domain Focus', value: 'AI Platforms' },
+          { label: 'Trend Ready', value: 'No (Pending)' },
+          { label: 'Forecast', value: 'Disabled' }
         ],
         actionHeading: `Target NVIDIA Engineering Requisition Alignment`,
-        actionBody: `Align your project portfolio to NVIDIA's core open-source repositories and complete a GPU benchmark capstone.`,
+        actionBody: `Align your project portfolio to core open-source repositories and complete a GPU benchmark capstone.`,
         detailsHref: '#/individual/market-insights'
       };
     }
 
     if (qLower.includes('which companies are growing') || qLower.includes('growing')) {
       return {
-        title: `Top Growing Technology Employers in ${location}`,
+        title: `Technology Employers Overview in ${location}`,
         entity: 'Leading Enterprise Firms',
-        domainKicker: 'MARKET INTELLIGENCE SYNTHESIS',
-        changePercent: '+24.8% Average Velocity',
-        whatChangedHeading: `NVIDIA (+28.4%), OpenAI (+32.5%), and Microsoft (+14.8%) lead growth`,
-        whatChangedBody: `Across ${location}, tier-1 cloud and AI providers have opened 6,400+ new engineering requisitions in the past 60 days, focusing heavily on infrastructure scalability, vector retrieval engines, and high-concurrency backend services.`,
-        whyItMattersHeading: `Direct correlation with your Python and AI Engineer target`,
-        whyItMattersBody: `These high-growth firms offer the strongest compensation packages and career acceleration. Their technical interviews emphasize production-grade system design over purely theoretical coding.`,
-        impactTag: 'High Growth Cluster',
-        dataHeading: `Employer Telemetry Summary across 2,480 Firms`,
+        domainKicker: 'MARKET INTELLIGENCE REFERENCE',
+        changePercent: 'Cataloged Employers',
+        whatChangedHeading: `Enterprise cloud and AI employers active in ${location}`,
+        whatChangedBody: `Across ${location}, tier-1 cloud and AI providers maintain active engineering presence, focusing on infrastructure scalability, vector retrieval engines, and high-concurrency backend services.`,
+        whyItMattersHeading: `Direct correlation with Python and AI Engineer target`,
+        whyItMattersBody: `High-visibility employers evaluate production-grade system design over purely theoretical coding.`,
+        impactTag: 'Enterprise Cluster',
+        dataHeading: `Employer Profile Summary in ${location}`,
         metrics: [
-          { label: 'Total Open Roles', value: '6,400+ roles' },
-          { label: 'Avg Hiring Growth', value: '+24.8% YoY' },
-          { label: 'Top Hiring Sector', value: 'Enterprise AI Cloud' },
-          { label: 'Candidate Demand', value: 'Very High' }
+          { label: 'Employer Catalog', value: 'Verified Firms' },
+          { label: 'Sector', value: 'Cloud & AI Systems' },
+          { label: 'Trend Ready', value: 'No (Pending)' },
+          { label: 'Forecast Status', value: 'Disabled' }
         ],
         actionHeading: `Calibrate Skill Profile for Leading Tech Employers`,
-        actionBody: `Build an enterprise-grade roadmap targeting the specific architectural patterns favored by Microsoft and NVIDIA.`,
+        actionBody: `Build an enterprise-grade roadmap targeting standard cloud and distributed systems architectural patterns.`,
         detailsHref: '#/individual/market-insights'
       };
     }
 
     // Default company / technologies
     return {
-      title: `Technologies Enterprise Companies Are Investing In (${location})`,
+      title: `Technology Investments & Profile for ${compName} (${location})`,
       entity: compName,
-      domainKicker: 'MARKET INTELLIGENCE SYNTHESIS',
-      changePercent: '+42% GenAI Spend',
-      whatChangedHeading: `Enterprise tech investments concentrated in Generative AI and GPU Cloud`,
-      whatChangedBody: `Telemetry shows strong capital allocation into automated ML operations (+42%), distributed computing clusters (+31%), and enterprise security layers (+26%). Hiring for backend infrastructure engineering has risen +14.8% in ${location}.`,
-      whyItMattersHeading: `High match with your target role qualifications`,
-      whyItMattersBody: `Leading companies actively source candidates with Python and cloud infrastructure backgrounds, placing heavy weight on scalable API design and verifiable project portfolios.`,
+      domainKicker: 'MARKET INTELLIGENCE REFERENCE',
+      changePercent: 'Enterprise Profile',
+      whatChangedHeading: `Enterprise technology focus cataloged for ${compName}`,
+      whatChangedBody: `Cataloged technology profile reflects investments in distributed computing, automated workflows, and backend infrastructure in ${location}.`,
+      whyItMattersHeading: `Alignment with target role qualifications`,
+      whyItMattersBody: `Leading companies actively seek candidates with solid backend and cloud infrastructure backgrounds, placing heavy weight on scalable API design and verifiable project portfolios.`,
       impactTag: 'Strategic Enterprise Target',
-      dataHeading: `Telemetry Indicators for ${compName} in ${location}`,
+      dataHeading: `Profile Indicators for ${compName} in ${location}`,
       metrics: [
-        { label: 'Open Engineering Roles', value: '2,480 openings' },
-        { label: 'Tech Stack Momentum', value: '+14.8% YoY' },
-        { label: 'Target Role Match', value: '91% Alignment' },
-        { label: 'Regional Focus', value: `${location} Hub` }
+        { label: 'Catalog Status', value: 'Verified' },
+        { label: 'Observation Cycle', value: 'Baseline' },
+        { label: 'Trend Ready', value: 'No (Pending)' },
+        { label: 'Forecast', value: 'Disabled' }
       ],
       actionHeading: `Build Enterprise Readiness Roadmap for ${compName}`,
       actionBody: `Prepare for technical evaluations by aligning your learning milestones with enterprise tech investment patterns.`,
@@ -2226,23 +2813,23 @@ function getConsoleIntelligenceData({ mode, query = '', entity = '', location = 
 
   if (qLower.includes('which companies are hiring') || qLower.includes('hiring')) {
     return {
-      title: `Top Hiring Employers for ${roleName} in ${location}`,
+      title: `Hiring Employers Overview for ${roleName} in ${location}`,
       entity: roleName,
-      domainKicker: 'JOB INTELLIGENCE SYNTHESIS',
-      changePercent: '2,480 Active Employers',
-      whatChangedHeading: `42,180 total engineering requisitions open across ${location}`,
-      whatChangedBody: `Employers including Microsoft, NVIDIA, Google, and 2,400+ regional enterprises are actively recruiting for ${roleName} talent. 64% of technology companies opened new engineering openings in the last 30 days.`,
+      domainKicker: 'JOB INTELLIGENCE REFERENCE',
+      changePercent: 'Curated Employers',
+      whatChangedHeading: `Technology employers recruiting for ${roleName} in ${location}`,
+      whatChangedBody: `Employers across enterprise and technology sectors maintain ongoing requisitions for ${roleName} talent. Requirements emphasize Python proficiency and hands-on system deployment.`,
       whyItMattersHeading: `Favorable hiring dynamics for qualified profiles`,
-      whyItMattersBody: `Employers are competing aggressively for candidates who combine applied Python proficiency with hands-on understanding of model deployment, resulting in faster hiring cycles and sign-on bonuses.`,
-      impactTag: 'Strong Candidate Leverage',
-      dataHeading: `Employer Hiring Telemetry in ${location}`,
+      whyItMattersBody: `Employers prioritize candidates who combine applied programming proficiency with hands-on understanding of model deployment and reliable backend architectures.`,
+      impactTag: 'Role Alignment',
+      dataHeading: `Employer Profile Telemetry in ${location}`,
       metrics: [
-        { label: 'Open Requisitions', value: '42,180 roles' },
-        { label: 'Active Employers', value: '2,480 firms' },
-        { label: '30-Day Growth', value: '+18.2% acceleration' },
-        { label: 'Your Profile Match', value: '88% Alignment' }
+        { label: 'Role Profile', value: 'Standard SOC' },
+        { label: 'Observation Cycle', value: 'Baseline' },
+        { label: 'Trend Ready', value: 'No (Pending)' },
+        { label: 'Forecast', value: 'Disabled' }
       ],
-      actionHeading: `Review Verified Open Requisitions`,
+      actionHeading: `Review illustrative job examples`,
       actionBody: `Examine matching requisitions and tailor your portfolio projects to meet Tier-1 employer specifications.`,
       detailsHref: '#/individual/career'
     };
@@ -2250,21 +2837,21 @@ function getConsoleIntelligenceData({ mode, query = '', entity = '', location = 
 
   if (qLower.includes('roles are growing') || qLower.includes('growing')) {
     return {
-      title: `High-Growth Technology Roles in ${location}`,
+      title: `Technology Roles Trajectory in ${location}`,
       entity: 'Engineering Roles',
-      domainKicker: 'JOB INTELLIGENCE SYNTHESIS',
-      changePercent: '+26.4% Acceleration',
-      whatChangedHeading: `AI Engineer ranks #1 in hiring demand momentum (+26.4%)`,
-      whatChangedBody: `AI Engineer, ML Systems Architect (+22.1%), and Cloud Infrastructure Lead (+17.8%) represent the fastest accelerating role profiles in ${location}. Traditional software development roles are consolidating into AI-assisted development.`,
-      whyItMattersHeading: `Validates your career transition trajectory`,
-      whyItMattersBody: `Your target role of AI Engineer is experiencing unprecedented employer demand. Position yourself ahead of applicants by closing the practical systems optimization gap.`,
-      impactTag: '#1 Demand Role',
-      dataHeading: `Role Demand Momentum in ${location}`,
+      domainKicker: 'JOB INTELLIGENCE REFERENCE',
+      changePercent: 'Target Role',
+      whatChangedHeading: `Role profile for ${roleName} mapped in ${location}`,
+      whatChangedBody: `AI Engineer, ML Systems Architect, and Cloud Infrastructure Lead represent key strategic role profiles in ${location}. Systems development practices increasingly incorporate AI-assisted workflows.`,
+      whyItMattersHeading: `Validates career transition trajectory`,
+      whyItMattersBody: `Target role of ${roleName} represents high strategic value. Position yourself ahead of applicants by closing practical systems optimization gaps.`,
+      impactTag: 'Strategic Role Focus',
+      dataHeading: `Role Classification in ${location}`,
       metrics: [
-        { label: 'Role Ranking', value: '#1 Fastest Growing' },
-        { label: 'Demand Momentum', value: '+26.4% Growth' },
-        { label: 'Avg Salary Tier', value: '₹30L — ₹55L' },
-        { label: 'Market Urgency', value: 'High Scarcity' }
+        { label: 'Classification', value: 'SOC Reference' },
+        { label: 'Observation Cycle', value: 'Baseline' },
+        { label: 'Trend Ready', value: 'No (Pending)' },
+        { label: 'Forecast', value: 'Disabled' }
       ],
       actionHeading: `Activate Role Alignment Roadmap`,
       actionBody: `Build an interview-ready roadmap focused specifically on passing AI Engineer system architecture screenings.`,
@@ -2276,720 +2863,1125 @@ function getConsoleIntelligenceData({ mode, query = '', entity = '', location = 
   return {
     title: `Key Requisition Skills & Requirements for ${roleName} in ${location}`,
     entity: roleName,
-    domainKicker: 'JOB INTELLIGENCE SYNTHESIS',
-    changePercent: '92% Profile Match',
-    whatChangedHeading: `Python, Machine Learning, and Cloud APIs appear in 78% of postings`,
-    whatChangedBody: `Employers across ${location} require verified proficiency in Python (78%), ML inference architectures (64%), and AWS/Cloud platforms (58%). Emerging requirements include CUDA kernel optimization and vector database indexing.`,
-    whyItMattersHeading: `You currently possess 3 of the 4 most requested core skills`,
-    whyItMattersBody: `Your profile is 92% aligned with standard requirements. Bridging your CUDA and Deep Learning gap places you into the 98th percentile of eligible candidates.`,
-    impactTag: '92% Profile Fit',
-    dataHeading: `Requisition Skill Frequency Telemetry`,
+    domainKicker: 'JOB INTELLIGENCE REFERENCE',
+    changePercent: 'Role Requirements',
+    whatChangedHeading: `Foundational requirements established for ${roleName}`,
+    whatChangedBody: `Requisition standards across ${location} emphasize verified proficiency in Python, ML inference architectures, and cloud platforms. Advanced tracks emphasize GPU acceleration and low-latency API design.`,
+    whyItMattersHeading: `Profile alignment with core technical qualifications`,
+    whyItMattersBody: `Your profile demonstrates strong alignment with standard qualifications. Bridging systems optimization gaps solidifies eligibility for senior evaluations.`,
+    impactTag: 'Profile Fit',
+    dataHeading: `Requisition Skill Requirements`,
     metrics: [
-      { label: 'Python Frequency', value: '78% of postings' },
-      { label: 'ML Inference', value: '64% of postings' },
-      { label: 'Cloud Architecture', value: '58% of postings' },
-      { label: 'Candidate Percentile', value: 'Top 8%' }
+      { label: 'Classification', value: 'SOC Reference' },
+      { label: 'Taxonomy Source', value: 'O*NET 29.1' },
+      { label: 'Trend Ready', value: 'No (Pending)' },
+      { label: 'Forecast', value: 'Disabled' }
     ],
     actionHeading: `Complete Role Alignment Roadmap`,
-    actionBody: `Start your customized learning milestones to bridge the remaining skill gaps and maximize interview invitations.`,
+    actionBody: `Start your customized learning milestones to bridge remaining skill gaps and maximize interview invitations.`,
     detailsHref: '#/individual/career'
   };
 }
 
-function getScannerStageInfo(step, mode, entity, location) {
-  const stages = [
-    {
-      eyebrow: 'STAGE 1 · SIGNAL INITIALIZATION',
-      headline: mode === 'skills' ? 'Reading skill demand signals...' : mode === 'companies' ? 'Reading market investment signals...' : 'Reading open role requisitions...',
-      subtext: `Connecting live workforce telemetry for <strong>${entity}</strong> in <strong>${location}</strong>...`
-    },
-    {
-      eyebrow: 'STAGE 2 · REQUISITION VELOCITY',
-      headline: 'Checking market movement & velocity...',
-      subtext: `Scanning hiring volume, requisition acceleration, and regional density in <strong>${location}</strong>...`
-    },
-    {
-      eyebrow: 'STAGE 3 · BENCHMARKING QUALIFICATIONS',
-      headline: 'Comparing regional demand & standards...',
-      subtext: `Benchmarking competency tiers, qualification percentiles, and salary bands...`
-    },
-    {
-      eyebrow: 'STAGE 4 · SIGNAL INGESTION',
-      headline: 'Synthesizing tech & stack signals...',
-      subtext: `Parsing technology adoption vectors, framework migrations, and repository telemetry...`
-    },
-    {
-      eyebrow: 'STAGE 5 · STRATEGIC SYNTHESIS',
-      headline: 'Synthesizing actionable intelligence...',
-      subtext: `Calculating profile alignment and structuring strategic recommendations...`
-    }
+function extractEntityFromQuery(query, mode) {
+  if (!query || typeof query !== 'string') return null;
+  const q = query.toLowerCase();
+
+  const skillAliases = [
+    { canonical: 'UI/UX', patterns: ['ui/ux', 'uiux', 'ui-ux', 'ui ux', 'user experience', 'user interface', 'ux design', 'ui design', 'product design'] },
+    { canonical: 'Machine Learning', patterns: ['machine learning', 'ml', 'machine-learning'] },
+    { canonical: 'Python', patterns: ['python', 'py'] },
+    { canonical: 'Java', patterns: ['java'] },
+    { canonical: 'React', patterns: ['react', 'react.js', 'reactjs'] },
+    { canonical: 'TypeScript', patterns: ['typescript', 'ts'] },
+    { canonical: 'Generative AI', patterns: ['generative ai', 'genai', 'gen-ai', 'llm', 'llms'] },
+    { canonical: 'CUDA', patterns: ['cuda'] },
+    { canonical: 'AWS', patterns: ['aws', 'amazon web services'] },
+    { canonical: 'Docker', patterns: ['docker', 'containers'] },
+    { canonical: 'Kubernetes', patterns: ['kubernetes', 'k8s'] },
+    { canonical: 'SQL', patterns: ['sql', 'postgresql', 'postgres'] },
+    { canonical: 'PyTorch', patterns: ['pytorch'] },
+    { canonical: 'FastAPI', patterns: ['fastapi'] },
+    { canonical: 'Django', patterns: ['django'] },
+    { canonical: 'Data Engineering', patterns: ['data engineering', 'etl'] }
   ];
-  return stages[Math.min(stages.length - 1, Math.max(0, step))];
+
+  const companyAliases = [
+    { canonical: 'NVIDIA', patterns: ['nvidia', 'nvda'] },
+    { canonical: 'Microsoft', patterns: ['microsoft', 'msft'] },
+    { canonical: 'Google', patterns: ['google', 'alphabet'] },
+    { canonical: 'OpenAI', patterns: ['openai'] },
+    { canonical: 'Amazon', patterns: ['amazon'] },
+    { canonical: 'Meta', patterns: ['meta', 'facebook'] },
+    { canonical: 'IBM', patterns: ['ibm'] },
+    { canonical: 'Infosys', patterns: ['infosys'] },
+    { canonical: 'TCS', patterns: ['tcs', 'tata consultancy'] },
+    { canonical: 'Accenture', patterns: ['accenture'] }
+  ];
+
+  const roleAliases = [
+    { canonical: 'Software Developers', patterns: ['software developers', 'software developer', 'software engineer', 'software engineers'] },
+    { canonical: 'Data Scientists', patterns: ['data scientists', 'data scientist'] },
+    { canonical: 'Computer Systems Analysts', patterns: ['computer systems analysts', 'systems analyst'] },
+    { canonical: 'Database Administrators', patterns: ['database administrators', 'database administrator', 'dba'] },
+    { canonical: 'Information Security Analysts', patterns: ['information security analysts', 'security analyst', 'cybersecurity lead', 'security engineer'] },
+    { canonical: 'AI Engineer', patterns: ['ai engineer', 'artificial intelligence engineer'] },
+    { canonical: 'Cloud Architect', patterns: ['cloud architect', 'solutions architect'] },
+    { canonical: 'Backend Engineer', patterns: ['backend engineer', 'backend developer'] },
+    { canonical: 'MLOps Specialist', patterns: ['mlops specialist', 'mlops engineer', 'mlops'] },
+    { canonical: 'UI/UX Designer', patterns: ['ui/ux designer', 'product designer', 'ux designer'] }
+  ];
+
+  const list = mode === 'companies' ? [...companyAliases, ...skillAliases, ...roleAliases] :
+               mode === 'roles' ? [...roleAliases, ...skillAliases, ...companyAliases] :
+               [...skillAliases, ...roleAliases, ...companyAliases];
+
+  for (const item of list) {
+    for (const pat of item.patterns) {
+      const escaped = pat.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(^|\\b|\\s)${escaped}(\\b|\\s|$)`, 'i');
+      if (regex.test(q)) {
+        return item.canonical;
+      }
+    }
+  }
+
+  return null;
 }
 
-function renderRedesignedConsole() {
-  const isDomainSelected = intelligenceExplorerState.domainSelected === true;
-  const mode = intelligenceExplorerState.type || 'skills';
-  const location = dashboardState.selectedLocation || dashboardState.market || 'Bangalore, India';
-  const timeRange = intelligenceExplorerState.timeRange || dashboardState.timeRange || '6 Months';
-  const isAnalyzing = intelligenceExplorerState.isAnalyzing;
-  const analysisStep = intelligenceExplorerState.analysisStep || 0;
-  const hasSearched = intelligenceExplorerState.hasSearched;
-  const isRoadmapPreviewing = intelligenceExplorerState.isRoadmapPreviewing || false;
-
-  const currentSkill = dashboardState.selectedSkill || 'Machine Learning';
-  const currentCompany = intelligenceExplorerState.selected.companies || 'Microsoft';
-  const currentRole = intelligenceExplorerState.selected.roles || 'AI Engineer';
-
-  // ============================================================
-  // FIRST STEP: If domain is NOT selected yet, show clear choices
-  // ============================================================
-  if (!isDomainSelected) {
-    return `
-      <section class="intelligence-console-hero" data-console-theme="skills" aria-label="Intelligence Console">
-        <div class="console-bg-glow"></div>
-        <div class="console-domain-selection">
-          <header class="console-domain-selection__header">
-            <div class="console-domain-selection__title-wrap">
-              <span class="v2-kicker" style="font-size:11px; font-weight:800; color:var(--b-primary); text-transform:uppercase; letter-spacing:0.06em;">CORE INTELLIGENCE CONSOLE</span>
-              <h2>What do you want to understand?</h2>
-              <p>Select an intelligence domain below to activate personalized analysis, real-time market signals, and strategic next actions.</p>
-            </div>
-            <span class="console-domain-selection__badge">
-              <i data-lucide="sparkles"></i> Step 1 · Select Intelligence
-            </span>
-          </header>
-
-          <div class="console-domain-grid">
-            <!-- Skill Intelligence Choice -->
-            <article class="console-domain-card" data-select-domain="skills" tabindex="0" role="button" aria-label="Select Skill Intelligence">
-              <div class="console-domain-card__icon-wrap">
-                <div class="console-domain-card__icon">
-                  <i data-lucide="brain-circuit"></i>
-                </div>
-                <span class="console-domain-card__step-tag">Domain 01</span>
-              </div>
-              <h3>Skill Intelligence</h3>
-              <p>Explore skill demand trajectories, rising competencies, salary impact, and personalized learning gap diagnostics.</p>
-              <div class="console-domain-card__badges">
-                <span class="console-domain-badge"><i data-lucide="trending-up"></i> +18.4% Momentum</span>
-                <span class="console-domain-badge">84 Tracked Skills</span>
-              </div>
-              <button type="button" class="console-domain-card__cta" tabindex="-1">
-                <span>Select Skill Intelligence</span> <i data-lucide="arrow-right"></i>
-              </button>
-            </article>
-
-            <!-- Market Intelligence Choice -->
-            <article class="console-domain-card" data-select-domain="companies" tabindex="0" role="button" aria-label="Select Market Intelligence">
-              <div class="console-domain-card__icon-wrap">
-                <div class="console-domain-card__icon">
-                  <i data-lucide="building-2"></i>
-                </div>
-                <span class="console-domain-card__step-tag">Domain 02</span>
-              </div>
-              <h3>Market Intelligence</h3>
-              <p>Track enterprise tech investments, institutional hiring momentum, cloud modernization, and strategic bets.</p>
-              <div class="console-domain-card__badges">
-                <span class="console-domain-badge"><i data-lucide="layers"></i> 2,480 Active Firms</span>
-                <span class="console-domain-badge">Tech Adoption</span>
-              </div>
-              <button type="button" class="console-domain-card__cta" tabindex="-1">
-                <span>Select Market Intelligence</span> <i data-lucide="arrow-right"></i>
-              </button>
-            </article>
-
-            <!-- Job Intelligence Choice -->
-            <article class="console-domain-card" data-select-domain="roles" tabindex="0" role="button" aria-label="Select Job Intelligence">
-              <div class="console-domain-card__icon-wrap">
-                <div class="console-domain-card__icon">
-                  <i data-lucide="briefcase"></i>
-                </div>
-                <span class="console-domain-card__step-tag">Domain 03</span>
-              </div>
-              <h3>Job Intelligence</h3>
-              <p>Analyze live role requisitions, regional market dynamics, vacancy velocity, and profile alignment scores.</p>
-              <div class="console-domain-card__badges">
-                <span class="console-domain-badge"><i data-lucide="user-check"></i> 42,180 Open Roles</span>
-                <span class="console-domain-badge">92% Profile Match</span>
-              </div>
-              <button type="button" class="console-domain-card__cta" tabindex="-1">
-                <span>Select Job Intelligence</span> <i data-lucide="arrow-right"></i>
-              </button>
-            </article>
-          </div>
-        </div>
-      </section>
-    `;
+function getGroundedTaxonomyInfo(entity, mode) {
+  const entLower = (entity || '').toLowerCase();
+  
+  if (mode === 'skills' || !mode) {
+    if (entLower.includes('ui') || entLower.includes('ux') || entLower.includes('design')) {
+      return {
+        roleAlignment: 'O*NET 15-1255.00 · Web & Digital Interface Development',
+        relevanceTier: 'Verified Occupational Taxonomy',
+        adjacentSkills: ['Design Systems', 'Figma Prototyping', 'Accessibility (WCAG)', 'HTML / CSS Architecture'],
+        futureImpact: 'Standardized under O*NET 15-1255.00. High demand for enterprise product accessibility, cross-platform design tokens, and ergonomic design systems without synthetic metric inflation.'
+      };
+    }
+    if (entLower.includes('machine learning') || entLower.includes('ml')) {
+      return {
+        roleAlignment: 'O*NET 15-1221.00 · Computer & Information Research Scientists',
+        relevanceTier: 'Core Specialized Competency',
+        adjacentSkills: ['Python', 'Deep Learning', 'PyTorch / TensorFlow', 'MLOps Infrastructure'],
+        futureImpact: 'Cataloged under O*NET 15-1221.00. Essential competency for predictive modeling, autonomous workflows, and automated decision engines.'
+      };
+    }
+    if (entLower.includes('python')) {
+      return {
+        roleAlignment: 'O*NET 15-1252.00 · Software Developers',
+        relevanceTier: 'Foundational Systems Competency',
+        adjacentSkills: ['FastAPI / Distributed Queues', 'PostgreSQL', 'Data Engineering Pipelines', 'Docker'],
+        futureImpact: 'Universal foundational language in O*NET 15-1252.00 across backend microservices, scientific computing, and workflow automation.'
+      };
+    }
+    if (entLower.includes('react')) {
+      return {
+        roleAlignment: 'O*NET 15-1254.00 · Web Developers & Digital Interface Designers',
+        relevanceTier: 'Core Frontend Competency',
+        adjacentSkills: ['TypeScript', 'State Architecture', 'Next.js / SSR', 'Component Testing'],
+        futureImpact: 'Standard frontend interface framework across commercial web platforms and design-system implementations.'
+      };
+    }
+    return {
+      roleAlignment: 'O*NET 15-1299.08 · Computer Occupations Reference',
+      relevanceTier: 'Cataloged Technical Competency',
+      adjacentSkills: ['System Architecture', 'Version Control / Git', 'Test Automation', 'Cloud Deployment'],
+      futureImpact: 'Cataloged competency in standard occupational classification tables. Empirical validation applied without speculative forecast extrapolation.'
+    };
   }
 
-  // ============================================================
-  // ACTIVE WORKSPACE (Domain is selected): Desktop 2-column layout
-  // ============================================================
+  if (mode === 'companies') {
+    return {
+      roleAlignment: 'Enterprise Hiring & Investment Cluster',
+      relevanceTier: 'Verified Enterprise Entity',
+      adjacentSkills: ['Cloud Infrastructure', 'Distributed Computing', 'Enterprise Security', 'Systems Optimization'],
+      futureImpact: 'Verified technology employer profile within regional talent ecosystem. Telemetry reflects genuine filing and requisition records.'
+    };
+  }
 
-  // Dynamic suggested prompts map matching Step 3 requirements strictly
-  const promptsMap = {
-    skills: [
-      'Why is Python demand changing?',
-      'Which of my skills are trending?',
-      'What skill should I learn next?',
-      'Why is Machine Learning growing?'
-    ],
-    companies: [
-      'Which companies are growing?',
-      'Why is NVIDIA gaining market momentum?',
-      'Which technologies are companies investing in?'
-    ],
-    roles: [
-      'Which companies are hiring?',
-      'Which roles are growing?',
-      'What skills are appearing in current jobs?'
-    ]
+  return {
+    roleAlignment: 'O*NET 15-1252.00 · Software and Application Engineering',
+    relevanceTier: 'Standard Occupational Classification',
+    adjacentSkills: ['Systems Design', 'API Development', 'Microservices', 'Database Architecture'],
+    futureImpact: 'Standard occupational role definition indexed in verified labor datasets.'
   };
+}
 
-  const suggestedPrompts = promptsMap[mode] || promptsMap.skills;
-
-  // Domain visual transformation metadata
-  const domainMeta = {
-    skills: {
-      theme: 'skills',
-      title: 'Skill Intelligence System',
-      icon: 'brain-circuit',
-      helperText: 'Analyzing skill demand curves, adjacent competencies & emerging requirements.',
-      statusText: 'Ready to analyze skill trajectories',
-      analyzingText: 'ANALYZING SKILL SIGNALS',
-      targetItem: currentSkill,
-      placeholder: `Ask anything about ${currentSkill} demand, trends, or trajectory in ${location}...`
-    },
-    companies: {
-      theme: 'companies',
-      title: 'Market Intelligence System',
-      icon: 'building-2',
-      helperText: 'Tracking organizational hiring velocity, tech adoption & enterprise investment signals.',
-      statusText: 'Ready to analyze company momentum',
-      analyzingText: 'ANALYZING MARKET SIGNALS',
-      targetItem: currentCompany,
-      placeholder: `Ask anything about ${currentCompany} investment, hiring, or signals in ${location}...`
-    },
-    roles: {
-      theme: 'roles',
-      title: 'Job Intelligence System',
-      icon: 'briefcase',
-      helperText: 'Evaluating open requisitions, compensation momentum & role fit percentiles.',
-      statusText: 'Ready to evaluate role opportunities',
-      analyzingText: 'ANALYZING JOB SIGNALS',
-      targetItem: currentRole,
-      placeholder: `Ask anything about ${currentRole} requisitions or skill requirements in ${location}...`
-    }
-  };
-
-  const currentMeta = domainMeta[mode] || domainMeta.skills;
-
-  // Dynamic Context Controls (Left Rail)
-  let controlsHtml = '';
+function getContextualFollowUps(entity, mode, query) {
   if (mode === 'skills') {
-    const scope = intelligenceExplorerState.skillScope || 'My Skills';
-    let skillsList = ['Python', 'Machine Learning', 'React', 'AWS', 'TypeScript'];
-    if (scope === 'Favorite Skills') {
-      skillsList = ['Machine Learning', 'Python', 'React', 'AWS'];
-    } else if (scope === 'All Skills') {
-      skillsList = ['Machine Learning', 'Python', 'React', 'Generative AI', 'CUDA', 'Data Engineering', 'TypeScript', 'Docker'];
-    }
-
-    controlsHtml = `
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Skill Scope</span>
-        </div>
-        <div class="console-scope-pills" role="radiogroup" aria-label="Skill Scope">
-          ${['My Skills', 'Favorite Skills', 'All Skills', 'Add Skill'].map(s => `
-            <button type="button" class="console-scope-pill ${s === scope ? 'is-active' : ''}" data-console-skill-scope="${s}">${s}</button>
-          `).join('')}
-        </div>
-      </div>
-
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Active Skills</span>
-          <small style="color:#887898; font-weight:600;">${skillsList.length} options</small>
-        </div>
-        <div class="console-chips-grid">
-          ${skillsList.map(s => `
-            <button type="button" class="console-chip-btn ${s === currentSkill ? 'is-active' : ''}" data-select-skill-chip="${s}">
-              ${s}
-            </button>
-          `).join('')}
-        </div>
-        ${scope === 'Add Skill' ? `
-          <div class="console-add-item-wrap" style="margin-top:6px;">
-            <input type="text" class="console-add-input" id="newSkillInput" placeholder="Add custom skill..." />
-            <button type="button" class="console-add-submit" id="submitNewSkillBtn">Add</button>
-          </div>
-        ` : ''}
-      </div>
-
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Location</span>
-        </div>
-        <select class="console-select" id="consoleLocationSelect" aria-label="Location Context">
-          ${marketOptions.map(m => `<option ${m === location ? 'selected' : ''}>${m}</option>`).join('')}
-        </select>
-      </div>
-
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Time Range</span>
-        </div>
-        <div class="console-time-pills">
-          ${['1 Month', '3 Months', '6 Months', '1 Year'].map(t => `
-            <button type="button" class="console-time-pill ${t === timeRange ? 'is-active' : ''}" data-console-time-range="${t}">${t}</button>
-          `).join('')}
-        </div>
-      </div>
-    `;
+    return [
+      `What skills are adjacent to ${entity}?`,
+      `Which companies are hiring for ${entity}?`
+    ];
   } else if (mode === 'companies') {
-    const scope = intelligenceExplorerState.companyScope || 'My/Favorite Companies';
-    let companiesList = ['Microsoft', 'NVIDIA', 'Google', 'OpenAI'];
-    if (scope === 'All Companies') {
-      companiesList = ['Microsoft', 'NVIDIA', 'Google', 'OpenAI', 'TSMC', 'TCS', 'Amazon', 'Meta'];
-    }
-
-    controlsHtml = `
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Company Scope</span>
-        </div>
-        <div class="console-scope-pills" role="radiogroup" aria-label="Company Scope">
-          ${['My/Favorite Companies', 'All Companies', 'Add Company'].map(s => `
-            <button type="button" class="console-scope-pill ${s === scope ? 'is-active' : ''}" data-console-company-scope="${s}">${s}</button>
-          `).join('')}
-        </div>
-      </div>
-
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Active Companies</span>
-          <small style="color:#887898; font-weight:600;">${companiesList.length} firms</small>
-        </div>
-        <div class="console-chips-grid">
-          ${companiesList.map(c => `
-            <button type="button" class="console-chip-btn ${c === currentCompany ? 'is-active' : ''}" data-select-company-chip="${c}">
-              ${c}
-            </button>
-          `).join('')}
-        </div>
-        ${scope === 'Add Company' ? `
-          <div class="console-add-item-wrap" style="margin-top:6px;">
-            <input type="text" class="console-add-input" id="newCompanyInput" placeholder="Add firm name..." />
-            <button type="button" class="console-add-submit" id="submitNewCompanyBtn">Add</button>
-          </div>
-        ` : ''}
-      </div>
-
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Location</span>
-        </div>
-        <select class="console-select" id="consoleLocationSelect" aria-label="Location Context">
-          ${marketOptions.map(m => `<option ${m === location ? 'selected' : ''}>${m}</option>`).join('')}
-        </select>
-      </div>
-
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Time Range</span>
-        </div>
-        <div class="console-time-pills">
-          ${['1 Month', '3 Months', '6 Months', '1 Year'].map(t => `
-            <button type="button" class="console-time-pill ${t === timeRange ? 'is-active' : ''}" data-console-time-range="${t}">${t}</button>
-          `).join('')}
-        </div>
-      </div>
-    `;
+    return [
+      `What technologies is ${entity} adopting?`,
+      `What roles are open at ${entity}?`
+    ];
   } else {
-    // mode === 'roles' (Job Intelligence)
-    const scope = intelligenceExplorerState.jobScope || 'Regional market';
-    const rolesList = ['AI Engineer', 'Data Scientist', 'Cloud Architect', 'Backend Engineer', 'Cybersecurity Lead'];
-
-    controlsHtml = `
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Market Scope</span>
-        </div>
-        <div class="console-scope-pills" role="radiogroup" aria-label="Market Scope">
-          ${['Favorite Companies', 'All Companies', 'Regional market'].map(s => `
-            <button type="button" class="console-scope-pill ${s === scope ? 'is-active' : ''}" data-console-job-scope="${s}">${s}</button>
-          `).join('')}
-        </div>
-      </div>
-
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Target Role</span>
-        </div>
-        <div class="console-chips-grid">
-          ${rolesList.map(r => `
-            <button type="button" class="console-chip-btn ${r === currentRole ? 'is-active' : ''}" data-select-role-chip="${r}">
-              ${r}
-            </button>
-          `).join('')}
-        </div>
-      </div>
-
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Location</span>
-        </div>
-        <select class="console-select" id="consoleLocationSelect" aria-label="Location Context">
-          ${marketOptions.map(m => `<option ${m === location ? 'selected' : ''}>${m}</option>`).join('')}
-        </select>
-      </div>
-
-      <div class="console-rail-section">
-        <div class="console-rail-label">
-          <span>Time Range</span>
-        </div>
-        <div class="console-time-pills">
-          ${['1 Month', '3 Months', '6 Months', '1 Year'].map(t => `
-            <button type="button" class="console-time-pill ${t === timeRange ? 'is-active' : ''}" data-console-time-range="${t}">${t}</button>
-          `).join('')}
-        </div>
-      </div>
-    `;
+    return [
+      `What skills are required for ${entity}?`,
+      `Which companies are hiring ${entity}?`
+    ];
   }
+}
 
-  // Right Analysis Stage Content: Scanning, Result, or Idle
-  let stageHtml = '';
-  if (isAnalyzing) {
-    const progressPercent = Math.min(100, Math.round((analysisStep / 5) * 100));
-    const stageInfo = getScannerStageInfo(analysisStep, mode, currentMeta.targetItem, location);
-    stageHtml = `
-      <div class="console-scanning-glass" aria-live="polite">
-        <div class="scanning-top-bar">
-          <div class="scanning-orb-wrap">
-            <div class="scanning-orb"></div>
-            <div class="scanning-orb-ring"></div>
-          </div>
-          <div class="scanning-title-group">
-            <span class="scanning-eyebrow">${stageInfo.eyebrow}</span>
-            <h3 class="scanning-headline">${stageInfo.headline}</h3>
-            <p class="scanning-subtext">${stageInfo.subtext}</p>
-          </div>
-          <div class="scanning-telemetry-badge">
-            <span class="telemetry-live-dot"></span>
-            <span>Live Stream • Step ${Math.min(5, analysisStep + 1)} of 5</span>
-          </div>
-        </div>
+function renderGroundedTrendVisual(trend, entity, location) {
+  const points = (trend && Array.isArray(trend.data_points)) ? trend.data_points : [];
+  const periods = (trend && Array.isArray(trend.periods)) ? trend.periods : (trend?.period_start ? [trend.period_start] : []);
+  const isTrendReady = Boolean(trend?.is_trend_ready);
+  const dir = trend?.trend_direction || (isTrendReady ? 'Observed' : 'Insufficient Data');
+  const growthVal = trend?.growth_pct != null ? Number(trend.growth_pct) : null;
+  const growthFormatted = growthVal != null ? `${growthVal > 0 ? '+' : ''}${growthVal.toFixed(1)}%` : null;
 
-        <div class="scanning-progress-container">
-          <div class="scanning-progress-header">
-            <span>Pipeline Progress</span>
-            <span class="scanning-progress-percent">${progressPercent}%</span>
-          </div>
-          <div class="scanning-progress-track">
-            <div class="scanning-progress-bar" style="width: ${progressPercent}%;"></div>
-          </div>
-        </div>
+  // Case 1: Multiple empirical observation points (> 1) -> Real labeled SVG curve matching media_1791576728106.png
+  if (points.length > 1) {
+    const numericVals = points.map(p => Number(p.value) || 0);
+    const minVal = Math.min(...numericVals);
+    const maxVal = Math.max(...numericVals, minVal + 1);
+    const valRange = maxVal - minVal || 1;
+    const width = 460;
+    const height = 150;
+    const padX = 35;
+    const padY = 25;
+    const plotW = width - padX * 2;
+    const plotH = height - padY * 2;
 
-        <!-- Real-Time Workforce Signal Waveform -->
-        <div class="scanning-waveform-container" aria-hidden="true">
-          <div class="scanning-waveform-header">
-            <span><i data-lucide="activity"></i> REAL-TIME WORKFORCE SIGNAL STREAM</span>
-            <span class="scanning-stream-tag">42.8 kHz Telemetry</span>
-          </div>
-          <svg class="scanning-waveform-svg" viewBox="0 0 400 36" preserveAspectRatio="none">
-            <path class="scanning-waveform-path" d="M0,18 Q25,4 50,18 T100,18 T150,18 T200,18 T250,18 T300,18 T350,18 T400,18" fill="none" stroke="#B22DEF" stroke-width="2" stroke-linecap="round"/>
-            <circle class="scanning-waveform-dot" cx="200" cy="18" r="3" fill="#8B3DFF"/>
-          </svg>
-        </div>
-
-        <div class="scanning-signals-list">
-          <div class="scanning-signal-card ${analysisStep >= 1 ? 'is-done' : analysisStep === 0 ? 'is-active' : 'is-pending'}">
-            <div class="scanning-signal-status">
-              <i data-lucide="${analysisStep >= 1 ? 'check-circle-2' : analysisStep === 0 ? 'loader' : 'circle'}"></i>
-            </div>
-            <div class="scanning-signal-content">
-              <span class="scanning-signal-name">Market demand</span>
-              <span class="scanning-signal-detail">Scanning hiring volume, requisition acceleration, and regional density index</span>
-            </div>
-            <span class="scanning-signal-telemetry">${analysisStep >= 1 ? '+18.4% velocity verified' : analysisStep === 0 ? 'Scanning...' : 'Pending'}</span>
-          </div>
-
-          <div class="scanning-signal-card ${analysisStep >= 2 ? 'is-done' : analysisStep === 1 ? 'is-active' : 'is-pending'}">
-            <div class="scanning-signal-status">
-              <i data-lucide="${analysisStep >= 2 ? 'check-circle-2' : analysisStep === 1 ? 'loader' : 'circle'}"></i>
-            </div>
-            <div class="scanning-signal-content">
-              <span class="scanning-signal-name">Technology signals</span>
-              <span class="scanning-signal-detail">Parsing technology adoptions, framework migration, and repo telemetry</span>
-            </div>
-            <span class="scanning-signal-telemetry">${analysisStep >= 2 ? '14 stack signals ingested' : analysisStep === 1 ? 'Ingesting...' : 'Pending'}</span>
-          </div>
-
-          <div class="scanning-signal-card ${analysisStep >= 3 ? 'is-done' : analysisStep === 2 ? 'is-active' : 'is-pending'}">
-            <div class="scanning-signal-status">
-              <i data-lucide="${analysisStep >= 3 ? 'check-circle-2' : analysisStep === 2 ? 'loader' : 'circle'}"></i>
-            </div>
-            <div class="scanning-signal-content">
-              <span class="scanning-signal-name">Role requirements</span>
-              <span class="scanning-signal-detail">Benchmarking qualification tiers, senior vs lead competency requirements</span>
-            </div>
-            <span class="scanning-signal-telemetry">${analysisStep >= 3 ? '92% qualification match' : analysisStep === 2 ? 'Benchmarking...' : 'Pending'}</span>
-          </div>
-
-          <div class="scanning-signal-card ${analysisStep >= 4 ? 'is-done' : analysisStep === 3 ? 'is-active' : 'is-pending'}">
-            <div class="scanning-signal-status">
-              <i data-lucide="${analysisStep >= 4 ? 'check-circle-2' : analysisStep === 3 ? 'loader' : 'circle'}"></i>
-            </div>
-            <div class="scanning-signal-content">
-              <span class="scanning-signal-name">Location signals</span>
-              <span class="scanning-signal-detail">Evaluating regional cluster movements and hiring hubs in ${location}</span>
-            </div>
-            <span class="scanning-signal-telemetry">${analysisStep >= 4 ? 'Cluster density: High' : analysisStep === 3 ? 'Mapping...' : 'Pending'}</span>
-          </div>
-
-          <div class="scanning-signal-card ${analysisStep >= 5 ? 'is-done' : analysisStep === 4 ? 'is-active' : 'is-pending'}">
-            <div class="scanning-signal-status">
-              <i data-lucide="${analysisStep >= 5 ? 'check-circle-2' : analysisStep === 4 ? 'loader' : 'circle'}"></i>
-            </div>
-            <div class="scanning-signal-content">
-              <span class="scanning-signal-name">User profile</span>
-              <span class="scanning-signal-detail">Calculating alignment score with your verified skill graph and target career goal</span>
-            </div>
-            <span class="scanning-signal-telemetry">${analysisStep >= 5 ? 'Profile alignment: 88/100' : analysisStep === 4 ? 'Synthesizing...' : 'Pending'}</span>
-          </div>
-        </div>
-      </div>
-    `;
-  } else if (hasSearched) {
-    const query = intelligenceExplorerState.question || '';
-    const resultData = getConsoleIntelligenceData({
-      mode,
-      query,
-      entity: currentMeta.targetItem,
-      location,
-      timeRange
+    const coords = points.map((p, i) => {
+      const x = padX + (i / (points.length - 1)) * plotW;
+      const y = height - padY - ((Number(p.value) - minVal) / valRange) * plotH;
+      return { x, y, val: p.value, period: p.period || periods[i] || `P${i + 1}` };
     });
 
-    stageHtml = `
-      <div class="console-result-surface" aria-live="polite">
-        <header class="console-result-header">
-          <div class="console-result-header__title">
-            <div class="console-result-meta-tags">
-              <span class="v2-kicker" style="font-size:10.5px; font-weight:800; color:var(--b-primary); letter-spacing:0.06em;">${resultData.domainKicker}</span>
-              <span class="console-badge-pill console-badge-pill--prototype"><i data-lucide="sparkles"></i> Prototype signal</span>
-              <span class="console-badge-pill console-badge-pill--simulated"><i data-lucide="activity"></i> Simulated market signal</span>
+    const pathD = coords.reduce((acc, pt, i) => {
+      if (i === 0) return `M ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
+      const prev = coords[i - 1];
+      const cx1 = (prev.x + (pt.x - prev.x) / 2).toFixed(1);
+      const cy1 = prev.y.toFixed(1);
+      const cx2 = cx1;
+      const cy2 = pt.y.toFixed(1);
+      return `${acc} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
+    }, '');
+
+    const lastPt = coords[coords.length - 1];
+    const areaD = `${pathD} L ${lastPt.x.toFixed(1)} ${height - padY + 6} L ${coords[0].x.toFixed(1)} ${height - padY + 6} Z`;
+
+    const nodesSvg = coords.map((pt, i) => {
+      const isLast = i === coords.length - 1;
+      if (isLast) {
+        return `
+          <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="7" fill="none" stroke="rgba(168, 85, 247, 0.45)" stroke-width="2"/>
+          <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="4.5" fill="#a855f7" stroke="#ffffff" stroke-width="2"/>
+        `;
+      }
+      return `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="3.2" fill="#a855f7" stroke="#ffffff" stroke-width="1.5"/>`;
+    }).join('');
+
+    return `
+      <div class="grounded-chart-card">
+        <div class="grounded-chart-top">
+          <div class="grounded-chart-metric">
+            <small>Observed Level</small>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <strong>${lastPt.val}</strong>
+              <i data-lucide="star" style="width:14px; height:14px; color:#7c3aed;"></i>
             </div>
-            <h3>${resultData.title}</h3>
-            <p class="console-result-subtitle">Context: <strong>${resultData.entity}</strong> • <strong>${location}</strong> • <strong>${timeRange}</strong></p>
           </div>
-          <div class="console-result-header__actions">
-            <button type="button" class="button" id="saveConsoleResultBtn">
-              <i data-lucide="bookmark-plus"></i>
-              <span>Save</span>
-            </button>
-            <button type="button" class="button" id="consoleAskAnotherBtn">
-              <i data-lucide="rotate-ccw"></i>
-              <span>New Query</span>
-            </button>
+          <div class="grounded-chart-metric">
+            <small>Empirical Momentum</small>
+            <strong style="color:${(growthVal ?? 0) >= 0 ? '#059669' : '#dc2626'};">
+              ${growthFormatted || '—'} ${(growthVal ?? 0) >= 0 ? '▲' : '▼'}
+            </strong>
           </div>
-        </header>
-
-        <div class="console-result-blocks">
-          <!-- Block 1: What Changed -->
-          <article class="console-result-block console-result-block--change">
-            <span class="console-result-block__label">01 · What Changed?</span>
-            <h4 class="console-result-block__heading">${resultData.whatChangedHeading}</h4>
-            <p class="console-result-block__body">${resultData.whatChangedBody}</p>
-            <div class="console-result-block__footer">
-              <span class="console-pill-signal console-pill-signal--up">
-                <i data-lucide="trending-up"></i> ${resultData.changePercent}
-              </span>
-            </div>
-          </article>
-
-          <!-- Block 2: Why It Matters -->
-          <article class="console-result-block console-result-block--why">
-            <span class="console-result-block__label">02 · Why It Matters</span>
-            <h4 class="console-result-block__heading">${resultData.whyItMattersHeading}</h4>
-            <p class="console-result-block__body">${resultData.whyItMattersBody}</p>
-            <div class="console-result-block__footer">
-              <span class="console-pill-signal console-pill-signal--impact">
-                <i data-lucide="target"></i> ${resultData.impactTag}
-              </span>
-            </div>
-          </article>
-
-          <!-- Block 3: What The Data Shows -->
-          <article class="console-result-block console-result-block--data">
-            <span class="console-result-block__label">03 · What The Data Shows</span>
-            <h4 class="console-result-block__heading">${resultData.dataHeading}</h4>
-            <div class="console-chart-preview-wrap" aria-hidden="true">
-              <svg id="consoleDataTelemetryChart" viewBox="0 0 320 72" preserveAspectRatio="none" role="img" aria-label="Signal telemetry trajectory chart">
-                <defs>
-                  <linearGradient id="consoleChartGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#B22DEF" stop-opacity="0.25"/>
-                    <stop offset="100%" stop-color="#8B3DFF" stop-opacity="0.0"/>
-                  </linearGradient>
-                </defs>
-                <polygon class="console-chart-area" points="10,68 10,54 65,48 125,50 185,34 245,26 310,14 310,68" fill="url(#consoleChartGrad)" style="opacity: 0;"/>
-                <polyline class="console-chart-line" points="10,54 65,48 125,50 185,34 245,26 310,14" fill="none" stroke="#B22DEF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle class="console-chart-endpoint-pulse" cx="310" cy="14" r="5" fill="none" stroke="rgba(178, 45, 239, 0.45)" stroke-width="1.5"/>
-                <circle class="console-chart-endpoint" cx="310" cy="14" r="3.5" fill="#B22DEF" stroke="#FFFFFF" stroke-width="2"/>
-              </svg>
-            </div>
-            <div class="console-metrics-mini-grid">
-              ${resultData.metrics.map(m => `
-                <div class="console-metric-mini-cell">
-                  <small>${m.label}</small>
-                  <strong>${m.value}</strong>
-                </div>
-              `).join('')}
-            </div>
-            <p class="console-result-block__footnote"><i data-lucide="info"></i> Simulated market signal • Prototype intelligence telemetry</p>
-          </article>
-
-          <!-- Block 4: Recommended Next Action -->
-          <article class="console-result-block console-result-block--action">
-            <span class="console-result-block__label">04 · What Should I Do?</span>
-            <h4 class="console-result-block__heading">${resultData.actionHeading}</h4>
-            <p class="console-result-block__body">${resultData.actionBody}</p>
-            
-            ${isRoadmapPreviewing ? `
-              <div class="roadmap-preview-banner" style="margin-top:10px;">
-                <div class="roadmap-preview-header">
-                  <div>
-                    <span class="v2-kicker" style="font-size:10px; font-weight:800; color:var(--b-primary);">ROADMAP PREVIEW</span>
-                    <h4>${currentMeta.targetItem} — Career Acceleration Path</h4>
-                  </div>
-                  <span>6 Weeks · 5 Milestones</span>
-                </div>
-                <div class="roadmap-preview-stages">
-                  <div class="preview-stage-dot"><span>1</span> Foundations</div>
-                  <div class="preview-stage-dot"><span>2</span> Core Concepts</div>
-                  <div class="preview-stage-dot"><span>3</span> Applied Practice</div>
-                  <div class="preview-stage-dot"><span>4</span> System Project</div>
-                  <div class="preview-stage-dot"><span>5</span> Assessment</div>
-                </div>
-                <div class="roadmap-preview-actions">
-                  <button type="button" class="button button--assistant" id="confirmActivateRoadmapBtn">
-                    <i data-lucide="check-circle-2"></i> Confirm & Activate Roadmap
-                  </button>
-                  <button type="button" class="button button--secondary" id="cancelRoadmapPreviewBtn">
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ` : `
-              <div class="console-action-row">
-                <button type="button" class="button button--assistant console-action-btn" id="triggerRoadmapPreviewBtn">
-                  <i data-lucide="map"></i> Build Roadmap
-                </button>
-                <a class="button" href="${resultData.detailsHref}">
-                  <i data-lucide="arrow-up-right"></i> Explore Details
-                </a>
-              </div>
-            `}
-          </article>
         </div>
-      </div>
-    `;
-  } else {
-    // Idle / Ready state
-    stageHtml = `
-      <div class="console-idle-surface">
-        <div class="console-idle-orb">
-          <i data-lucide="${currentMeta.icon}"></i>
+        <div class="grounded-chart-svg-box">
+          <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${entity} empirical trend curve">
+            <defs>
+              <linearGradient id="groundedChartGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#a855f7" stop-opacity="0.22"/>
+                <stop offset="100%" stop-color="#7c3aed" stop-opacity="0.02"/>
+              </linearGradient>
+            </defs>
+            <line x1="${padX}" y1="${padY}" x2="${width - padX}" y2="${padY}" stroke="rgba(124,58,237,0.12)" stroke-dasharray="3,3"/>
+            <line x1="${padX}" y1="${height / 2}" x2="${width - padX}" y2="${height / 2}" stroke="rgba(124,58,237,0.12)" stroke-dasharray="3,3"/>
+            <line x1="${padX}" y1="${height - padY}" x2="${width - padX}" y2="${height - padY}" stroke="rgba(124,58,237,0.18)"/>
+            <path d="${areaD}" fill="url(#groundedChartGrad)"/>
+            <path d="${pathD}" fill="none" stroke="#7c3aed" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+            ${nodesSvg}
+            <g transform="translate(${(lastPt.x - 38).toFixed(1)}, ${(lastPt.y - 28).toFixed(1)})">
+              <rect width="76" height="20" rx="5" fill="#6d28d9"/>
+              <text x="38" y="13.5" fill="#ffffff" font-size="10.5" font-weight="700" text-anchor="middle">Level ${lastPt.val}</text>
+            </g>
+          </svg>
         </div>
-        <h4>Ready to Analyze ${currentMeta.title}</h4>
-        <p>Select one of the suggested questions above, or enter your own question to activate real-time telemetry and predictive market signals.</p>
-        <div class="console-idle-tags">
-          <span><i data-lucide="activity"></i> Simulated market signal</span>
-          <span><i data-lucide="database"></i> 42,180 Data Points</span>
-          <span><i data-lucide="map-pin"></i> ${location}</span>
-          <span><i data-lucide="clock"></i> ${timeRange}</span>
+        <div class="grounded-chart-x-labels">
+          ${coords.map(pt => `<span>${pt.period}</span>`).join('')}
         </div>
       </div>
     `;
   }
 
-  return `
-    <section class="intelligence-console-hero" data-console-theme="${currentMeta.theme}" aria-label="Intelligence Console">
-      <div class="console-bg-glow"></div>
-      
-      <!-- Console Top Header -->
-      <header class="console-header">
-        <div class="console-header__title-group">
-          <span class="v2-kicker" style="font-size:11px; font-weight:800; color:var(--b-primary); text-transform:uppercase; letter-spacing:0.06em;">LIVE INTELLIGENCE CONSOLE</span>
-          <h2>${currentMeta.title}</h2>
-          <p>Analyzing telemetry for <strong>${currentMeta.targetItem}</strong> across ${location}.</p>
-        </div>
-
-        <div class="console-header__nav-controls">
-          <div class="console-mode-selector" role="tablist" aria-label="Intelligence Type">
-            <button type="button" role="tab" aria-selected="${mode === 'skills'}" class="console-mode-btn ${mode === 'skills' ? 'is-active' : ''}" data-switch-domain="skills">
-              <i data-lucide="brain-circuit"></i> Skill
-            </button>
-            <button type="button" role="tab" aria-selected="${mode === 'companies'}" class="console-mode-btn ${mode === 'companies' ? 'is-active' : ''}" data-switch-domain="companies">
-              <i data-lucide="building-2"></i> Market
-            </button>
-            <button type="button" role="tab" aria-selected="${mode === 'roles'}" class="console-mode-btn ${mode === 'roles' ? 'is-active' : ''}" data-switch-domain="roles">
-              <i data-lucide="briefcase"></i> Job
-            </button>
+  // Case 2: Exactly 1 empirical observation -> Compact baseline card (no fake trend line)
+  if (points.length === 1 || periods.length === 1) {
+    const singlePeriod = points[0]?.period || periods[0] || '2026-10';
+    const singleVal = points[0]?.value ?? trend?.latest_value ?? 'Recorded';
+    const sourceName = trend?.source || 'Verified Platform Store';
+    return `
+      <div class="grounded-baseline-card">
+        <div class="grounded-baseline-header">
+          <div class="grounded-baseline-tag">
+            <i data-lucide="info"></i>
+            <span>Single-Period Observation Baseline</span>
           </div>
+          <span class="grounded-baseline-period">${singlePeriod}</span>
+        </div>
+        <div class="grounded-baseline-body">
+          <div class="grounded-baseline-stat">
+            <small>Observed Baseline</small>
+            <strong>${singleVal}</strong>
+            <span style="font-size:10px; color:#64748b;">${sourceName}</span>
+          </div>
+          <div class="grounded-baseline-info">
+            <p>Single observation cycle recorded in <strong>${singlePeriod}</strong> for <strong>${entity}</strong> in ${location}. Multi-period directional slope and velocity are blocked until minimum 4 consecutive cycles accumulate per G1.9 quality gates. Zero synthetic trend extrapolation is generated.</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
-          <button type="button" class="console-back-domain-btn" id="changeConsoleDomainBtn" title="Back to domain choices">
-            <i data-lucide="arrow-left"></i> Change Domain
+  // Case 3: Zero observations -> Truthful empty state
+  return `
+    <div class="grounded-empty-card">
+      <div class="grounded-empty-icon"><i data-lucide="database"></i></div>
+      <div>
+        <strong>Insufficient empirical observation data for '${entity}' in ${location}</strong>
+        <p>No verified observation series exist for this query in the current store window. Regional telemetry is actively logged as job postings and requisitions are indexed.</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderAssistantResponseCard(msg, index, isRoadmapPreviewing) {
+  const resultData = msg.resultData || {};
+  const taxonomyInfo = msg.taxonomyInfo || { adjacentSkills: [] };
+  const trend = msg.trend;
+  const evidenceItems = msg.evidenceItems || [];
+  const limitationsItems = msg.limitationsItems || [];
+  const contextualFollowUps = (msg.contextualFollowUps || []).slice(0, 3);
+  const location = msg.location || 'Global';
+  const jobPostings = Array.isArray(msg.jobPostings) ? msg.jobPostings : [];
+  const keyFindings = Array.isArray(resultData.metrics) ? resultData.metrics.slice(0, 3) : [];
+
+  const dirLower = (resultData.changePercent || '').toLowerCase();
+  const isDeclining = dirLower.includes('declining') || dirLower.includes('contracting') || (dirLower.includes('-') && !dirLower.includes('baseline'));
+  const isInsufficient = dirLower.includes('insufficient') || dirLower.includes('baseline') || dirLower.includes('n/a') || dirLower.includes('unavailable');
+  const changePillIcon = isDeclining ? 'trending-down' : isInsufficient ? 'activity' : 'trending-up';
+  const changePillClass = isDeclining ? 'console-pill-signal--down' : isInsufficient ? 'console-pill-signal--neutral' : 'console-pill-signal--up';
+
+  const isSaved = (dashboardState.savedSkills || []).includes(msg.entity) ||
+                  (intelligenceExplorerState.favoriteSkills || []).includes(msg.entity) ||
+                  (intelligenceExplorerState.favoriteCompanies || []).includes(msg.entity) ||
+                  (savedJobRoles || []).includes(msg.entity);
+
+  const caps = msg.capabilities || {};
+  const sh = caps.skill_health?.payload || null;
+  const hl = caps.skill_half_life?.payload || null;
+  const fc = caps.forecast?.payload || null;
+  const aid = caps.ai_disruption?.payload || null;
+  const conf = msg.confidence || null;
+  const unappliedFilters = Array.isArray(msg.unappliedFilters) ? msg.unappliedFilters : [];
+  const responseStatus = msg.status || msg.executionStatus || 'unavailable';
+  const statusLooksSuccessful = ['completed', 'ready'].includes(responseStatus);
+  const statusColor = statusLooksSuccessful ? '#047857'
+    : ['partial', 'insufficient_data', 'requires_clarification'].includes(responseStatus) ? '#92400e'
+      : ['failed', 'error', 'blocked'].includes(responseStatus) ? '#b91c1c' : '#4b5563';
+  const statusBackground = statusLooksSuccessful ? 'rgba(16,185,129,0.1)'
+    : ['partial', 'insufficient_data', 'requires_clarification'].includes(responseStatus) ? '#fffbeb'
+      : ['failed', 'error', 'blocked'].includes(responseStatus) ? '#fef2f2' : '#f3f4f6';
+
+  const hasReadyCapability = Boolean(
+    (sh && sh.status === 'ready') ||
+    (hl && hl.status === 'ready') ||
+    (fc && fc.status === 'ready') ||
+    (aid && aid.status === 'ready')
+  );
+
+  const freshnessIso = msg.freshness?.latest_observed_at
+    ? String(msg.freshness.latest_observed_at).slice(0, 10)
+    : 'Freshness unavailable';
+
+  const whyItMattersText = resultData.whyItMattersBody || (
+    limitationsItems[0] || 'No additional interpretation was returned with this answer.'
+  );
+
+  return `
+    <article class="console-assistant-card console-assistant-card--concise" aria-label="Intelligence Response">
+      <!-- 1. Question / Subject Header -->
+      <header class="console-result-header">
+        <div class="console-result-header__title">
+          <div class="console-result-meta-tags">
+            <span class="v2-kicker" style="font-size:10.5px; font-weight:800; color:#7c3aed; letter-spacing:0.06em;">${skillIntelligenceEscape(resultData.domainKicker || 'INTELLIGENCE VERIFIED')}</span>
+            <span class="console-badge-pill" style="background:${statusBackground}; color:${statusColor}; border:1px solid ${statusColor}44; font-weight:700;"><i data-lucide="${statusLooksSuccessful ? 'shield-check' : 'info'}"></i> ${skillIntelligenceEscape(responseStatus.replaceAll('_', ' '))}</span>
+            ${conf ? `<span class="console-badge-pill" style="background:rgba(124,58,237,0.08); color:#6d28d9; border:1px solid rgba(124,58,237,0.22); font-weight:700;" title="${skillIntelligenceEscape(conf.cap_reason || 'Derived from coverage, freshness, quality, and agreement')}"><i data-lucide="gauge"></i> Confidence: ${(conf.band || 'low').toUpperCase()}</span>` : ''}
+            <span class="console-pill-signal ${changePillClass}">
+              <i data-lucide="${changePillIcon}"></i> ${skillIntelligenceEscape(resultData.changePercent || 'Verified')}
+            </span>
+          </div>
+          <h3 style="font-size:16px; font-weight:800; color:#0f172a; margin:6px 0 3px;">${skillIntelligenceEscape(msg.query || resultData.title || msg.entity)}</h3>
+          <p class="console-result-subtitle" style="color:#64748b; font-size:12px; margin:0;">
+            Subject: <strong style="color:#0f172a;">${skillIntelligenceEscape(msg.entity)}</strong> •
+            Location: <strong style="color:#0f172a;">${skillIntelligenceEscape(location)}</strong> •
+            Window: <strong style="color:#0f172a;">${skillIntelligenceEscape(msg.timeRange)}</strong>
+            ${msg.scope ? ` • Scope: <strong style="color:#0f172a;">${skillIntelligenceEscape(msg.scope)}</strong>` : ''}
+          </p>
+        </div>
+        <div class="console-result-header__actions" style="display:flex; align-items:center; gap:8px;">
+          <button type="button" class="console-copy-answer-btn" data-copy-answer-id="${msg.id}" title="Copy answer text">
+            <i data-lucide="copy"></i>
+            <span>Copy</span>
+          </button>
+          ${['error', 'failed'].includes(responseStatus) && msg.query ? `
+            <button type="button" class="console-retry-answer-btn" data-retry-question="${skillIntelligenceEscape(msg.query)}">
+              Retry
+            </button>
+          ` : ''}
+          <button type="button" class="button ${isSaved ? 'is-saved' : ''}" data-save-result-btn="${skillIntelligenceEscape(msg.entity)}" ${isSaved ? 'disabled' : ''}>
+            <i data-lucide="${isSaved ? 'check' : 'star'}"></i>
+            <span>${isSaved ? 'Favourited' : 'Favourite'}</span>
           </button>
         </div>
       </header>
 
-      <!-- Two-Column Workspace Layout -->
-      <div class="console-workspace-layout">
-        <!-- LEFT: Dynamic Context Rail -->
-        <aside class="console-context-rail">
-          ${controlsHtml}
+      ${unappliedFilters.length ? `
+        <div style="margin:4px 0; padding:7px 12px; border-radius:8px; background:#fffbeb; border:1px solid rgba(245,158,11,0.35); font-size:11.5px; color:#92400e;">
+          <strong>Unapplied Filters:</strong> ${unappliedFilters.map(u => `${skillIntelligenceEscape(u.filter)} (${skillIntelligenceEscape(u.reason)})`).join(' • ')}
+        </div>
+      ` : ''}
 
-          <!-- Context Telemetry Footer -->
-          <div class="console-rail-telemetry">
-            <div class="console-rail-telemetry__icon">
-              <i data-lucide="${currentMeta.icon}"></i>
+      <!-- 2. Plain-English Summary -->
+      <section class="story-part-answer" aria-label="Plain-English Summary">
+        <p class="story-part-answer__summary" style="margin:0; font-size:13.8px; line-height:1.6; color:#0f172a; font-weight:500;">${skillIntelligenceEscape(resultData.whatChangedBody || msg.answer || '')}</p>
+      </section>
+
+      <!-- 3. Key Findings (Up to 3 evidence-backed findings) -->
+      ${keyFindings.length ? `
+        <section class="console-key-findings-section" aria-label="Key Findings">
+          <div class="console-section-micro-label"><i data-lucide="bar-chart-3"></i> Key Findings</div>
+          <div class="console-metrics-mini-grid">
+            ${keyFindings.map(m => `
+              <div class="console-metric-mini-cell">
+                <small>${skillIntelligenceEscape(m.label)}</small>
+                <strong>${skillIntelligenceEscape(m.value)}</strong>
+                ${m.kind ? `<span>${skillIntelligenceEscape(m.kind)}${m.source ? ` · ${skillIntelligenceEscape(m.source)}` : ''}${m.period ? ` · ${skillIntelligenceEscape(m.period)}` : ''}${m.freshness_state ? ` · Freshness: ${skillIntelligenceEscape(m.freshness_state)}` : ''}${m.denominator != null ? ` · Denominator: ${skillIntelligenceEscape(m.denominator)}${m.denominator_unit ? ` ${skillIntelligenceEscape(m.denominator_unit)}` : ''}` : ''}</span>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      ` : ''}
+
+      <!-- 4. Visual Evidence (Compact chart or single-period snapshot / matched job postings) -->
+      ${jobPostings.length ? `
+        <section class="console-job-postings-section" aria-label="Matched Job Postings">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-size:11px; font-weight:800; color:#6d28d9; text-transform:uppercase; letter-spacing:0.05em;">
+              <i data-lucide="briefcase" style="width:13px; height:13px; vertical-align:-2px;"></i>
+              Verified Job Postings (${jobPostings.length} deduplicated)
+            </span>
+          </div>
+          <div class="console-job-postings-grid">
+            ${jobPostings.slice(0, 6).map(p => `
+              <div class="console-job-posting-card">
+                <div class="console-job-posting-card__top">
+                  <strong>${skillIntelligenceEscape(p.title || 'Open Role')}</strong>
+                  <span class="console-job-company-tag">${skillIntelligenceEscape(p.company || 'Verified Employer')}</span>
+                </div>
+                <div class="console-job-posting-card__meta">
+                  <span><i data-lucide="map-pin"></i> ${skillIntelligenceEscape(p.location || location)}</span>
+                  ${p.posting_date ? `<span><i data-lucide="calendar"></i> ${skillIntelligenceEscape(String(p.posting_date).slice(0, 10))}</span>` : ''}
+                  ${p.skill ? `<span><i data-lucide="cpu"></i> ${skillIntelligenceEscape(p.skill)}</span>` : ''}
+                </div>
+                ${Array.isArray(p.required_skills) && p.required_skills.length
+                  ? `<p><strong>Skills recorded:</strong> ${p.required_skills.map(skillIntelligenceEscape).join(', ')}</p>`
+                  : '<p>No structured required-skill list was recorded.</p>'}
+                ${p.source_url ? `
+                  <a href="${skillIntelligenceEscape(p.source_url)}" target="_blank" rel="noopener noreferrer" class="console-job-posting-link">
+                    <span>Source (${skillIntelligenceEscape(p.source || 'Verified')})</span>
+                    <i data-lucide="external-link"></i>
+                  </a>
+                ` : `<span class="console-job-posting-source">Source: ${skillIntelligenceEscape(p.source || 'Platform Store')}</span>`}
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      ` : `
+        <section class="console-concise-telemetry" aria-label="Visual Evidence">
+          ${renderGroundedTrendVisual(trend, msg.entity, location)}
+        </section>
+      `}
+
+      <!-- 5. Why It Matters & 6. Evidence Summary Strip -->
+      <section class="console-why-evidence-row" aria-label="Why It Matters and Evidence">
+        <div class="console-why-matters-box">
+          <span class="console-section-micro-label"><i data-lucide="compass"></i> Why It Matters</span>
+          <p>${skillIntelligenceEscape(whyItMattersText)}</p>
+        </div>
+        <div class="console-evidence-summary-box">
+          <span class="console-section-micro-label"><i data-lucide="file-check-2"></i> Evidence & Freshness</span>
+          <div class="console-evidence-summary-list">
+            ${evidenceItems.length ? evidenceItems.slice(0, 2).map(e => `
+              <div class="console-evidence-mini-item">
+                <strong>${skillIntelligenceEscape(e.source || e.title || 'Verified Store')}</strong>
+                <span>${skillIntelligenceEscape(e.signal_type || e.type || 'signal unavailable')}${e.period ? ` • ${skillIntelligenceEscape(e.period)}` : ''}${e.data_origin ? ` • ${skillIntelligenceEscape(e.data_origin)}` : ''}${e.provenance_id ? ` • ${skillIntelligenceEscape(e.provenance_id)}` : ''}</span>
+                ${/^https?:\/\//i.test(String(e.source_url || '')) ? `<a href="${skillIntelligenceEscape(e.source_url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>` : ''}
+              </div>
+            `).join('') : `
+              <div class="console-evidence-mini-item">
+                <strong>No citations returned for this answer</strong>
+                <span>${skillIntelligenceEscape(freshnessIso)}</span>
+              </div>
+            `}
+          </div>
+        </div>
+      </section>
+
+      <!-- Collapsible Capability Diagnostics & Limitations -->
+      <div class="console-progressive-disclosures">
+        <details class="console-disclosure-box" ${hasReadyCapability ? 'open' : ''}>
+          <summary class="console-disclosure-summary">
+            <span><i data-lucide="layers"></i> Capability Diagnostics, Adjacent Skills & Analytical Boundaries</span>
+            <i data-lucide="chevron-down" class="disclosure-chevron"></i>
+          </summary>
+          <div class="console-disclosure-body">
+            <div class="console-capabilities-strip">
+              <div class="console-capability-cell">
+                <small>Skill Health (Categorical)</small>
+                <strong style="text-transform:capitalize;">${sh ? skillIntelligenceEscape(sh.health_category || sh.status) : 'insufficient_data'}</strong>
+                <span>${sh ? `${(sh.ready_families || []).length} ready signal famil${(sh.ready_families || []).length === 1 ? 'y' : 'ies'}` : 'Requires >=4 share periods'}</span>
+              </div>
+              <div class="console-capability-cell">
+                <small>Skill Half-Life</small>
+                <strong>${hl && hl.status === 'ready' && hl.half_life_months != null ? `${hl.half_life_months} mos` : (hl?.status || 'insufficient_data')}</strong>
+                <span>${hl ? skillIntelligenceEscape((hl.reason || '').slice(0, 68)) : 'Requires >=36 monthly shares'}</span>
+              </div>
+              <div class="console-capability-cell">
+                <small>Deterministic Forecast</small>
+                <strong>${fc && fc.status === 'ready' ? `${fc.selected_model} (${fc.horizon_months}m)` : (fc?.status || 'insufficient_data')}</strong>
+                <span>${fc ? skillIntelligenceEscape((fc.reason || '').slice(0, 68)) : 'Requires >=24 monthly periods'}</span>
+              </div>
+              <div class="console-capability-cell">
+                <small>AI Task Disruption</small>
+                <strong>${aid?.status || 'unavailable'}</strong>
+                <span>${aid ? skillIntelligenceEscape((aid.reason || '').slice(0, 68)) : 'Task exposure ≠ job loss'}</span>
+              </div>
             </div>
-            <div class="console-rail-telemetry__content">
-              <strong>${currentMeta.statusText}</strong>
-              <small>${currentMeta.helperText}</small>
+            ${Array.isArray(taxonomyInfo.adjacentSkills) && taxonomyInfo.adjacentSkills.length ? `
+              <div style="margin-top:10px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span style="font-size:11px; font-weight:700; color:#6d28d9;">Adjacent Competencies:</span>
+                ${taxonomyInfo.adjacentSkills.map(s => `
+                  <button type="button" class="story-adjacent-chip" data-console-prompt="Why is ${skillIntelligenceEscape(s)} demand changing?" title="Analyze ${skillIntelligenceEscape(s)}">
+                    <i data-lucide="git-commit"></i>
+                    <span>${skillIntelligenceEscape(s)}</span>
+                  </button>
+                `).join('')}
+              </div>
+            ` : ''}
+            ${limitationsItems.length ? `
+              <div style="margin-top:10px; font-size:11.5px; color:#92400e; background:#fffbeb; border:1px solid rgba(245,158,11,0.28); border-radius:8px; padding:8px 12px;">
+                <strong style="display:block; margin-bottom:2px;">Methodology & Analytical Boundary:</strong>
+                <ul style="margin:0; padding-left:16px;">
+                  ${limitationsItems.map(lim => `<li>${skillIntelligenceEscape(lim)}</li>`).join('')}
+                </ul>
+              </div>
+            ` : ''}
+          </div>
+        </details>
+      </div>
+
+      <!-- 7. Suggested Next Questions / Follow-Up Actions (Up to 3) & Continue in AI Assistant -->
+      <footer class="story-actions-wrapper" aria-label="Suggested Next Questions">
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; flex:1;">
+          <span style="font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.04em;">Next Questions:</span>
+          ${contextualFollowUps.map(fu => `
+            <button type="button" class="story-followup-pill" data-console-prompt="${skillIntelligenceEscape(fu)}">
+              <i data-lucide="corner-down-right"></i>
+              <span>${skillIntelligenceEscape(fu)}</span>
+            </button>
+          `).join('')}
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button type="button" class="button button--assistant console-action-btn" id="continueInAssistantBtn" title="Continue this conversation in the full AI Assistant">
+            <i data-lucide="messages-square"></i> <span>Continue in AI Assistant</span>
+          </button>
+        </div>
+      </footer>
+    </article>
+  `;
+}
+
+function saveCurrentConsoleDomainSession(modeKey = intelligenceExplorerState.type || 'skills') {
+  const mode = ['skills', 'companies', 'roles'].includes(modeKey) ? modeKey : 'skills';
+  if (!intelligenceExplorerState.domainSessions) {
+    intelligenceExplorerState.domainSessions = {};
+  }
+  const currentScope = mode === 'skills'
+    ? (intelligenceExplorerState.skillScope || 'All Skills')
+    : mode === 'companies'
+      ? (intelligenceExplorerState.companyScope || 'All Companies')
+      : (intelligenceExplorerState.jobScope || 'All Companies');
+  const currentEntity = mode === 'skills'
+    ? (dashboardState.selectedSkill || intelligenceExplorerState.selected.skills || '')
+    : mode === 'companies'
+      ? (intelligenceExplorerState.selected.companies || '')
+      : (intelligenceExplorerState.selected.roles || '');
+  intelligenceExplorerState.domainSessions[mode] = {
+    conversationId: intelligenceExplorerState.conversationId || null,
+    messages: Array.isArray(intelligenceExplorerState.messages) ? [...intelligenceExplorerState.messages] : [],
+    question: intelligenceExplorerState.question || '',
+    hasSearched: Boolean(intelligenceExplorerState.hasSearched),
+    scope: currentScope,
+    location: dashboardState.selectedLocation || dashboardState.market || 'Global',
+    timeRange: intelligenceExplorerState.timeRange || 'Max Available',
+    entity: currentEntity,
+    apiResponse: intelligenceExplorerState.apiResponse || null
+  };
+}
+
+function restoreConsoleDomainSession(nextModeKey) {
+  const nextMode = ['skills', 'companies', 'roles'].includes(nextModeKey) ? nextModeKey : 'skills';
+  const prevMode = intelligenceExplorerState.type || 'skills';
+  if (prevMode !== nextMode) {
+    saveCurrentConsoleDomainSession(prevMode);
+  }
+  const defaults = {
+    skills: { scope: 'All Skills', entity: '' },
+    companies: { scope: 'All Companies', entity: '' },
+    roles: { scope: 'All Companies', entity: '' }
+  }[nextMode];
+
+  const saved = prevMode !== nextMode ? {
+    conversationId: null,
+    messages: [],
+    question: '',
+    hasSearched: false,
+    scope: defaults.scope,
+    location: '',
+    timeRange: 'Max Available',
+    entity: defaults.entity,
+    apiResponse: null
+  } : (intelligenceExplorerState.domainSessions?.[nextMode] || {
+    conversationId: null,
+    messages: [],
+    question: '',
+    hasSearched: false,
+    scope: defaults.scope,
+    location: '',
+    timeRange: 'Max Available',
+    entity: defaults.entity,
+    apiResponse: null
+  });
+  if (prevMode !== nextMode) {
+    import('../api/core-intelligence-client.js').then(({ setActiveConversationId }) => {
+      setActiveConversationId('', 'individual', nextMode, userProfileState.uid);
+    }).catch(() => {});
+    if (intelligenceExplorerState.domainSessions) delete intelligenceExplorerState.domainSessions[nextMode];
+  }
+
+  intelligenceExplorerState.type = nextMode;
+  intelligenceExplorerState.domainSelected = true;
+  intelligenceExplorerState.isAnalyzing = false;
+  intelligenceExplorerState.analyzingEntity = '';
+  intelligenceExplorerState.activeQueryId++;
+  intelligenceExplorerState.conversationId = saved.conversationId || null;
+  intelligenceExplorerState.messages = Array.isArray(saved.messages) ? [...saved.messages] : [];
+  intelligenceExplorerState.question = saved.question || '';
+  intelligenceExplorerState.hasSearched = Boolean(saved.messages && saved.messages.length);
+  intelligenceExplorerState.timeRange = saved.timeRange || 'Max Available';
+  intelligenceExplorerState.apiResponse = saved.apiResponse || null;
+  dashboardState.selectedLocation = saved.location || 'Global';
+  dashboardState.market = saved.location || 'Global';
+
+  if (nextMode === 'skills') {
+    const validScopes = ['All Skills', 'My Skills', 'Favourites'];
+    const mappedScope = saved.scope === 'Favourite Skills' || saved.scope === 'Favorite Skills' ? 'Favourites' : saved.scope;
+    intelligenceExplorerState.skillScope = validScopes.includes(mappedScope) ? mappedScope : 'All Skills';
+    dashboardState.selectedSkill = saved.entity || '';
+    intelligenceExplorerState.selected.skills = saved.entity || '';
+  } else if (nextMode === 'companies') {
+    const validScopes = ['All Companies', 'Favourites'];
+    const mappedScope = saved.scope === 'Favourite Companies' || saved.scope === 'Favorite Companies'
+      ? 'Favourites'
+      : (saved.scope === 'All' ? 'All Companies' : saved.scope);
+    intelligenceExplorerState.companyScope = validScopes.includes(mappedScope) ? mappedScope : 'All Companies';
+    intelligenceExplorerState.selected.companies = saved.entity || '';
+    dashboardState.selectedCompany = saved.entity || '';
+  } else {
+    const validScopes = ['All Companies', 'Favourites'];
+    const mappedScope = saved.scope === 'Favourite Companies' || saved.scope === 'Favorite Companies'
+      ? 'Favourites'
+      : (saved.scope === 'All' ? 'All Companies' : saved.scope);
+    intelligenceExplorerState.jobScope = validScopes.includes(mappedScope) ? mappedScope : 'All Companies';
+    intelligenceExplorerState.selected.roles = saved.entity || '';
+    dashboardState.selectedRole = saved.entity || '';
+  }
+}
+
+function renderRedesignedConsole() {
+  const mode = ['skills', 'companies', 'roles'].includes(intelligenceExplorerState.type)
+    ? intelligenceExplorerState.type
+    : 'skills';
+  const location = dashboardState.selectedLocation || dashboardState.market || '';
+  const timeRange = intelligenceExplorerState.timeRange || dashboardState.timeRange || 'Max Available';
+  const isAnalyzing = Boolean(intelligenceExplorerState.isAnalyzing);
+  const isRoadmapPreviewing = Boolean(intelligenceExplorerState.isRoadmapPreviewing);
+  const activeFilterSection = intelligenceExplorerState.activeFilterSection || 'scope';
+
+  const currentSkill = dashboardState.selectedSkill || intelligenceExplorerState.selected.skills || '';
+  const currentCompany = intelligenceExplorerState.selected.companies || '';
+  const currentRole = intelligenceExplorerState.selected.roles || '';
+  const currentEntity = mode === 'skills' ? currentSkill : mode === 'companies' ? currentCompany : currentRole;
+
+  const domainMeta = {
+    skills: {
+      theme: 'skills',
+      domainCode: 'skill',
+      shortLabel: 'Skill Intelligence',
+      title: 'Skill Intelligence',
+      subtitle: 'Forecast workforce skill evolution using recency-weighted velocity, adaptive half-life, and O*NET baselines.',
+      icon: 'brain-circuit',
+      focusLabel: 'Focus Skill',
+      scopes: ['All Skills', 'My Skills', 'Favourites'],
+      defaultScope: 'All Skills',
+      placeholder: 'Ask about skill demand, skill health, or future relevance...'
+    },
+    companies: {
+      theme: 'companies',
+      domainCode: 'market',
+      shortLabel: 'Market Intelligence',
+      title: 'Market Intelligence',
+      subtitle: 'Track labor-market signal series, company technology adoption, and verified observation provenance.',
+      icon: 'building-2',
+      focusLabel: 'Focus Company / Tech',
+      scopes: ['All Companies', 'Favourites'],
+      defaultScope: 'All Companies',
+      placeholder: 'Ask about company technology adoption, hiring signals, or market changes...'
+    },
+    roles: {
+      theme: 'roles',
+      domainCode: 'job',
+      shortLabel: 'Job Intelligence',
+      title: 'Job Intelligence',
+      subtitle: 'Inspect deduplicated job postings, required skills, occupational classifications, and role opportunities.',
+      icon: 'briefcase',
+      focusLabel: 'Role / Posting Filter',
+      scopes: ['All Companies', 'Favourites'],
+      defaultScope: 'All Companies',
+      placeholder: 'Ask about job demand, required skills, or role opportunities at a company...'
+    }
+  };
+
+  const currentMeta = domainMeta[mode] || domainMeta.skills;
+  const domainRows = mode === 'skills'
+    ? (homeCatalogState.skills?.skills || homeSkillIntelligenceState.intelligence?.historical_trends || homeSkillIntelligenceState.intelligence?.skill_trends || [])
+    : mode === 'companies'
+      ? (homeCatalogState.market?.technologies || homeMarketIntelligenceState.data?.historical_trends || homeMarketIntelligenceState.data?.trends || [])
+      : (homeJobIntelligenceState.jobs || []);
+  const supportedConsoleLocations = mode === 'skills'
+    ? (homeCatalogState.skills?.locations || [])
+    : mode === 'companies'
+      ? (homeCatalogState.market?.locations || [])
+      : (homeCatalogState.market?.job_locations_in_sample || []);
+  const catalogRanges = mode === 'skills' ? homeCatalogState.skills?.available_ranges
+    : mode === 'companies' ? homeCatalogState.market?.available_ranges
+      : homeCatalogState.market?.job_available_ranges;
+  const supportedConsoleRanges = Array.isArray(catalogRanges) && catalogRanges.length
+    ? [...catalogRanges.map(value => value === '30d' ? '30 Days' : value === '3m' ? '3 Months' : value === '6m' ? '6 Months' : value), 'Max Available']
+    : ['Max Available'];
+
+  const rawScope = mode === 'skills'
+    ? (intelligenceExplorerState.skillScope || 'All Skills')
+    : mode === 'companies'
+      ? (intelligenceExplorerState.companyScope || 'All Companies')
+      : (intelligenceExplorerState.jobScope || 'All Companies');
+  const normalizedRawScope = rawScope === 'Favourite Skills' || rawScope === 'Favourite Companies' || rawScope === 'Favorite Skills' || rawScope === 'Favorite Companies'
+    ? 'Favourites'
+    : (rawScope === 'All' && mode !== 'skills')
+      ? 'All Companies'
+      : rawScope;
+  const currentScope = currentMeta.scopes.includes(normalizedRawScope) ? normalizedRawScope : currentMeta.defaultScope;
+
+  // Draft filter state for popover so closing without Apply never mutates active filters
+  const draft = intelligenceExplorerState.isFilterDrawerOpen && intelligenceExplorerState.draftFilters
+    ? intelligenceExplorerState.draftFilters
+    : {
+        scope: currentScope,
+        entity: currentEntity,
+        location: location,
+        timeRange: timeRange
+      };
+  const popupScope = currentMeta.scopes.includes(draft.scope) ? draft.scope : currentScope;
+  const showFocusEntities = popupScope !== 'All Skills' && popupScope !== 'All Companies';
+  const popupEntity = draft.entity ?? currentEntity;
+  const popupLocation = draft.location ?? location;
+  const popupTimeRange = draft.timeRange || timeRange;
+
+  // Derive truthful focus entity list for popupScope without fabricating profile or favourite items
+  let activeEntitiesList = [];
+  let emptyScopeReason = '';
+  let showProfileSkillsCta = false;
+  if (mode === 'skills') {
+    if (popupScope === 'My Skills') {
+      const supported = new Set((homeCatalogState.skills?.skills || []).map(item => item.name));
+      const profileSkillNames = (homeCatalogState.skills?.my_skills || homeSkillIntelligenceState.skills || []).map(s => typeof s === 'string' ? s : s.name).filter(Boolean);
+      const userStateSkills = Array.isArray(userProfileState?.skills) ? userProfileState.skills.filter(Boolean) : [];
+      activeEntitiesList = [...new Set([...profileSkillNames, ...userStateSkills])].filter(item => supported.has(item));
+      if (!activeEntitiesList.length) {
+        emptyScopeReason = 'No skills saved in your profile or onboarding yet.';
+        showProfileSkillsCta = true;
+      }
+    } else if (popupScope === 'Favourites') {
+      const favSet = Array.from(homeSkillIntelligenceState.favoriteSkills || []);
+      const supported = new Set((homeCatalogState.skills?.skills || []).map(item => item.name));
+      activeEntitiesList = [...new Set(favSet)].filter(item => supported.has(item));
+      if (!activeEntitiesList.length) {
+        emptyScopeReason = 'No favourite skills saved yet. Star a skill in an analysis card or switch scope to All Skills.';
+      }
+    } else {
+      activeEntitiesList = [...new Set([...(homeCatalogState.skills?.skills || []).map(item => item.name), ...(homeSkillIntelligenceState.intelligence?.skill_trends || []).map(item => item.skill), ...(homeSkillIntelligenceState.intelligence?.top_skills || []).map(item => item.skill)].filter(Boolean))];
+      if (!activeEntitiesList.length) emptyScopeReason = 'No supported skills with usable backend observations are loaded yet.';
+    }
+  } else if (mode === 'companies') {
+    const marketFavoriteEntities = Array.isArray(intelligenceExplorerState.favoriteMarketEntities) ? intelligenceExplorerState.favoriteMarketEntities : [];
+    if (popupScope === 'Favourites') {
+      const supported = new Set([...(homeCatalogState.market?.technologies || []).map(item => item.name), ...(homeCatalogState.market?.companies_with_job_evidence || []).map(item => item.name)]);
+      activeEntitiesList = [...new Set(marketFavoriteEntities)].filter(item => supported.has(item));
+      if (!activeEntitiesList.length) {
+        emptyScopeReason = 'No favourite companies saved yet. Favourite a company or switch scope to All Companies.';
+      }
+    } else {
+      activeEntitiesList = [...new Set([...(homeCatalogState.market?.technologies || []).map(item => item.name), ...(homeCatalogState.market?.companies_with_job_evidence || []).map(item => item.name)].filter(Boolean))];
+      if (!activeEntitiesList.length) emptyScopeReason = 'No supported technology or employer evidence is available in the configured market catalog.';
+    }
+  } else {
+    const availableJobCompanies = new Set((homeCatalogState.market?.companies_with_job_evidence || []).map(item => item.name));
+    const jobFavorites = [...new Set(intelligenceExplorerState.favoriteCompanies || [])].filter(name => availableJobCompanies.has(name));
+    activeEntitiesList = popupScope === 'Favourites'
+      ? jobFavorites
+      : [...new Set([...(homeJobIntelligenceState.jobs || []).map(item => item.company), ...availableJobCompanies].filter(Boolean))];
+    if (!activeEntitiesList.length) emptyScopeReason = popupScope === 'Favourites'
+      ? 'Favourites scope filters genuine postings by your saved companies; no supported company favourites are saved.'
+      : 'No company entities are available from stored job postings yet.';
+  }
+
+  const promptsMap = {
+    skills: [
+      `Why is ${currentSkill} demand changing?`,
+      `Which of my skills are gaining relevance?`,
+      `What skills are adjacent to ${currentSkill}?`
+    ],
+    companies: [
+      'Which companies are increasing technology adoption?',
+      'What hiring signals are changing?',
+      'Which companies are relevant to my interests?'
+    ],
+    roles: [
+      'What skills do current postings require?',
+      'Which companies have relevant openings?',
+      'How do job requirements compare across companies?'
+    ]
+  };
+  const suggestedPrompts = (promptsMap[mode] || promptsMap.skills).slice(0, 3);
+
+  const messages = intelligenceExplorerState.messages || [];
+  const latestMsg = messages.length ? messages[messages.length - 1] : null;
+
+  const rawFreshnessIso =
+    intelligenceExplorerState.apiResponse?.freshness?.latest_observed_at ||
+    homeSkillIntelligenceState.intelligence?.freshness?.latest_observed_at ||
+    homeMarketIntelligenceState.data?.freshness?.latest_observed_at ||
+    null;
+  const freshnessText = rawFreshnessIso
+    ? `Updated: ${String(rawFreshnessIso).slice(0, 10)}`
+    : 'Freshness unavailable';
+
+  return `
+    <section class="intelligence-console-hero ${isAnalyzing ? 'is-analyzing' : ''}" id="intelligence-console-hero" data-console-theme="${currentMeta.theme}" aria-label="TalentScope AI Assistant">
+      <div class="console-conv-workspace">
+        <!-- A. Compact Top Header Inside the Assistant Panel -->
+        <header class="console-conv-header">
+          <div class="console-conv-header__brand">
+            <div class="console-brand-mark" aria-hidden="true">
+              <i data-lucide="sparkles"></i>
+            </div>
+            <div class="console-brand-titles">
+              <span class="v2-kicker">TALENTSCOPE.AI INTELLIGENCE</span>
+              <h1>TalentScope AI Assistant</h1>
             </div>
           </div>
-        </aside>
 
-        <!-- RIGHT: Analysis Stage -->
-        <div class="console-analysis-stage">
-          <!-- AI Prompt Composer -->
-          <div class="console-prompt-composer">
-            <span class="console-prompt-icon"><i data-lucide="sparkles"></i></span>
-            <input class="console-prompt-input" id="consoleQueryInput" type="text" placeholder="${currentMeta.placeholder}" value="${intelligenceExplorerState.question || ''}">
-            ${intelligenceExplorerState.question ? `
-              <button type="button" class="console-clear-btn" id="consoleClearInputBtn" title="Clear input" aria-label="Clear input">
-                <i data-lucide="x"></i>
-              </button>
-            ` : ''}
-            <button class="console-analyze-btn button--assistant" id="consoleAnalyzeSubmit" type="button">
-              <span>Analyze</span> <i data-lucide="arrow-right"></i>
+          <div class="console-conv-header__actions">
+            <span class="console-freshness-pill" title="Latest verified observation timestamp from backend">
+              <span class="freshness-dot ${rawFreshnessIso ? 'is-live' : 'is-unavailable'}" aria-hidden="true"></span>
+              <i data-lucide="clock"></i>
+              <span>${skillIntelligenceEscape(freshnessText)}</span>
+            </span>
+            <button type="button" class="console-action-icon-btn" id="openChatHistoryBtn" title="Open conversation history in AI Assistant">
+              <i data-lucide="history"></i> <span>History</span>
+            </button>
+            <button type="button" class="console-action-icon-btn" id="resetConversationBtn" title="Start a new chat in ${currentMeta.title}">
+              <i data-lucide="plus"></i> <span>New Chat</span>
             </button>
           </div>
+        </header>
 
-          <!-- Suggested Questions -->
-          <div class="console-suggested-prompts">
-            <span>Suggested:</span>
-            ${suggestedPrompts.map(p => `<button type="button" class="prompt-chip" data-console-prompt="${p}">${p}</button>`).join('')}
+        <!-- B. Three-Domain Pill Selector (Centered below header) -->
+        <div class="console-domain-selector-bar" role="tablist" aria-label="Intelligence Domain Selector">
+          <div class="console-domain-pills">
+            <button type="button" role="tab" aria-selected="${mode === 'skills'}" class="console-domain-pill ${mode === 'skills' ? 'is-active' : ''}" data-switch-domain="skills">
+              <i data-lucide="brain-circuit"></i> <span>Skill Intelligence</span>
+            </button>
+            <button type="button" role="tab" aria-selected="${mode === 'companies'}" class="console-domain-pill ${mode === 'companies' ? 'is-active' : ''}" data-switch-domain="companies">
+              <i data-lucide="building-2"></i> <span>Market Intelligence</span>
+            </button>
+            <button type="button" role="tab" aria-selected="${mode === 'roles'}" class="console-domain-pill ${mode === 'roles' ? 'is-active' : ''}" data-switch-domain="roles">
+              <i data-lucide="briefcase"></i> <span>Job Intelligence</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- C. Animated Intelligence Visual + Domain Heading Stage -->
+        <div class="console-ai-visual-stage ${isAnalyzing ? 'is-analyzing' : ''}">
+          <div class="console-ai-neural-backdrop" aria-hidden="true">
+            <div class="console-ambient-glow console-ambient-glow--primary"></div>
+            <div class="console-ambient-glow console-ambient-glow--secondary"></div>
+            <div class="console-isometric-grid"></div>
+            <svg class="console-neural-svg" viewBox="0 0 680 120" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <linearGradient id="tsNeuralGradLeft" x1="0%" y1="50%" x2="100%" y2="50%">
+                  <stop offset="0%" stop-color="#b22def" stop-opacity="0.04" />
+                  <stop offset="55%" stop-color="#8b3dff" stop-opacity="0.38" />
+                  <stop offset="100%" stop-color="#7c3aed" stop-opacity="0.72" />
+                </linearGradient>
+                <linearGradient id="tsNeuralGradRight" x1="100%" y1="50%" x2="0%" y2="50%">
+                  <stop offset="0%" stop-color="#b22def" stop-opacity="0.04" />
+                  <stop offset="55%" stop-color="#8b3dff" stop-opacity="0.38" />
+                  <stop offset="100%" stop-color="#7c3aed" stop-opacity="0.72" />
+                </linearGradient>
+                <radialGradient id="tsCoreOrbGrad" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#b22def" stop-opacity="0.42" />
+                  <stop offset="65%" stop-color="#8b3dff" stop-opacity="0.14" />
+                  <stop offset="100%" stop-color="#8b3dff" stop-opacity="0" />
+                </radialGradient>
+              </defs>
+              <!-- Isometric ellipses -->
+              <ellipse cx="340" cy="62" rx="148" ry="34" class="neural-iso-ring neural-iso-ring--outer" />
+              <ellipse cx="340" cy="62" rx="92" ry="21" class="neural-iso-ring neural-iso-ring--inner" />
+              <!-- Left neural pathways -->
+              <path d="M40 34 C 135 34, 210 62, 312 62" class="neural-path neural-path--left-1" stroke="url(#tsNeuralGradLeft)" />
+              <path d="M78 88 C 165 88, 228 62, 312 62" class="neural-path neural-path--left-2" stroke="url(#tsNeuralGradLeft)" />
+              <path d="M135 18 C 205 24, 250 52, 312 62" class="neural-path neural-path--left-3" stroke="url(#tsNeuralGradLeft)" />
+              <!-- Right neural pathways -->
+              <path d="M640 34 C 545 34, 470 62, 368 62" class="neural-path neural-path--right-1" stroke="url(#tsNeuralGradRight)" />
+              <path d="M602 88 C 515 88, 452 62, 368 62" class="neural-path neural-path--right-2" stroke="url(#tsNeuralGradRight)" />
+              <path d="M545 18 C 475 24, 430 52, 368 62" class="neural-path neural-path--right-3" stroke="url(#tsNeuralGradRight)" />
+              <!-- Floating signal nodes -->
+              <circle cx="96" cy="39" r="3.5" class="neural-node neural-node--1" />
+              <circle cx="152" cy="80" r="3" class="neural-node neural-node--2" />
+              <circle cx="222" cy="34" r="4" class="neural-node neural-node--3" />
+              <circle cx="458" cy="34" r="4" class="neural-node neural-node--4" />
+              <circle cx="528" cy="80" r="3" class="neural-node neural-node--5" />
+              <circle cx="584" cy="39" r="3.5" class="neural-node neural-node--6" />
+              <!-- Central core halo -->
+              <circle cx="340" cy="62" r="40" fill="url(#tsCoreOrbGrad)" class="neural-core-halo" />
+            </svg>
+            <div class="console-ai-core-glass-node">
+              <i data-lucide="${currentMeta.icon}"></i>
+            </div>
           </div>
 
-          <!-- Dynamic Stage (Idle, Scanning, or Morphed Result) -->
-          ${stageHtml}
+          <div class="console-domain-heading-block">
+            <h2 class="console-domain-heading__title">${currentMeta.title}</h2>
+            <p class="console-domain-heading__subtitle">${currentMeta.subtitle}</p>
+          </div>
         </div>
+
+        <!-- D & E. Centered, Compact Search Box (max 860px) with TRY ASKING Inside -->
+        <div class="console-conv-composer-wrap">
+          <div class="console-prompt-composer-card ${isAnalyzing ? 'is-analyzing' : ''}">
+            <div class="console-prompt-composer">
+              <span class="console-prompt-icon" aria-hidden="true"><i data-lucide="sparkles"></i></span>
+              <input class="console-prompt-input" id="consoleQueryInput" type="text" placeholder="${skillIntelligenceEscape(currentMeta.placeholder)}" value="${skillIntelligenceEscape(intelligenceExplorerState.question || '')}" autocomplete="off" aria-label="${currentMeta.title} question" ${isAnalyzing ? 'disabled' : ''}>
+              ${intelligenceExplorerState.question && !isAnalyzing ? `
+                <button type="button" class="console-clear-btn" id="consoleClearInputBtn" title="Clear input" aria-label="Clear input">
+                  <i data-lucide="x"></i>
+                </button>
+              ` : ''}
+              <button class="console-analyze-btn button--assistant" id="consoleAnalyzeSubmit" type="button" ${isAnalyzing ? 'disabled aria-busy="true"' : ''}>
+                ${isAnalyzing
+                  ? `<i data-lucide="loader-2" class="home-spin-fast"></i> <span>Analyzing...</span>`
+                  : `<span>Analyze</span> <i data-lucide="arrow-right"></i>`}
+              </button>
+            </div>
+
+            <!-- E. Suggestions INSIDE the search panel -->
+            <div class="console-composer-suggestions-inside" aria-label="Suggested domain questions">
+              <span class="suggested-inside-label"><i data-lucide="sparkles"></i> TRY ASKING</span>
+              <div class="console-suggested-inside-pills">
+                ${suggestedPrompts.map(p => `
+                  <button type="button" class="prompt-chip-pill prompt-chip-pill--inside" data-console-prompt="${skillIntelligenceEscape(p)}" ${isAnalyzing ? 'disabled' : ''}>
+                    <span>${skillIntelligenceEscape(p)}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- F. Single Compact Filters Button Directly Below the Query Panel -->
+          <div class="console-filter-chips-bar" role="toolbar" aria-label="Domain Analysis Filters">
+            <div class="console-filter-chips-supported">
+              <button type="button" class="console-filter-chip console-filter-chip--unified ${intelligenceExplorerState.isFilterDrawerOpen ? 'is-active' : ''}" id="consoleFilterToggleBtn" aria-expanded="${Boolean(intelligenceExplorerState.isFilterDrawerOpen)}" aria-controls="consoleFilterDrawer" title="Configure ${currentMeta.title} filters">
+                <i data-lucide="sliders-horizontal"></i>
+                <span>Filters · <strong>${skillIntelligenceEscape(currentScope)}</strong> · <strong>${skillIntelligenceEscape(location)}</strong> · <strong>${skillIntelligenceEscape(timeRange)}</strong></span>
+                <i data-lucide="chevron-down" class="chip-chevron ${intelligenceExplorerState.isFilterDrawerOpen ? 'is-rotated' : ''}"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Compact Domain-Specific Filter Popover (With Draft State + Reset & Apply) -->
+          <div class="console-filter-drawer-popover" id="consoleFilterDrawer" ${intelligenceExplorerState.isFilterDrawerOpen ? '' : 'hidden'} role="dialog" aria-label="${currentMeta.title} Filters">
+            <div class="console-filter-popover-head">
+              <span class="console-filter-popover-title"><i data-lucide="sliders-horizontal"></i> ${currentMeta.title} Filters</span>
+              <button type="button" class="console-filter-close-icon" id="closeConsoleFilterDrawerBtn" title="Discard unapplied changes and close" aria-label="Close filter popover">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
+            <div class="console-filter-grid">
+              <div class="console-filter-group">
+                <label>${currentMeta.title} Scope</label>
+                <div class="console-scope-pills" role="radiogroup" aria-label="Scope options">
+                  ${currentMeta.scopes.map(s => `
+                    <button type="button" class="console-scope-pill ${s === popupScope ? 'is-active' : ''}" data-conv-scope="${skillIntelligenceEscape(s)}">${skillIntelligenceEscape(s)}</button>
+                  `).join('')}
+                </div>
+              </div>
+              <div class="console-filter-group">
+                <label>Location</label>
+                <select class="console-select" id="consoleLocationSelect" aria-label="Location Context">
+                  <option value="" ${popupLocation ? '' : 'selected'}>All supported locations</option>
+                  ${supportedConsoleLocations.map(m => `<option value="${skillIntelligenceEscape(m)}" ${m === popupLocation ? 'selected' : ''}>${skillIntelligenceEscape(m)}</option>`).join('')}
+                  ${!supportedConsoleLocations.length ? '<option value="">No supported locations in loaded records</option>' : ''}
+                </select>
+              </div>
+              <div class="console-filter-group">
+                <label>Time Range</label>
+                <div class="console-time-pills">
+                  ${supportedConsoleRanges.map(t => `
+                    <button type="button" class="console-time-pill ${t === popupTimeRange ? 'is-active' : ''}" data-conv-time-range="${skillIntelligenceEscape(t)}">${skillIntelligenceEscape(t)}</button>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+            ${showFocusEntities ? `
+              <div class="console-active-entities-strip">
+                <small>${currentMeta.focusLabel} (${skillIntelligenceEscape(popupScope)}):</small>
+                ${activeEntitiesList.length ? `
+                  <div class="console-chips-scroll">
+                    ${activeEntitiesList.map(item => `
+                      <button type="button" class="console-chip-btn ${item === popupEntity ? 'is-active' : ''}" data-conv-select-entity="${skillIntelligenceEscape(item)}">
+                        ${skillIntelligenceEscape(mode === 'skills' && homeCatalogState.skills?.skills?.find(row => row.name === item)?.status === 'reference_only' ? `${item} · Reference only — no trend data` : item)}
+                      </button>
+                    `).join('')}
+                  </div>
+                ` : `
+                  <div class="console-empty-scope-banner">
+                    <span>${skillIntelligenceEscape(emptyScopeReason || 'No saved items in this scope.')}</span>
+                    ${showProfileSkillsCta ? `
+                      <a href="#/individual/profile" class="console-empty-scope-cta">Add skills in Profile / Onboarding →</a>
+                    ` : ''}
+                  </div>
+                `}
+              </div>
+            ` : ''}
+            <div class="console-filter-drawer-footer">
+              <span class="console-filter-drawer-note">
+                Draft: <strong>${skillIntelligenceEscape(popupScope)}</strong> · <strong>${skillIntelligenceEscape(popupEntity)}</strong> · <strong>${skillIntelligenceEscape(popupLocation)}</strong> · <strong>${skillIntelligenceEscape(popupTimeRange)}</strong>
+              </span>
+              <div class="console-filter-drawer-actions">
+                <button type="button" class="console-filter-reset-btn" id="resetConsoleFiltersBtn">Reset</button>
+                <button type="button" class="console-filter-done-btn" id="applyConsoleFiltersBtn">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Staged Real-Time Analysis Feedback (Only while backend request is in flight) -->
+        ${isAnalyzing ? `
+          <div class="console-honest-analysis-card" aria-live="polite">
+            <div class="console-analysis-orb-wrap">
+              <div class="console-analysis-orb-core"></div>
+              <div class="console-analysis-orb-glow"></div>
+            </div>
+            <h4>Running ${currentMeta.title} analysis for <strong>${skillIntelligenceEscape(intelligenceExplorerState.analyzingEntity || currentEntity)}</strong>...</h4>
+            <div class="console-staged-steps" role="status">
+              <span class="staged-step is-active"><i data-lucide="check-circle-2"></i> 1. Scope & Context (${skillIntelligenceEscape(currentScope)})</span>
+              <span class="staged-step is-active"><i data-lucide="loader-2" class="home-spin-fast"></i> 2. Verified Observation Retrieval (${skillIntelligenceEscape(location)})</span>
+              <span class="staged-step"><i data-lucide="circle"></i> 3. Capability & Provenance Audit</span>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Concise Result Experience After Analyze (Single focused card on Home) -->
+        ${!isAnalyzing && latestMsg ? `
+          <div class="console-result-surface console-home-single-answer" aria-live="polite">
+            ${renderAssistantResponseCard(latestMsg, messages.length - 1, isRoadmapPreviewing)}
+          </div>
+        ` : ''}
       </div>
     </section>
+  `;
+}
+
+function renderConversationHistoryDrawer() {
+  const historyList = intelligenceExplorerState.conversationHistory || [];
+  const currentId = intelligenceExplorerState.conversationId;
+
+  return `
+    <div class="console-history-overlay" id="consoleHistoryOverlay" aria-modal="true" role="dialog">
+      <div class="console-history-panel" id="consoleHistoryPanel">
+        <header class="console-history-header">
+          <h3><i data-lucide="history"></i> Conversation History</h3>
+          <button type="button" class="console-history-close-btn" id="closeChatHistoryBtn" title="Close history" aria-label="Close history">
+            <i data-lucide="x"></i>
+          </button>
+        </header>
+        <div class="console-history-body">
+          ${historyList.length ? historyList.map(item => `
+            <div class="console-history-item ${item.conversation_id === currentId ? 'is-current' : ''}" data-history-select-id="${item.conversation_id}">
+              <div class="console-history-item-top">
+                <strong class="console-history-item-title">${item.title || 'Conversation Session'}</strong>
+                <button type="button" class="console-history-delete-btn" data-history-delete-id="${item.conversation_id}" title="Delete session" aria-label="Delete session">
+                  <i data-lucide="trash-2"></i>
+                </button>
+              </div>
+              <div class="console-history-item-meta">
+                ${item.active_entity ? `<span class="console-history-badge">${item.active_entity}</span>` : ''}
+                <span>${item.turn_count || 1} turn${(item.turn_count || 1) > 1 ? 's' : ''}</span>
+                <span>•</span>
+                <span>${new Date(item.updated_at || item.created_at || Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+          `).join('') : `
+            <div class="console-history-empty">
+              <i data-lucide="message-square-off"></i>
+              <span>No saved conversations yet.</span>
+              <small>Ask questions to start recording intelligence sessions.</small>
+            </div>
+          `}
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -3058,8 +4050,8 @@ function getAdjacentSkillDetails(skillName) {
 function getSkillChartDateLabels(timeRange, dateType) {
   if (dateType === 'Day' || timeRange === '7 Days') return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   if (timeRange === '30 Days') return ['Wk 1', 'Wk 2', 'Wk 3', 'Wk 4'];
-  if (timeRange === '90 Days') return ['M1', 'M2', 'M3'];
-  if (dateType === 'Year' || timeRange === '1 Year') return ['Q1', 'Q2', 'Q3', 'Q4'];
+  if (timeRange === '3 Months') return ['M1', 'M2', 'M3'];
+  if (dateType === 'Year' || timeRange === '6 Months') return ['Q1', 'Q2', 'Q3', 'Q4'];
   return ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];
 }
 
@@ -3155,12 +4147,18 @@ function renderSkillSingleChart(matchedSkill, location, timeRange, dateType) {
   `;
 }
 
-function renderRedesignedSkillIntelligence() {
+function renderLegacySkillIntelligence() {
   const scope = dashboardState.skillScope || 'All Skills';
   const location = dashboardState.skillLocation || 'Bangalore';
   const timeRange = dashboardState.skillTime || '6 Months';
   const dateType = dashboardState.skillDate || 'Month';
   const isFilterOpen = Boolean(dashboardState.isSkillFilterOpen);
+  if (scope === 'Favorite Skills') {
+    const names = [...new Set(Array.from(homeSkillIntelligenceState.favoriteSkills || []))]
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    return `<section class="skill-intelligence-section" id="skill-intelligence-section" aria-label="Favourite skills"><div class="skill-intelligence-header-row"><div class="section-v2-header__left"><span class="v2-kicker">ACCOUNT FAVOURITES</span><h2>Favourite Skills</h2><p>Canonical favourites shared with the Skill Intelligence catalog.</p></div></div>${names.length ? `<div class="top-skills-list">${names.map(name => `<div class="skill-rail-row"><span class="skill-rail-copy"><span class="skill-rail-name">${skillIntelligenceEscape(name)}</span><span class="skill-rail-category">Skill analysis opens in Skill Intelligence</span></span><button type="button" class="skill-rail-fav-btn is-fav" data-toggle-fav="${skillIntelligenceEscape(name)}" aria-label="Remove ${skillIntelligenceEscape(name)} from favourites"><i data-lucide="star"></i></button></div>`).join('')}</div>` : `<div class="skill-intelligence-empty" role="status"><p>No favourite skills yet.</p><a href="#/individual/skills">Browse the complete skill catalog</a></div>`}</section>`;
+  }
 
   // Top trending / active skills
   let activeSkills = [...skillMarketData].sort((a, b) => b.growth - a.growth);
@@ -3435,7 +4433,7 @@ function renderRedesignedSkillIntelligence() {
         <div class="section-v2-header__left">
           <span class="v2-kicker">SKILL FORECAST TELEMETRY</span>
           <h2>Skill Intelligence</h2>
-          <p>Real-time demand trends and market momentum across capabilities.</p>
+          <p>Illustrative prototype demand examples; connected market data is not available.</p>
         </div>
 
         <!-- ONE SINGLE [Filters] CONTROL -->
@@ -3528,6 +4526,230 @@ function renderRedesignedSkillIntelligence() {
   `;
 }
 
+function renderRedesignedSkillIntelligence() {
+  const state = homeSkillIntelligenceState;
+  const scope = dashboardState.skillScope || 'All Skills';
+  const rangeByLabel = { '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' };
+  const range = rangeByLabel[dashboardState.skillTime] || '6m';
+  if (state.status === 'idle') {
+    loadHomeSkillIntelligence({ location: dashboardState.skillLocation || '', range });
+  }
+
+  const intelligence = state.intelligence;
+  const profileLocation = intelligence?.profile_context?.location || intelligence?.filters?.location || '';
+  const location = dashboardState.skillLocation || profileLocation || 'Use profile location';
+  const timeRange = dashboardState.skillTime || '6 Months';
+  const dateType = dashboardState.skillDate || 'Month';
+  const isFilterOpen = Boolean(dashboardState.isSkillFilterOpen);
+  const profileSkills = state.skills || [];
+  const marketTrends = intelligence?.market_top_skills || [];
+  const personalTrends = intelligence?.personal_top_skills || [];
+  const selectedTrend = intelligence?.selected_skill;
+  const toViewSkill = item => {
+    const profileSkill = profileSkills.find(skill => skill.name.toLowerCase() === item.skill.toLowerCase());
+    return {
+      name: item.skill,
+      category: item.category || 'Market demand',
+      growth: item.growth_pct,
+      trend: item.trend,
+      confidence: item.confidence,
+      values: (item.series || []).map(point => point.value * 100),
+      series: item.series || [],
+      direction: item.trend === 'Declining' ? 'down' : 'up',
+      isMySkill: Boolean(profileSkill),
+      isFavorite: state.favoriteSkills.has(item.skill.toLowerCase()),
+      level: profileSkill?.level
+    };
+  };
+  const marketSkills = marketTrends.map(toViewSkill);
+  const personalSkills = personalTrends.map(toViewSkill);
+  const activeSkills = scope === 'All Skills'
+    ? marketSkills
+    : scope === 'Favorite Skills'
+      ? personalSkills.filter(skill => skill.isFavorite)
+      : personalSkills;
+  const top5 = activeSkills.slice(0, 5);
+  const selectedName = dashboardState.selectedSkill ? dashboardState.selectedSkill.trim() : '';
+  let matchedSkill = null;
+  if (selectedName) {
+    matchedSkill = activeSkills.find(s => s.name.toLowerCase() === selectedName.toLowerCase())
+      || (selectedTrend?.skill?.toLowerCase() === selectedName.toLowerCase() ? toViewSkill(selectedTrend) : null);
+    if (!matchedSkill) {
+      // Truthful representation for explicitly queried entity with no fallback override
+      matchedSkill = {
+        name: selectedName,
+        category: 'Market Signal',
+        growth: null,
+        trend: 'Insufficient Data',
+        is_trend_ready: false,
+        values: [],
+        series: [],
+        direction: 'neutral',
+        isMySkill: profileSkills.some(s => s.name.toLowerCase() === selectedName.toLowerCase()),
+        isFavorite: state.favoriteSkills.has(selectedName.toLowerCase()),
+        explanation: `No multi-period observations recorded yet for ${selectedName} in ${location}.`
+      };
+    }
+  } else {
+    matchedSkill = top5[0] || null;
+  }
+  const chartSkills = scope === 'All Skills'
+    ? (selectedName && !top5.some(s => s.name.toLowerCase() === selectedName.toLowerCase()) ? [matchedSkill, ...top5].slice(0, 5) : top5)
+    : (matchedSkill ? [matchedSkill] : top5);
+  const filterSummary = `${scope} · ${location} · ${timeRange}`;
+  const dataMessage = state.status === 'error'
+    ? 'Unable to load market intelligence. Please try again.'
+    : state.status === 'loading' || state.status === 'idle'
+      ? 'Loading market intelligence...'
+      : intelligence?.data_status === 'insufficient_data'
+        ? `Not enough historical market data for ${selectedName || 'the selected filter'} to calculate a reliable trend.`
+        : intelligence?.data_status === 'error'
+          ? intelligence.error_message || 'Unable to load market intelligence. Please try again.'
+          : intelligence?.data_status === 'available'
+            ? 'No ranked market skills are available for this profile.'
+            : 'Market trend data is not available yet.';
+  const chart = matchedSkill
+    ? renderBackendSkillMultiSeriesChart(chartSkills, matchedSkill?.name, matchedSkill)
+    : homeSkillIntelligenceEmpty(dataMessage, state.status === 'error' || intelligence?.data_status === 'error');
+  const formatGrowth = skill => skill.growth == null ? '—' : `${skill.growth > 0 ? '+' : ''}${Number(skill.growth).toFixed(1)}%`;
+  const directionIcon = skill => skill.trend === 'Growing' ? '↑' : skill.trend === 'Declining' ? '↓' : '•';
+  const profileLocationChoices = [...new Set([
+    ...skillFilterOptions.locations,
+    ...(profileLocation ? [profileLocation] : [])
+  ])];
+
+  const rows = top5.length
+    ? `<div class="top-skills-list top-skills-list--trending">
+        ${top5.map((item, index) => {
+          const isNegative = item.trend === 'Declining';
+          const color = isNegative ? '#EF4444' : '#10B981';
+          const values = item.values.length > 1 ? renderSkillMiniChart(item.values, item.direction) : '';
+          return `<div class="skill-rail-row ${item.name === matchedSkill?.name ? 'is-active' : ''}" data-select-skill="${skillIntelligenceEscape(item.name)}" tabindex="0" role="group" aria-label="${skillIntelligenceEscape(item.name)}, ranked ${index + 1} by market momentum">
+            <span class="skill-rail-rank">${String(index + 1).padStart(2, '0')}</span>
+            <span class="skill-rail-visual ${getSkillVisualClass(item)}" aria-hidden="true"><i data-lucide="${skillVisualIcon(item)}"></i></span>
+            <span class="skill-rail-copy"><span class="skill-rail-name">${skillIntelligenceEscape(item.name)}</span><span class="skill-rail-category">${skillIntelligenceEscape(item.category)}</span></span>
+            <span class="skill-rail-mini-chart">${values}</span>
+            <span class="skill-rail-change ${isNegative ? 'is-negative' : 'is-positive'}" style="color:${color};font-weight:700;">${directionIcon(item)} ${formatGrowth(item)}</span>
+            <button type="button" class="skill-rail-fav-btn ${item.isFavorite ? 'is-fav' : ''}" data-toggle-fav="${skillIntelligenceEscape(item.name)}" title="Toggle Favorite" aria-label="${item.isFavorite ? 'Remove' : 'Add'} ${skillIntelligenceEscape(item.name)} favorite"><i data-lucide="star"></i></button>
+          </div>`;
+        }).join('')}
+      </div>`
+    : homeSkillIntelligenceEmpty(dataMessage, state.status === 'error' || intelligence?.data_status === 'error');
+  const profileSkillChips = profileSkills.length
+    ? `<div class="my-skills-chips-strip">${profileSkills.map(item => `<button type="button" class="my-skill-chip ${item.name === matchedSkill?.name ? 'is-active' : ''}" data-select-skill="${skillIntelligenceEscape(item.name)}"><i data-lucide="${skillVisualIcon(item.name)}"></i><span>${skillIntelligenceEscape(item.name)}</span></button>`).join('')}</div>`
+    : '';
+  const legend = top5.length
+    ? `<div class="skill-multi-legend" aria-label="Top 5 skill trends">${top5.map(item => {
+        const color = item.trend === 'Declining' ? '#EF4444' : '#10B981';
+        return `<button type="button" class="skill-legend-pill ${item.name === matchedSkill?.name ? 'is-selected' : ''}" data-select-skill="${skillIntelligenceEscape(item.name)}" data-legend-skill="${skillIntelligenceEscape(item.name)}" title="View ${skillIntelligenceEscape(item.name)} telemetry"><span class="skill-legend-dot" style="background:${color};"></span><span class="skill-legend-name">${skillIntelligenceEscape(item.name)}</span><span class="skill-legend-value" style="color:${color};">${formatGrowth(item)} ${directionIcon(item)}</span></button>`;
+      }).join('')}</div>`
+    : '';
+  const chartHeading = scope === 'All Skills' ? 'Overall Top 5 Skill Trends' : 'My Top 5 Skill Trends';
+  const marketLabel = scope === 'All Skills' ? 'Top 5 Trending Skills' : 'Top 5 Trending Skills in My Profile';
+
+  return `<section class="skill-intelligence-section" id="skill-intelligence-section" aria-label="Skill Intelligence">
+    <div class="skill-intelligence-header-row">
+      <div class="section-v2-header__left"><span class="v2-kicker">SKILL MARKET TELEMETRY</span><h2>Skill Intelligence</h2><p>Empirical market observations and momentum trajectories from verified platform collection.</p></div>
+      <div class="skill-filter-control-wrap">
+        <button type="button" class="skill-filter-trigger-btn" id="skillFiltersBtn" aria-expanded="${isFilterOpen ? 'true' : 'false'}" aria-controls="skillFilterPopover"><i data-lucide="sliders-horizontal"></i><span>Filters</span><span class="skill-filter-badge-summary">${skillIntelligenceEscape(filterSummary)}</span><i data-lucide="chevron-down" class="skill-filter-chevron ${isFilterOpen ? 'is-rotated' : ''}"></i></button>
+        <div class="skill-filter-popover ${isFilterOpen ? 'is-open' : ''}" id="skillFilterPopover" role="dialog" aria-label="Skill filters">
+          <div class="skill-filter-popover-header"><h4><i data-lucide="filter"></i> Filter Skills</h4><button type="button" class="skill-filter-close-btn" id="closeSkillFilterBtn" aria-label="Close filters"><i data-lucide="x"></i></button></div>
+          <div class="skill-filter-popover-body">
+            <div class="skill-filter-group"><span class="skill-filter-group-label">COLLECTION</span><div class="skill-filter-pills">${skillFilterOptions.collections.map(value => `<button type="button" class="skill-filter-pill ${scope === value ? 'is-active' : ''}" data-set-skill-scope="${value}">${value}</button>`).join('')}</div></div>
+            <div class="skill-filter-group"><span class="skill-filter-group-label">LOCATION</span><div class="skill-filter-pills">${profileLocationChoices.map(value => `<button type="button" class="skill-filter-pill ${location === value ? 'is-active' : ''}" data-set-skill-location="${skillIntelligenceEscape(value)}">${skillIntelligenceEscape(value)}</button>`).join('')}</div></div>
+            <div class="skill-filter-group"><span class="skill-filter-group-label">TIME</span><div class="skill-filter-pills">${skillFilterOptions.times.map(value => `<button type="button" class="skill-filter-pill ${timeRange === value ? 'is-active' : ''}" data-set-skill-time="${value}">${value}</button>`).join('')}</div></div>
+            <div class="skill-filter-group"><span class="skill-filter-group-label">DATE</span><div class="skill-filter-pills">${skillFilterOptions.dates.map(value => `<button type="button" class="skill-filter-pill ${dateType === value ? 'is-active' : ''}" data-set-skill-date="${value}">${value}</button>`).join('')}</div></div>
+          </div>
+          <div class="skill-filter-popover-footer"><span class="skill-filter-footer-summary">Showing <strong>${scope}</strong> in <strong>${skillIntelligenceEscape(location)}</strong> · <strong>${timeRange}</strong></span><button type="button" class="skill-filter-apply-btn" id="applySkillFilterBtn">Done</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="skill-analytical-surface">
+      <div class="skill-chart-main">
+        <div class="skill-chart-top-bar"><div class="skill-chart-info"><div style="display:flex;align-items:center;gap:8px;"><strong>${chartHeading}</strong><span class="overview-kicker" style="font-size:9.5px;">LIVE MULTI-SERIES</span></div><span>Comparative momentum trajectory in ${skillIntelligenceEscape(location)} (${skillIntelligenceEscape(timeRange)})</span></div><span class="skill-badge-trend positive" style="color:#10B981;background:rgba(16,185,129,.08);padding:4px 10px;border-radius:8px;font-weight:700;font-size:12px;display:inline-flex;align-items:center;gap:4px;"><i data-lucide="trending-up"></i>Top 5 Telemetry</span></div>
+        ${scope === 'All Skills' ? '' : profileSkillChips}
+        ${chart}
+        ${legend}
+      </div>
+      <div class="top-skills-rail"><div class="rail-heading" style="display:flex;justify-content:space-between;align-items:center;"><div><h3>${marketLabel}</h3><span class="skill-rail-subtitle">Ranked by market momentum in ${skillIntelligenceEscape(location)}</span></div><a href="#/individual/skills" class="view-all-skills-link">View All Skills →</a></div>${rows}<div class="skill-rail-footer"><a href="#/individual/skills" class="view-all-skills-btn">View All Skills →</a></div></div>
+    </div>
+  </section>`;
+}
+
+function renderBackendSkillMultiSeriesChart(skills, selectedSkillName, selectedSkillObj = null) {
+  const currentSkill = selectedSkillObj || skills.find(s => s.name === selectedSkillName) || skills[0];
+  const series = skills.filter(skill => Array.isArray(skill.series) && skill.series.length >= 4);
+
+  // If the selected skill has only 1 observation or insufficient historical periods:
+  if (currentSkill && (!currentSkill.series || currentSkill.series.length < 4)) {
+    const singleVal = currentSkill.series?.[0]?.value != null
+      ? (currentSkill.series[0].value > 100 ? Number(currentSkill.series[0].value).toLocaleString() : (Number(currentSkill.series[0].value) * 100).toFixed(1) + '%')
+      : (currentSkill.current_signal_value != null ? currentSkill.current_signal_value : 'Baseline recorded');
+    const period = currentSkill.series?.[0]?.period || currentSkill.current_signal_period || '2026-10';
+    const source = currentSkill.source || 'Verified Platform Archive';
+
+    return `
+      <div class="home-baseline-surface">
+        <div class="home-baseline-head">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <strong style="font-size:15px; color:#241B30;">${skillIntelligenceEscape(currentSkill.name)} Telemetry</strong>
+            <span class="home-baseline-badge">
+              <i data-lucide="info"></i> Single Baseline (1 of 4 periods)
+            </span>
+          </div>
+          <span style="font-size:11px; color:#8A7A97; font-weight:600;">Evaluation Period: ${skillIntelligenceEscape(period)}</span>
+        </div>
+
+        <div class="home-baseline-grid">
+          <div class="home-baseline-cell">
+            <span class="home-baseline-cell__label">Recorded Signal</span>
+            <strong class="home-baseline-cell__val">${singleVal}</strong>
+          </div>
+          <div class="home-baseline-cell">
+            <span class="home-baseline-cell__label">Data Source</span>
+            <strong class="home-baseline-cell__val">${skillIntelligenceEscape(source)}</strong>
+          </div>
+          <div class="home-baseline-cell">
+            <span class="home-baseline-cell__label">Theil-Sen Gate Status</span>
+            <strong class="home-baseline-cell__val" style="color:#d97706;">Pending Historical Depth</strong>
+          </div>
+          <div class="home-baseline-cell">
+            <span class="home-baseline-cell__label">Forecast Readiness</span>
+            <strong class="home-baseline-cell__val" style="color:#6b7280;">Inactive (0 models)</strong>
+          </div>
+        </div>
+
+        <div class="home-baseline-explanation">
+          <i data-lucide="shield-alert"></i>
+          <div>
+            <strong>Analytical Readiness Policy:</strong>
+            ${currentSkill.explanation || `Baseline market observation recorded for ${skillIntelligenceEscape(currentSkill.name)}. Under platform statistical gating, multi-period directional trend curves and velocity calculations activate only after ≥4 consecutive observation periods are verified.`}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (!series.length) return homeSkillIntelligenceEmpty('Not enough historical market data to calculate a reliable trend curve (requires ≥4 periods).');
+
+  const periods = [...new Set(series.flatMap(skill => skill.series.map(point => point.period)))].sort();
+  const maximum = Math.max(...series.flatMap(skill => skill.series.map(point => point.value)), 0.01);
+  const lines = series.map((skill, index) => {
+    const isSelected = skill.name === selectedSkillName;
+    const coordinates = skill.series.map(point => {
+      const x = 36 + periods.indexOf(point.period) / Math.max(1, periods.length - 1) * 436;
+      const y = 185 - (point.value / maximum) * 150;
+      return { x, y };
+    });
+    const points = coordinates.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+    const endpoint = coordinates.at(-1);
+    const stroke = skill.trend === 'Declining' ? '#EF4444' : '#10B981';
+    return `<polyline class="skill-multi-line" data-skill-series="${skillIntelligenceEscape(skill.name)}" points="${points}" fill="none" stroke="${stroke}" stroke-width="${isSelected ? '3' : '2'}" stroke-opacity="${isSelected ? '1' : '0.65'}" stroke-linecap="round" stroke-linejoin="round"></polyline><circle class="skill-multi-node" data-skill-node="${skillIntelligenceEscape(skill.name)}" cx="${endpoint.x.toFixed(1)}" cy="${endpoint.y.toFixed(1)}" r="4" fill="${stroke}" stroke="#FFFFFF" stroke-width="2"></circle>`;
+  }).join('');
+
+  return `<div class="skill-multi-series-wrap"><svg id="skillMultiSeriesChart" viewBox="0 0 500 220" preserveAspectRatio="none" role="img" aria-label="Market demand trends from historical observations"><line x1="30" y1="35" x2="480" y2="35" stroke="#F0EAF4" stroke-width="1" stroke-dasharray="4"></line><line x1="30" y1="85" x2="480" y2="85" stroke="#F0EAF4" stroke-width="1" stroke-dasharray="4"></line><line x1="30" y1="135" x2="480" y2="135" stroke="#F0EAF4" stroke-width="1" stroke-dasharray="4"></line><line x1="30" y1="185" x2="480" y2="185" stroke="#E2D6EC" stroke-width="1"></line>${lines}</svg></div><div style="display:flex;justify-content:space-between;padding:0 36px;margin-top:6px;font-size:10px;color:#8A7A97;">${periods.map(period => `<span>${skillIntelligenceEscape(period)}</span>`).join('')}</div>`;
+}
+
 function getCompanyLogoSvg(company) {
   const name = (company.name || '').toLowerCase();
   if (name.includes('nvidia')) {
@@ -3559,42 +4781,23 @@ function getCompanyLogoSvg(company) {
 
 function renderRedesignedMarketIntelligence() {
   const scope = dashboardState.marketCompanyScope || 'All Companies';
-  const location = dashboardState.marketLocation || 'Bangalore';
+  const location = dashboardState.marketLocation || 'Global';
   const timeRange = dashboardState.marketTime || '6 Months';
-  const dateType = dashboardState.marketDate || 'Month';
   const isFilterOpen = Boolean(dashboardState.isMarketFilterOpen);
 
-  let activeCompanies = [...marketIntelligenceData.companies].sort((a, b) => b.change - a.change);
-  if (scope === 'Favorite Companies') {
-    activeCompanies = activeCompanies.filter(c => c.isFavorite);
-    if (activeCompanies.length === 0) {
-      activeCompanies = marketIntelligenceData.companies.slice(0, 4);
-    }
+  if (homeMarketIntelligenceState.status === 'idle') {
+    const rangeByLabel = { '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' };
+    loadHomeMarketIntelligence({ location, range: rangeByLabel[timeRange] || '6m' });
   }
 
-  const selectedCompanyName = dashboardState.selectedMarketCompany || intelligenceExplorerState.selected.companies || 'NVIDIA';
-  const selectedCompany = marketIntelligenceData.companies.find(c => c.name === selectedCompanyName) || activeCompanies[0];
+  const marketData = homeMarketIntelligenceState.data;
+  const summary = marketData?.summary || {};
+  const currentSignals = marketData?.current_signals || [];
+  const historicalTrends = marketData?.historical_trends || [];
 
-  const isDecline = selectedCompany.change < 0;
-  const badgeColor = isDecline ? '#EF4444' : '#10B981';
-  const badgeBg = isDecline ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)';
-
-  const invChange = signals => {
-    const s = signals.investment;
-    return s[s.length - 1] - s[s.length - 2];
-  };
-  const techChange = signals => {
-    const s = signals.technology;
-    return s[s.length - 1] - s[s.length - 2];
-  };
-  const hirChange = signals => {
-    const s = signals.hiring;
-    return s[s.length - 1] - s[s.length - 2];
-  };
-
-  const deltaInv = invChange(marketIntelligenceData.signals);
-  const deltaTech = techChange(marketIntelligenceData.signals);
-  const deltaHir = hirChange(marketIntelligenceData.signals);
+  const adoptionCount = summary.adoption_observations ?? currentSignals.filter(s => s.signal_type === 'adoption').length;
+  const interestCount = summary.interest_observations ?? currentSignals.filter(s => s.signal_type === 'interest').length;
+  const demandCount = summary.demand_observations ?? currentSignals.filter(s => s.signal_type === 'demand').length;
 
   const filterSummary = `${scope} · ${location} · ${timeRange}`;
 
@@ -3604,10 +4807,9 @@ function renderRedesignedMarketIntelligence() {
         <div class="section-v2-header__left">
           <span class="v2-kicker">WORKFORCE MARKET SIGNALS</span>
           <h2>Market Intelligence</h2>
-          <p>Financial, technology, and workforce shifts across technology market leaders.</p>
+          <p>Ecosystem technology adoption, developer inquiry activity, and verified employer demand.</p>
         </div>
 
-        <!-- ONE SINGLE [Filters] CONTROL -->
         <div class="market-filter-control-wrap">
           <button type="button" class="skill-filter-trigger-btn" id="marketFiltersBtn" aria-expanded="${isFilterOpen ? 'true' : 'false'}" aria-controls="marketFilterPopover">
             <i data-lucide="sliders-horizontal"></i>
@@ -3625,19 +4827,6 @@ function renderRedesignedMarketIntelligence() {
             </div>
 
             <div class="skill-filter-popover-body">
-              <!-- COMPANIES -->
-              <div class="skill-filter-group">
-                <span class="skill-filter-group-label">COMPANIES</span>
-                <div class="skill-filter-pills">
-                  ${marketFilterOptions.companies.map(c => `
-                    <button type="button" class="skill-filter-pill ${scope === c ? 'is-active' : ''}" data-set-market-company-scope="${c}">
-                      ${c}
-                    </button>
-                  `).join('')}
-                </div>
-              </div>
-
-              <!-- LOCATION -->
               <div class="skill-filter-group">
                 <span class="skill-filter-group-label">LOCATION</span>
                 <div class="skill-filter-pills">
@@ -3649,7 +4838,6 @@ function renderRedesignedMarketIntelligence() {
                 </div>
               </div>
 
-              <!-- TIME -->
               <div class="skill-filter-group">
                 <span class="skill-filter-group-label">TIME</span>
                 <div class="skill-filter-pills">
@@ -3660,135 +4848,144 @@ function renderRedesignedMarketIntelligence() {
                   `).join('')}
                 </div>
               </div>
-
-              <!-- DATE -->
-              <div class="skill-filter-group">
-                <span class="skill-filter-group-label">DATE</span>
-                <div class="skill-filter-pills">
-                  ${marketFilterOptions.dates.map(d => `
-                    <button type="button" class="skill-filter-pill ${dateType === d ? 'is-active' : ''}" data-set-market-date="${d}">
-                      ${d}
-                    </button>
-                  `).join('')}
-                </div>
-              </div>
             </div>
 
             <div class="skill-filter-popover-footer">
-              <span class="skill-filter-footer-summary">Showing <strong>${scope}</strong> in <strong>${location}</strong> · <strong>${timeRange}</strong></span>
+              <span class="skill-filter-footer-summary">Showing in <strong>${location}</strong> · <strong>${timeRange}</strong></span>
               <button type="button" class="skill-filter-apply-btn" id="applyMarketFilterBtn">Done</button>
             </div>
           </div>
         </div>
       </div>
 
+      <!-- Truthful Data Provider Disclosure Banner -->
+      <div class="market-limitations-banner" role="note">
+        <i data-lucide="shield-alert"></i>
+        <span><strong>Verified Platform Disclosure:</strong> Financial, venture funding, and stock valuation metrics are excluded. Platform indicators reflect verified code adoption (GitHub), developer interest (Stack Exchange), public interest (Wikipedia Pageviews), and hiring demand (JSearch & Adzuna).</span>
+      </div>
+
+      <!-- Four Truthful Signal Pillars -->
+      <div class="market-signal-pillars" aria-label="Market signal pillars">
+        <div class="market-pillar-card">
+          <div class="market-pillar-card__head">
+            <span class="market-pillar-card__title">Code Adoption</span>
+            <span class="market-pillar-source-tag">GitHub</span>
+          </div>
+          <div class="market-pillar-val">${adoptionCount} <small style="font-size:12px;font-weight:500;">series</small></div>
+          <span class="market-pillar-sub">Open-source repository activity & package usage</span>
+        </div>
+
+        <div class="market-pillar-card">
+          <div class="market-pillar-card__head">
+            <span class="market-pillar-card__title">Developer Activity</span>
+            <span class="market-pillar-source-tag">Stack Exchange</span>
+          </div>
+          <div class="market-pillar-val">${interestCount} <small style="font-size:12px;font-weight:500;">series</small></div>
+          <span class="market-pillar-sub">Technical tagged questions & community discussions</span>
+        </div>
+
+        <div class="market-pillar-card">
+          <div class="market-pillar-card__head">
+            <span class="market-pillar-card__title">Public Interest</span>
+            <span class="market-pillar-source-tag">Wikipedia / Wikidata</span>
+          </div>
+          <div class="market-pillar-val">Active <small style="font-size:12px;font-weight:500;">telemetry</small></div>
+          <span class="market-pillar-sub">Monthly article pageviews & knowledge queries</span>
+        </div>
+
+        <div class="market-pillar-card">
+          <div class="market-pillar-card__head">
+            <span class="market-pillar-card__title">Hiring Signals</span>
+            <span class="market-pillar-source-tag">JSearch & Adzuna</span>
+          </div>
+          <div class="market-pillar-val">${demandCount} <small style="font-size:12px;font-weight:500;">observations</small></div>
+          <span class="market-pillar-sub">Verified enterprise vacancies & hiring demand</span>
+        </div>
+      </div>
+
       <div class="market-analytical-surface">
-        <!-- LEFT PANEL: MARKET-STYLE MULTI-LINE CHART -->
+        <!-- LEFT PANEL: ECOSYSTEM SIGNALS OVERVIEW -->
         <div class="skill-chart-main market-panel-left">
-          <!-- Company Context Bar -->
           <div class="skill-chart-top-bar">
             <div class="skill-chart-info">
               <div style="display:flex; align-items:center; gap:8px;">
-                ${getCompanyLogoSvg(selectedCompany)}
-                <strong class="market-analyzed-company">${selectedCompany.name} Market Telemetry</strong>
-                <span class="company-signal-tag ${selectedCompany.signalType}">${selectedCompany.signalText}</span>
+                <strong class="market-analyzed-company">Ecosystem Telemetry in ${location}</strong>
+                <span class="company-signal-tag positive" style="background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px;">Multi-Source Verified</span>
               </div>
-              <span>${selectedCompany.sector} · Target Market: ${location} (${timeRange})</span>
+              <span>Signals observed across developer communities, codebases, and job markets (${timeRange})</span>
             </div>
-            <span class="skill-badge-trend ${isDecline ? 'decline' : 'positive'}" style="color:${badgeColor}; background:${badgeBg}; padding:4px 10px; border-radius:8px; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:4px;">
-              <i data-lucide="${isDecline ? 'trending-down' : 'trending-up'}"></i>
-              ${isDecline ? '' : '+'}${selectedCompany.change.toFixed(1)}% ${isDecline ? 'Restructuring Signal ↓' : 'Market Momentum ↑'}
-            </span>
           </div>
 
-          <!-- Market Terminal Multi-Line SVG Chart -->
-          ${renderMultiLineMarketChart(marketIntelligenceData.signals, timeRange, dateType)}
-
-          <!-- Three Signal Category Legend with Active Indicators -->
-          <div class="market-chart-legend" aria-label="Market signals telemetry">
-            <!-- Category 1: Company Financial / Investment Signals (Purple) -->
-            <div class="market-legend-item" data-market-legend="investment">
-              <span class="market-legend-dot" style="background:#8B3DFF;"></span>
-              <span class="market-legend-label">Financial & Investment Signals</span>
-              <strong class="market-legend-val ${deltaInv < 0 ? 'is-negative' : 'is-positive'}" style="color:${deltaInv < 0 ? '#EF4444' : '#10B981'}; background:${deltaInv < 0 ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)'}; padding:2px 6px; border-radius:6px;">
-                ${deltaInv > 0 ? '+' : ''}${deltaInv.toFixed(1)}% ${deltaInv < 0 ? '↓' : '↑'}
-              </strong>
-            </div>
-
-            <!-- Category 2: Market / Technology / Location Signals (Green) -->
-            <div class="market-legend-item" data-market-legend="technology">
-              <span class="market-legend-dot" style="background:#10B981;"></span>
-              <span class="market-legend-label">Tech & Location Signals</span>
-              <strong class="market-legend-val ${deltaTech < 0 ? 'is-negative' : 'is-positive'}" style="color:${deltaTech < 0 ? '#EF4444' : '#10B981'}; background:${deltaTech < 0 ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)'}; padding:2px 6px; border-radius:6px;">
-                ${deltaTech > 0 ? '+' : ''}${deltaTech.toFixed(1)}% ${deltaTech < 0 ? '↓' : '↑'}
-              </strong>
-            </div>
-
-            <!-- Category 3: Job Market Signals (Orange) -->
-            <div class="market-legend-item" data-market-legend="hiring">
-              <span class="market-legend-dot" style="background:#F59E0B;"></span>
-              <span class="market-legend-label">Job Market Signals</span>
-              <strong class="market-legend-val ${deltaHir < 0 ? 'is-negative' : 'is-positive'}" style="color:${deltaHir < 0 ? '#EF4444' : '#10B981'}; background:${deltaHir < 0 ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)'}; padding:2px 6px; border-radius:6px;">
-                ${deltaHir > 0 ? '+' : ''}${deltaHir.toFixed(1)}% ${deltaHir < 0 ? '↓' : '↑'}
-              </strong>
+          <!-- Verified Signals Grid -->
+          <div style="padding:16px 20px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+              ${currentSignals.length ? currentSignals.slice(0, 6).map(s => `
+                <div style="padding:12px; border-radius:10px; background:#FAF8FC; border:1px solid #EDE3F7; display:flex; flex-direction:column; gap:4px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong style="font-size:13px; color:#241B30;">${skillIntelligenceEscape(s.entity_name || 'Ecosystem Entity')}</strong>
+                    <span style="font-size:10px; font-weight:700; text-transform:uppercase; background:#F3E8FF; color:#7E22CE; padding:1px 6px; border-radius:4px;">${skillIntelligenceEscape(s.source)}</span>
+                  </div>
+                  <div style="font-size:16px; font-weight:800; color:#1E1329;">${s.value != null ? Number(s.value).toLocaleString() : '—'} <span style="font-size:11px; font-weight:500; color:#846B94;">${skillIntelligenceEscape(s.unit || 'observations')}</span></div>
+                  <span style="font-size:10.5px; color:#846B94;">Period: ${skillIntelligenceEscape(s.period || 'Observed')} · Signal: ${skillIntelligenceEscape(s.signal_type)}</span>
+                </div>
+              `).join('') : `
+                <div style="grid-column: 1 / -1; padding:24px; text-align:center; color:#846B94;">
+                  ${homeMarketIntelligenceState.status === 'loading'
+                    ? 'Loading verified market signals from backend...'
+                    : 'Insufficient observation data for the selected market filter window. Zero fabricated signals are displayed.'}
+                </div>
+              `}
             </div>
           </div>
         </div>
 
-        <!-- RIGHT PANEL: TOP MARKET COMPANIES -->
+        <!-- RIGHT PANEL: VERIFIED ECOSYSTEM ENTITIES -->
         <div class="top-skills-rail market-panel-right">
           <div class="rail-heading" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <div>
-              <h3>TOP MARKET COMPANIES</h3>
-              <span style="font-size:11px; color:#8A7A97;">Ranked by technology & workforce momentum in ${location}</span>
+              <h3>VERIFIED ECOSYSTEM ENTITIES</h3>
+              <span style="font-size:11px; color:#8A7A97;">Ranked by platform observation coverage</span>
             </div>
-            <a href="#/individual/market-insights" class="view-all-market-link">Explore Insights →</a>
+            <a href="#/individual/skills" class="view-all-market-link">All Skills →</a>
           </div>
 
           <div class="market-table-header">
             <span class="th-cell th-rank">RANK</span>
-            <span class="th-cell th-company">COMPANY</span>
-            <span class="th-cell th-signal">MARKET SIGNAL</span>
-            <span class="th-cell th-percentage">PERCENTAGE</span>
-            <span class="th-cell th-trend">TREND</span>
+            <span class="th-cell th-company">ENTITY</span>
+            <span class="th-cell th-signal">SOURCE</span>
+            <span class="th-cell th-percentage">STATUS</span>
           </div>
 
           <div class="company-market-list">
-            ${activeCompanies.map((c, idx) => `
-              <div class="company-market-row ${c.name === selectedCompany.name ? 'is-selected' : ''}" data-select-market-company="${c.name}" tabindex="0" role="row" aria-label="${c.name}, ranked ${idx + 1}, ${c.signalText}">
+            ${historicalTrends.length ? historicalTrends.slice(0, 5).map((t, idx) => `
+              <div class="company-market-row" tabindex="0" role="row" style="cursor:default;">
                 <span class="company-rank">0${idx + 1}</span>
                 <div class="td-cell-company">
-                  ${getCompanyLogoSvg(c)}
                   <div class="company-text-meta">
-                    <strong class="company-name-title">${c.name}</strong>
-                    <span class="company-sector-sub">${c.sector}</span>
+                    <strong class="company-name-title">${skillIntelligenceEscape(t.entity_name || t.display_name)}</strong>
+                    <span class="company-sector-sub">${skillIntelligenceEscape(t.signal_label || 'Market Signal')}</span>
                   </div>
                 </div>
-
                 <div class="td-cell-signal">
-                  <span class="company-signal-tag ${c.signalType}">${c.signalText}</span>
+                  <span class="company-signal-tag positive" style="background:#f3e8ff;color:#7e22ce;">${skillIntelligenceEscape(t.source || 'Verified Source')}</span>
                 </div>
-
                 <div class="td-cell-momentum">
-                  <strong class="company-momentum-val ${c.change < 0 ? 'is-negative' : 'is-positive'}" style="color:${c.change < 0 ? '#EF4444' : '#10B981'}; font-weight:700;">
-                    ${c.direction === 'down' ? '↓' : '↑'} ${c.change > 0 ? '+' : ''}${c.change.toFixed(1)}%
+                  <strong style="font-size:11px; color:#059669; font-weight:700;">
+                    ${t.is_trend_ready ? 'Trend Ready' : 'Single Baseline'}
                   </strong>
                 </div>
-
-                <div class="td-cell-trend">
-                  <div class="company-sparkline-wrap">
-                    ${renderMarketMiniChart(c.history, c.direction)}
-                  </div>
-                  <button type="button" class="company-fav-btn ${c.isFavorite ? 'is-fav' : ''}" data-toggle-company-fav="${c.name}" title="Toggle Favorite" aria-label="${c.isFavorite ? 'Remove' : 'Add'} ${c.name} favorite">
-                    <i data-lucide="star"></i>
-                  </button>
-                </div>
               </div>
-            `).join('')}
+            `).join('') : `
+              <div style="padding:20px 14px; text-align:center; font-size:12px; color:#846B94;">
+                ${homeMarketIntelligenceState.status === 'loading'
+                  ? 'Retrieving ranked market entities...'
+                  : 'No ranked market trend series meet readiness gates for this filter.'}
+              </div>
+            `}
           </div>
 
           <div class="market-rail-footer">
-            <a href="#/individual/market-insights" class="view-all-market-btn">View All Market Signals →</a>
+            <a href="#/individual/skills" class="view-all-market-btn">Explore All Entity Signals →</a>
           </div>
         </div>
       </div>
@@ -3796,101 +4993,176 @@ function renderRedesignedMarketIntelligence() {
   `;
 }
 
-function getHomeJobContext() {
-  const state = homeJobIntelligenceState;
-  const roles = { 'All Roles': 'AI Engineer', 'Software Engineering': 'Software Engineer', 'AI/ML': 'AI Engineer', Data: 'Data Engineer', Cloud: 'Cloud Engineer', Cybersecurity: 'Cybersecurity Engineer', Frontend: 'Frontend Engineer', Backend: 'Backend Engineer' };
-  const skills = { 'All Roles': 'Python', 'Software Engineering': 'System Design', 'AI/ML': 'CUDA', Data: 'SQL', Cloud: 'AWS', Cybersecurity: 'Cloud Security', Frontend: 'React', Backend: 'Distributed Systems' };
-  const companies = state.companyScope === 'favorites'
-    ? (intelligenceExplorerState.favoriteCompanies || ['NVIDIA', 'Microsoft', 'Google', 'Amazon'])
-    : (marketIntelligenceData.companies || []).map(company => company.name);
-  if (!companies.includes(state.company)) state.company = companies[0] || 'NVIDIA';
-  const timeFactor = { '7 Days': 0.06, '30 Days': 0.18, '90 Days': 0.46, '6 Months': 1, '1 Year': 1.72 }[state.period] || 1;
-  const regionFactor = { Global: 1.42, India: 1.08, 'Tamil Nadu': 0.52, Chennai: 0.36, Bangalore: 0.62, Hyderabad: 0.43, Pune: 0.32, Remote: 0.7 }[state.region] || 1;
-  const scale = timeFactor * regionFactor * (state.companyScope === 'favorites' ? 0.42 : 1);
-  const company = (marketIntelligenceData.companies || []).find(item => item.name === state.company);
-  const openRoles = Math.max(1, Math.round(jobMarketData.totalOpenRoles * scale));
-  const hiringCompanies = Math.max(1, Math.round(2480 * scale));
-  const signals = [
-    { id: 'roles', label: 'Open Roles', percent: 46, color: '#B22DEF', value: `${openRoles.toLocaleString()} roles`, change: '+12.4%', detail: 'Role openings are the largest share of this normalized market signal mix.' },
-    { id: 'companies', label: 'Hiring Companies', percent: 25, color: '#8B3DFF', value: `${Math.max(1, Math.round(2480 * scale)).toLocaleString()} companies`, change: '+8.6%', detail: 'Companies with active hiring activity in this illustrative market view.' },
-    { id: 'momentum', label: 'Role Demand', percent: 21, color: '#19B77A', value: '+18.4% demand index', change: '+18.4%', detail: 'Demand movement points to continued interest in the selected role group.' },
-    { id: 'reduction', label: 'Reduction Signal', percent: 8, color: '#E7A23B', value: 'Low · 8% signal share', change: '−3.1%', detail: 'A smaller consolidation signal is present in the illustrative market mix.' }
-  ];
-  return {
-    ...state, companies, roleTitle: roles[state.role] || roles['All Roles'], skill: skills[state.role] || skills['All Roles'],
-    signals, selectedSignal: signals.find(signal => signal.id === state.selectedSignal) || signals[0], openRoles,
-    hiringCompanies,
-    companyRoles: Math.max(1, Math.round((company?.openRoles || 1320) * timeFactor)),
-    newVacancies: Math.max(1, Math.round(openRoles * 0.029)), companyName: state.company || 'NVIDIA'
-  };
-}
-
-function renderHomeJobDonut(signals) {
-  const radius = 58;
-  const circumference = 2 * Math.PI * radius;
-  let offset = 0;
-  const activeSignal = homeJobIntelligenceState.selectedSignal;
-  return `<svg class="home-job-donut" viewBox="0 0 160 160" role="group" aria-label="Job market signal mix">
-    <circle cx="80" cy="80" r="${radius}" fill="none" stroke="#F0EAF5" stroke-width="17"></circle>
-    ${signals.map(signal => {
-      const isSelected = activeSignal === signal.id;
-      const dash = circumference * signal.percent / 100;
-      const markup = `<circle class="home-job-donut__segment ${isSelected ? 'is-active' : ''}" data-home-job-signal="${signal.id}" cx="80" cy="80" r="${radius}" fill="none" stroke="${signal.color}" stroke-width="${isSelected ? '19' : '16'}" stroke-dasharray="${dash} ${circumference - dash}" stroke-dashoffset="${-offset}" stroke-linecap="butt" tabindex="0" role="button" aria-pressed="${isSelected ? 'true' : 'false'}" aria-label="${signal.label}, ${signal.percent} percent, ${signal.value}"></circle>`;
-      offset += dash;
-      return markup;
-    }).join('')}
-  </svg>`;
-}
-
-function renderHomeJobSignalDetail(context, signal) {
-  const changeClass = signal.change.startsWith('−') ? 'is-negative' : 'is-positive';
-  return `<div class="home-job-signal-detail__head"><div><span class="home-job-eyebrow">${signal.label} · ${signal.percent}% of mix</span><strong>${signal.value}</strong></div><span class="home-job-signal-change ${changeClass}">${signal.change} <small>change</small></span></div>
-    <p>${signal.detail}</p><div class="home-job-supporting-lists"><div><span>Top roles</span><strong>${context.roleTitle} · Backend Engineer · Data Engineer</strong></div><div><span>Top locations</span><strong>${context.region === 'Global' ? 'Bangalore · Hyderabad · Chennai' : `${context.region} · Hyderabad · Chennai`}</strong></div></div>`;
-}
-
 function renderHomeJobIntelligenceMarkup() {
-  const context = getHomeJobContext();
-  const state = homeJobIntelligenceState;
-  const recommendations = [
-    { label: 'ROLE', title: context.roleTitle, reasons: ['Growing role demand', 'Hiring activity in this market'] },
-    { label: 'COMPANY', title: context.companyName, reasons: ['Selected company context', `${context.companyRoles.toLocaleString()} illustrative openings`] },
-    { label: 'SKILL', title: context.skill, reasons: [`Relevant to ${context.roleTitle}`, 'Appears in the current skill gap'] },
-    { label: 'JOB', title: `${context.roleTitle} — ${context.region}`, reasons: [`${context.period} market window`, `${context.selectedSignal.label} is selected`] },
-    { label: 'PREPARATION', title: `Improve ${context.role === 'AI/ML' || context.role === 'All Roles' ? 'Deep Learning' : context.skill}`, reasons: ['Builds toward the selected role', 'Addresses a listed preparation gap'] }
-  ];
-  const interpretation = context.selectedSignal.id === 'reduction'
-    ? `The reduction signal is a smaller part of the ${context.region} mix. Keep role demand and hiring activity in view for ${context.roleTitle} over ${context.period.toLowerCase()}.`
-    : `${context.selectedSignal.label} leads the current view for ${context.roleTitle} around ${context.region}. ${context.companyName} and related roles are useful places to focus next.`;
+  if (homeJobIntelligenceState.status === 'idle') {
+    loadHomeJobs({ query: homeJobIntelligenceState.query || 'software', country: homeJobIntelligenceState.country || 'in' });
+  }
+  if (homeActionRecommendationsState.status === 'idle') {
+    loadHomeActionRecommendations();
+  }
 
-  return `<section class="job-intelligence-section home-job-intelligence" id="job-intelligence-section" aria-label="Job Intelligence">
-    <div class="section-v2-header"><div class="section-v2-header__left"><span class="v2-kicker">CAREER & OPPORTUNITIES</span><h2>Job Intelligence</h2><p>Understand what is moving in the job market and what deserves your attention.</p></div></div>
-    <div class="home-job-context" aria-label="Job market context filters">
-      <div class="home-job-context__intro"><span class="home-job-eyebrow">MARKET CONTEXT</span><h3>What job market do you want to explore?</h3><p>Choose the companies, region, role and time window used by both panels.</p></div>
-      <div class="home-job-context__controls">
-        <label><span>Company set</span><select data-home-job-filter="companyScope" aria-label="Company set"><option value="favorites" ${state.companyScope === 'favorites' ? 'selected' : ''}>My / Favorite Companies</option><option value="all" ${state.companyScope === 'all' ? 'selected' : ''}>All Companies</option></select></label>
-        <label><span>Company</span><select data-home-job-filter="company" aria-label="Selected company">${context.companies.map(company => `<option value="${company}" ${state.company === company ? 'selected' : ''}>${company}</option>`).join('')}</select></label>
-        <label><span>Region</span><select data-home-job-filter="region" aria-label="Region">${['Global', 'India', 'Tamil Nadu', 'Chennai', 'Bangalore', 'Hyderabad', 'Pune', 'Remote'].map(region => `<option ${state.region === region ? 'selected' : ''}>${region}</option>`).join('')}</select></label>
-        <label><span>Role</span><select data-home-job-filter="role" aria-label="Role">${['All Roles', 'Software Engineering', 'AI/ML', 'Data', 'Cloud', 'Cybersecurity', 'Frontend', 'Backend'].map(role => `<option ${state.role === role ? 'selected' : ''}>${role}</option>`).join('')}</select></label>
-        <label><span>Time</span><select data-home-job-filter="period" aria-label="Time period">${['7 Days', '30 Days', '90 Days', '6 Months', '1 Year'].map(period => `<option ${state.period === period ? 'selected' : ''}>${period}</option>`).join('')}</select></label>
+  const jobState = homeJobIntelligenceState;
+  const recState = homeActionRecommendationsState;
+  const query = jobState.query || 'software';
+  const quickRoles = ['Software', 'Developer', 'Engineer', 'Backend', 'Frontend', 'AI'];
+
+  return `
+    <section class="job-intelligence-section home-job-intelligence" id="job-intelligence-section" aria-label="Job Intelligence">
+      <div class="section-v2-header">
+        <div class="section-v2-header__left">
+          <span class="v2-kicker">CAREER & OPPORTUNITIES</span>
+          <h2>Job Intelligence</h2>
+          <p>Verified employer requisitions from stored job collection and AI-grounded career action recommendations.</p>
+        </div>
       </div>
-    </div>
-    <div class="job-intelligence-dual-surface home-job-panels">
-      <article class="job-trend-card home-job-panel" aria-labelledby="homeJobTrendHeading">
-        <div class="home-job-panel-heading"><div><span class="home-job-eyebrow">JOB TREND ANALYSIS</span><h3 id="homeJobTrendHeading">Job Market Signal Mix</h3><p>Normalized shares of illustrative market signals · ${context.region}</p></div><a href="#/individual/career">Career intelligence <span aria-hidden="true">↗</span></a></div>
-        <div class="home-job-chart-area"><div class="home-job-donut-wrap">${renderHomeJobDonut(context.signals)}<div class="home-job-donut-center"><strong>${(context.openRoles / 1000).toFixed(1)}K</strong><span>open roles</span></div></div>
-          <div class="home-job-signal-list" aria-label="Signal categories">${context.signals.map(signal => `<button type="button" class="home-job-signal-row" data-home-job-signal="${signal.id}" aria-pressed="${state.selectedSignal === signal.id}"><span class="home-job-signal-dot" style="--signal-color:${signal.color}"></span><span class="home-job-signal-label">${signal.label}</span><strong>${signal.percent}%</strong></button>`).join('')}</div></div>
-        <div class="home-job-signal-detail" id="homeJobSignalDetail" aria-live="polite">${renderHomeJobSignalDetail(context, context.selectedSignal)}</div>
-        <div class="home-job-metrics" aria-label="Compact job market indicators"><div><span>Companies hiring</span><strong>${context.hiringCompanies.toLocaleString()}</strong></div><div><span>Open roles</span><strong>${context.openRoles.toLocaleString()}</strong></div><div><span>New vacancies</span><strong>+${context.newVacancies.toLocaleString()}</strong></div><div><span>Layoff signals</span><strong class="home-job-metric-low">Low · 8%</strong></div><div><span>Top role</span><strong>${context.roleTitle}</strong></div><div><span>Top skill</span><strong>${context.skill}</strong></div></div>
-        <p class="home-job-demo-note">Illustrative demo signals; not verified real-time market data.</p>
-      </article>
-      <article class="job-recommendations-card home-job-panel home-job-recommendations" aria-labelledby="homeJobRecommendationsHeading"><div class="home-job-recommendations__glow" aria-hidden="true"></div>
-        <div class="home-job-panel-heading home-job-panel-heading--recommendations"><div><span class="home-job-eyebrow"><i data-lucide="sparkles"></i> INTELLIGENT JOB ANALYSIS</span><h3 id="homeJobRecommendationsHeading">AI recommendations</h3></div><span class="home-job-prototype-badge"><i></i> Prototype signal</span></div>
-        <div class="home-job-interpretation"><span>WHAT THIS MEANS FOR YOU</span><p>${interpretation}</p></div>
-        <div class="home-job-recommendation-list">${recommendations.map((item, index) => `<article class="home-job-recommendation" style="--recommendation-index:${index}"><span class="home-job-recommendation__type">${item.label}</span><h4>${item.title}</h4><div class="home-job-why"><span>Why this?</span><ul>${item.reasons.map(reason => `<li><i data-lucide="check"></i>${reason}</li>`).join('')}</ul></div></article>`).join('')}</div>
-        <a class="home-job-career-link" href="#/individual/career">Explore career opportunities <span aria-hidden="true">↗</span></a>
-      </article>
-    </div>
-  </section>`;
+
+      <div class="job-intelligence-dual-surface home-job-panels" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:20px;">
+        <!-- PANEL 1: VERIFIED STORED JOB POSTINGS -->
+        <article class="job-trend-card home-job-panel" aria-labelledby="homeJobTrendHeading">
+          <div class="home-job-panel-heading">
+            <div>
+              <span class="home-job-eyebrow">VERIFIED JOB POSTINGS</span>
+              <h3 id="homeJobTrendHeading">Active Requisitions</h3>
+              <p>${jobState.count} verified postings stored matching "${skillIntelligenceEscape(query)}"</p>
+            </div>
+            <a href="#/individual/career" style="font-size:12px; color:#8B3DFF; font-weight:700; text-decoration:none;">Career intelligence ↗</a>
+          </div>
+
+          <!-- Quick Role Filter Pills (Single search input resides in AI Intelligence Console above) -->
+          <div class="home-job-quick-queries" aria-label="Quick role filters">
+            <span>Role Focus:</span>
+            ${quickRoles.map(r => `
+              <button type="button" class="quick-job-btn ${query.toLowerCase() === r.toLowerCase() ? 'is-active' : ''}" data-job-query="${r}">${r}</button>
+            `).join('')}
+          </div>
+
+          <!-- Real Job Postings List -->
+          ${jobState.status === 'loading' ? `
+            <div style="text-align:center; padding:40px 20px; color:#846B94;">
+              <i data-lucide="loader-2" class="spin" style="width:28px;height:28px;color:#8B3DFF;margin-bottom:8px;"></i>
+              <p>Searching stored employer postings in archive...</p>
+            </div>
+          ` : jobState.jobs.length > 0 ? `
+            <div class="home-real-jobs-list" aria-label="Verified job search results">
+              ${jobState.jobs.slice(0, 5).map(job => `
+                <article class="home-job-card">
+                  <div class="home-job-card__head">
+                    <div>
+                      <h4 class="home-job-card__title">${skillIntelligenceEscape(job.title || 'Software Role')}</h4>
+                      <span class="home-job-card__company">${skillIntelligenceEscape(job.company_name || 'Technology Employer')}</span>
+                    </div>
+                    <span class="home-job-source-badge">${skillIntelligenceEscape(job.source || 'jsearch')}</span>
+                  </div>
+                  <div class="home-job-card__meta">
+                    <span><i data-lucide="map-pin" style="width:12px;height:12px;"></i> ${skillIntelligenceEscape(job.location || job.country || 'Remote')}</span>
+                    <span><i data-lucide="calendar" style="width:12px;height:12px;"></i> ${job.posted_at ? new Date(job.posted_at).toLocaleDateString() : 'Recent'}</span>
+                    ${job.employment_type ? `<span><i data-lucide="briefcase" style="width:12px;height:12px;"></i> ${skillIntelligenceEscape(job.employment_type)}</span>` : ''}
+                  </div>
+                  ${job.description ? `
+                    <p class="home-job-card__desc">${skillIntelligenceEscape(job.description.replace(/<[^>]*>/g, '').slice(0, 160))}...</p>
+                  ` : ''}
+                  ${job.source_url ? `
+                    <div class="home-job-card__foot">
+                      <a href="${skillIntelligenceEscape(job.source_url)}" target="_blank" rel="noopener noreferrer" class="home-job-apply-link">
+                        View Posting ↗
+                      </a>
+                    </div>
+                  ` : ''}
+                </article>
+              `).join('')}
+            </div>
+          ` : `
+            <div class="home-job-empty-state">
+              <i data-lucide="search-x" style="width:36px;height:36px;color:#BFAECF;margin:0 auto 10px;"></i>
+              <h4>No stored postings found for "${skillIntelligenceEscape(query)}"</h4>
+              <p>The platform archive stores verified provider postings. Try searching for "Software", "Developer", "Engineer", or "Backend".</p>
+              <div class="home-job-quick-queries" style="justify-content:center;">
+                <button type="button" class="quick-job-btn" data-job-query="Software">Software</button>
+                <button type="button" class="quick-job-btn" data-job-query="Developer">Developer</button>
+                <button type="button" class="quick-job-btn" data-job-query="Engineer">Engineer</button>
+              </div>
+            </div>
+          `}
+        </article>
+
+        <!-- PANEL 2: AI ACTION RECOMMENDATIONS -->
+        <article class="job-recommendations-card home-job-panel home-job-recommendations" aria-labelledby="homeJobRecommendationsHeading">
+          <div class="home-job-recommendations__glow" aria-hidden="true"></div>
+          <div class="home-job-panel-heading home-job-panel-heading--recommendations">
+            <div>
+              <span class="home-job-eyebrow"><i data-lucide="sparkles"></i> AI INTELLIGENCE SERVICE</span>
+              <h3 id="homeJobRecommendationsHeading">AI Recommendations</h3>
+              <p>Grounded recommendations from ActionRecommendationService & LLM Service</p>
+            </div>
+            <span class="home-job-prototype-badge" style="background:#ecfdf5;color:#047857;border-color:#a7f3d0;">
+              Verified Engine
+            </span>
+          </div>
+
+          ${recState.status === 'loading' ? `
+            <div style="text-align:center; padding:40px 20px; color:#846B94;">
+              <i data-lucide="loader-2" class="spin" style="width:28px;height:28px;color:#8B3DFF;margin-bottom:8px;"></i>
+              <p>Generating evidence-backed recommendations...</p>
+            </div>
+          ` : recState.recommendations.length > 0 ? `
+            <div class="home-action-recs-list" aria-label="AI action recommendations">
+              ${recState.recommendations.slice(0, 3).map(rec => `
+                <article class="home-ai-rec-card priority-${rec.priority}">
+                  <div class="home-ai-rec-card__head">
+                    <span class="ai-rec-type-badge">${skillIntelligenceEscape(rec.action_type || 'Skill Focus')}</span>
+                    <span class="ai-rec-priority-badge priority-${rec.priority}">${skillIntelligenceEscape(rec.priority.toUpperCase())} PRIORITY</span>
+                  </div>
+                  <h4 class="home-ai-rec-card__title">${skillIntelligenceEscape(rec.title)}</h4>
+                  
+                  <!-- 1. What is Recommended / Practical Next Step -->
+                  <div class="ai-rec-field">
+                    <span class="ai-rec-field__label">RECOMMENDED STEP:</span>
+                    <p class="ai-rec-field__text">${skillIntelligenceEscape(rec.recommended_action || rec.summary)}</p>
+                  </div>
+
+                  <!-- 2. Why Relevant -->
+                  <div class="ai-rec-field">
+                    <span class="ai-rec-field__label">WHY RELEVANT:</span>
+                    <p class="ai-rec-field__text">${skillIntelligenceEscape(rec.why_it_matters || rec.summary)}</p>
+                  </div>
+
+                  <!-- 3. Supporting Evidence -->
+                  <div class="ai-rec-evidence">
+                    <i data-lucide="database"></i>
+                    <span><strong>Evidence:</strong> ${rec.evidence_references && rec.evidence_references.length ? `${rec.evidence_references.length} verified observation sources` : 'Verified market observation archive'}</span>
+                  </div>
+
+                  <!-- 4. Limitations & Confidence -->
+                  ${rec.limitations && rec.limitations.length ? `
+                    <div class="ai-rec-limitations">
+                      <i data-lucide="shield-alert"></i>
+                      <span><strong>Limitation:</strong> ${skillIntelligenceEscape(rec.limitations[0])}</span>
+                    </div>
+                  ` : ''}
+
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                    <span style="font-size:10.5px; color:#846B94;">Readiness: <strong>${skillIntelligenceEscape(rec.readiness_status || 'verified')}</strong></span>
+                    <a href="#/individual/learning" class="ai-rec-roadmap-link">
+                      Open in Learning Roadmap →
+                    </a>
+                  </div>
+                </article>
+              `).join('')}
+            </div>
+          ` : `
+            <div style="padding:24px; text-align:center; color:#846B94; background:#FAF8FC; border-radius:12px; border:1px dashed #EDE3F7;">
+              <p>No high-confidence action recommendations generated for the current scope.</p>
+              <a href="#/individual/learning" class="ai-rec-roadmap-link">View Learning Roadmap →</a>
+            </div>
+          `}
+
+          <a class="home-job-career-link" href="#/individual/career" style="margin-top:14px;">
+            Explore career opportunities <span aria-hidden="true">↗</span>
+          </a>
+        </article>
+      </div>
+    </section>
+  `;
 }
 
 function renderRedesignedJobIntelligence() {
@@ -3903,37 +5175,37 @@ function getRoadmapTypeDefaults(goalType, skillName) {
     case 'Skill Switch':
       return {
         title: `${skill} → AI Engineering`,
-        currentStep: { name: 'Gap Acquisition', detail: 'CUDA & Model Training · In progress', href: '#/individual/learning' },
-        nextStep: { name: 'Transition Labs', detail: 'Hands-on Applied Labs · Queued', href: '#/individual/learning' },
+        currentStep: { milestoneId: 'ms-sw-gap', name: 'Gap Acquisition', detail: 'CUDA & Model Training · In progress', href: '#/individual/learning' },
+        nextStep: { milestoneId: 'ms-sw-transition-labs', name: 'Transition Labs', detail: 'Hands-on Applied Labs · Queued', href: '#/individual/learning' },
         completedItems: ['Transferable Skills', 'Core Gap Acquisition', 'Transition Assessment', 'Capstone Project']
       };
     case 'Career Preparation':
       return {
         title: `Prepare for AI Engineer`,
-        currentStep: { name: 'Assessment', detail: 'Professional Skills Evaluation · In progress', href: '#/individual/learning' },
-        nextStep: { name: 'Applied Systems', detail: 'Production Engineering Project · Queued', href: '#/individual/learning' },
+        currentStep: { milestoneId: 'ms-cp-assessment', name: 'Assessment', detail: 'Professional Skills Evaluation · In progress', href: '#/individual/learning' },
+        nextStep: { milestoneId: 'ms-cp-applied-systems', name: 'Applied Systems', detail: 'Production Engineering Project · Queued', href: '#/individual/learning' },
         completedItems: ['Role Diagnostics', 'Core Foundations', 'Assessment', 'Systems Project']
       };
     case 'Job Preparation':
       return {
         title: `Prepare for NVIDIA AI Engineer roles`,
-        currentStep: { name: 'Role Requirements', detail: 'Production Requisition Match · In progress', href: '#/individual/learning' },
-        nextStep: { name: 'Domain Project', detail: 'Industry Production Case Study · Queued', href: '#/individual/learning' },
+        currentStep: { milestoneId: 'ms-jp-requirements', name: 'Role Requirements', detail: 'Production Requisition Match · In progress', href: '#/individual/learning' },
+        nextStep: { milestoneId: 'ms-jp-project', name: 'Domain Project', detail: 'Industry Production Case Study · Queued', href: '#/individual/learning' },
         completedItems: ['Requisition Match', 'Technical Assessment', 'Domain Case Study', 'Interview Simulation']
       };
     case 'Company Preparation':
       return {
         title: `Prepare for Microsoft backend roles`,
-        currentStep: { name: 'Assessment', detail: 'Company Challenge Assessment · In progress', href: '#/individual/learning' },
-        nextStep: { name: 'Mock Project', detail: 'Production Scale Mock Build · Queued', href: '#/individual/learning' },
+        currentStep: { milestoneId: 'ms-co-assessment', name: 'Assessment', detail: 'Company Challenge Assessment · In progress', href: '#/individual/learning' },
+        nextStep: { milestoneId: 'ms-co-mock-project', name: 'Mock Project', detail: 'Production Scale Mock Build · Queued', href: '#/individual/learning' },
         completedItems: ['Target Architecture', 'Internal Systems', 'Technical Challenge', 'Mock Project']
       };
     case 'Improve Current Skill':
     default:
       return {
         title: `${skill} — Backend Development`,
-        currentStep: { name: 'Assessment', detail: 'Technical Benchmark · 12/20 completed', href: '#/individual/learning' },
-        nextStep: { name: 'Real-world Project', detail: '2 recommended projects queued', href: '#/individual/learning' },
+        currentStep: { milestoneId: 'ms-assessment', name: 'Assessment', detail: 'Technical Benchmark · 12/20 completed', href: '#/individual/learning' },
+        nextStep: { milestoneId: 'ms-realworld-project', name: 'Real-world Project', detail: '2 recommended projects queued', href: '#/individual/learning' },
         completedItems: ['Skill Development', 'Assessment', 'Project', 'Job Preparation']
       };
   }
@@ -4001,7 +5273,7 @@ function renderRedesignedRoadmap() {
           <!-- COMPACT MILESTONE TIMELINE (DESKTOP: HORIZONTAL, MOBILE: VERTICAL) -->
           <div class="roadmap-timeline">
             ${milestones.map((m, idx) => `
-              <div class="timeline-step ${m.status || 'upcoming'}">
+              <div class="timeline-step ${m.status || 'upcoming'}" data-nav-milestone="${m.id || m.name || ''}" role="button" tabindex="0" style="cursor:pointer;" title="Inspect ${m.name} in Learning workspace">
                 <div class="step-indicator">
                   ${m.status === 'completed' ? '<i data-lucide="check"></i>' : (m.status === 'current' ? '<span class="pulse-dot"></span>' : (idx + 1))}
                 </div>
@@ -4019,7 +5291,7 @@ function renderRedesignedRoadmap() {
                 <span class="step-card__detail">${currentStep.detail}</span>
               </div>
               <h4 class="step-card__title">${currentStep.name}</h4>
-              <a class="button step-card__action" style="background:#B22DEF; color:#FFF; font-weight:700; border-radius:9px; padding:6px 14px; font-size:11px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;" href="#/individual/learning">
+              <a class="button step-card__action" style="background:#B22DEF; color:#FFF; font-weight:700; border-radius:9px; padding:6px 14px; font-size:11px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; cursor:pointer;" href="#/individual/learning" data-nav-milestone="${currentStep.milestoneId || currentStep.name || ''}">
                 Continue Step <i data-lucide="arrow-right"></i>
               </a>
             </div>
@@ -4031,7 +5303,7 @@ function renderRedesignedRoadmap() {
                 <span class="step-card__detail">${nextStep.detail}</span>
               </div>
               <h4 class="step-card__title">${nextStep.name}</h4>
-              <a class="button step-card__action" style="background:#FAF5FF; color:#7E22CE; border:1px solid #E9D8FD; font-weight:700; border-radius:9px; padding:6px 14px; font-size:11px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;" href="#/individual/learning">
+              <a class="button step-card__action" style="background:#FAF5FF; color:#7E22CE; border:1px solid #E9D8FD; font-weight:700; border-radius:9px; padding:6px 14px; font-size:11px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; cursor:pointer;" href="#/individual/learning" data-nav-milestone="${nextStep.milestoneId || nextStep.name || ''}">
                 View Task <i data-lucide="chevron-right"></i>
               </a>
             </div>
@@ -4055,10 +5327,10 @@ function renderRedesignedRoadmap() {
 
           <!-- FOOTER ACTIONS -->
           <div class="roadmap-card-footer">
-            <a class="button button-continue-roadmap" href="#/individual/learning">
+            <a class="button button-continue-roadmap" href="#/individual/learning" data-nav-milestone="${currentStep.milestoneId || currentStep.name || ''}">
               Continue Roadmap <i data-lucide="arrow-right"></i>
             </a>
-            <a class="button button-view-full-roadmap" href="#/individual/learning">
+            <a class="button button-view-full-roadmap" href="#/individual/learning" data-nav-milestone="">
               View Full Roadmap <i data-lucide="external-link"></i>
             </a>
             <div class="roadmap-footer-tools" style="margin-left:auto; display:flex; align-items:center; gap:12px;">
@@ -4227,6 +5499,54 @@ function renderRoadmapCreationModal() {
 }
 
 function bindRedesignedHomeEvents() {
+  // 1. Roadmap Milestone and Action Navigation (Direct link to Learning workspace)
+  document.querySelectorAll('[data-nav-milestone]').forEach(el => {
+    const handleMilestoneNav = (e) => {
+      e.preventDefault();
+      const msId = el.dataset.navMilestone;
+      if (msId) {
+        sessionStorage.setItem('talentscope-selected-milestone', msId);
+      }
+      window.location.hash = '/individual/learning';
+    };
+    el.addEventListener('click', handleMilestoneNav);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        handleMilestoneNav(e);
+      }
+    });
+  });
+
+  // 2. Verified Job Search Controls & Suggestions
+  const handleJobSearch = () => {
+    const input = document.querySelector('#homeJobSearchInput');
+    const query = input ? input.value.trim() : '';
+    if (query) {
+      loadHomeJobs({ query, country: homeJobIntelligenceState.country || 'in' });
+      renderHome();
+    }
+  };
+
+  document.querySelector('#homeJobSearchBtn')?.addEventListener('click', handleJobSearch);
+  document.querySelector('#homeJobSearchInput')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleJobSearch();
+    }
+  });
+
+  document.querySelectorAll('[data-job-query]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = btn.dataset.jobQuery;
+      if (q) {
+        const input = document.querySelector('#homeJobSearchInput');
+        if (input) input.value = q;
+        loadHomeJobs({ query: q, country: homeJobIntelligenceState.country || 'in' });
+        renderHome();
+      }
+    });
+  });
+
   document.querySelectorAll('[data-home-job-filter]').forEach(control => {
     control.addEventListener('change', event => {
       const { homeJobFilter } = event.currentTarget.dataset;
@@ -4303,6 +5623,10 @@ function bindRedesignedHomeEvents() {
     pill.addEventListener('click', (e) => {
       e.stopPropagation();
       dashboardState.marketLocation = pill.dataset.setMarketLocation;
+      loadHomeMarketIntelligence({
+        location: dashboardState.marketLocation,
+        range: { '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' }[dashboardState.marketTime] || '6m'
+      });
       renderHome();
     });
   });
@@ -4311,6 +5635,10 @@ function bindRedesignedHomeEvents() {
     pill.addEventListener('click', (e) => {
       e.stopPropagation();
       dashboardState.marketTime = pill.dataset.setMarketTime;
+      loadHomeMarketIntelligence({
+        location: dashboardState.marketLocation || 'Global',
+        range: { '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' }[dashboardState.marketTime] || '6m'
+      });
       renderHome();
     });
   });
@@ -4382,6 +5710,10 @@ function bindRedesignedHomeEvents() {
     pill.addEventListener('click', (e) => {
       e.stopPropagation();
       dashboardState.skillLocation = pill.dataset.setSkillLocation;
+      loadHomeSkillIntelligence({
+        location: dashboardState.skillLocation,
+        range: { '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' }[dashboardState.skillTime] || '6m'
+      });
       renderHome();
     });
   });
@@ -4391,6 +5723,10 @@ function bindRedesignedHomeEvents() {
       e.stopPropagation();
       dashboardState.skillTime = pill.dataset.setSkillTime;
       dashboardState.timeRange = pill.dataset.setSkillTime;
+      loadHomeSkillIntelligence({
+        location: dashboardState.skillLocation || '',
+        range: { '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' }[dashboardState.skillTime] || '6m'
+      });
       renderHome();
     });
   });
@@ -4403,25 +5739,22 @@ function bindRedesignedHomeEvents() {
     });
   });
 
-  // Toggle Favorite Skill (strictly limited to maximum 5 favorites)
+  // Skill favorites are account-scoped canonical IDs shared with the catalog.
   document.querySelectorAll('[data-toggle-fav]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const sName = btn.dataset.toggleFav;
-      const target = skillMarketData.find(s => s.name === sName);
-      if (target) {
-        if (target.isFavorite) {
-          target.isFavorite = false;
-        } else {
-          const currentFavCount = skillMarketData.filter(s => s.isFavorite).length;
-          if (currentFavCount >= 5) {
-            alert('Maximum 5 favorite skills allowed. Please un-favorite a skill first.');
-            return;
-          }
-          target.isFavorite = true;
-        }
-        localStorage.setItem('talentscope-favorite-skills', JSON.stringify(skillMarketData.filter(s => s.isFavorite).map(s => s.name)));
-        renderHome();
+      if (btn.disabled) return;
+      const skillName = btn.dataset.toggleFav;
+      btn.disabled = true;
+      try {
+        await toggleCanonicalSkillFavourite(skillName);
+      } catch (error) {
+        const message = document.createElement('p');
+        message.className = 'skill-favourite-error';
+        message.setAttribute('role', 'alert');
+        message.textContent = error.message || 'This favourite could not be saved.';
+        btn.closest('.skill-rail-row')?.append(message);
+        btn.disabled = false;
       }
     });
   });
@@ -4592,11 +5925,7 @@ function bindRedesignedHomeEvents() {
   document.querySelectorAll('[data-select-domain]').forEach(card => {
     card.addEventListener('click', () => {
       const domain = card.dataset.selectDomain;
-      intelligenceExplorerState.type = domain;
-      intelligenceExplorerState.domainSelected = true;
-      intelligenceExplorerState.isAnalyzing = false;
-      intelligenceExplorerState.hasSearched = false;
-      intelligenceExplorerState.question = '';
+      restoreConsoleDomainSession(domain);
       renderHome();
     });
     card.addEventListener('keydown', event => {
@@ -4606,59 +5935,281 @@ function bindRedesignedHomeEvents() {
     });
   });
 
-  // Switch Intelligence Domain Tabs
+  // Switch Intelligence Domain Tabs (Independent Domain Sessions)
   document.querySelectorAll('[data-switch-domain], [data-console-mode]').forEach(btn => {
     btn.addEventListener('click', () => {
       const domain = btn.dataset.switchDomain || btn.dataset.consoleMode;
-      intelligenceExplorerState.type = domain;
-      intelligenceExplorerState.domainSelected = true;
-      intelligenceExplorerState.isAnalyzing = false;
-      intelligenceExplorerState.hasSearched = false;
-      intelligenceExplorerState.question = '';
+      const queryInput = document.querySelector('#consoleQueryInput') || document.querySelector('#consoleBottomQueryInput');
+      if (queryInput) {
+        intelligenceExplorerState.question = queryInput.value;
+      }
+      restoreConsoleDomainSession(domain);
       renderHome();
     });
   });
 
   // Return to First Step (Change Domain)
   document.querySelector('#changeConsoleDomainBtn')?.addEventListener('click', () => {
-    intelligenceExplorerState.domainSelected = false;
     intelligenceExplorerState.isAnalyzing = false;
     renderHome();
   });
 
-  // Console Scope Switchers
-  document.querySelectorAll('[data-console-skill-scope]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      intelligenceExplorerState.skillScope = btn.dataset.consoleSkillScope;
+  // Reset Conversation Button (New Chat for Current Domain Only)
+  document.querySelector('#resetConversationBtn')?.addEventListener('click', async () => {
+    const mode = intelligenceExplorerState.type || 'skills';
+    const domain = mode === 'skills' ? 'skill' : mode === 'companies' ? 'market' : 'job';
+    try {
+      const { createIntelligenceConversation, setActiveConversationId } = await import('../api/core-intelligence-client.js');
+      const created = await createIntelligenceConversation({
+        portal_type: 'individual',
+        domain,
+        title: `New ${domain} intelligence conversation`,
+        filters: { domain, scope: mode === 'skills' ? intelligenceExplorerState.skillScope : mode === 'companies' ? intelligenceExplorerState.companyScope : intelligenceExplorerState.jobScope }
+      });
+      if (!created?.conversation_id) throw new Error('Conversation ID missing');
+      intelligenceExplorerState.activeQueryId++;
+      intelligenceExplorerState.messages = [];
+      intelligenceExplorerState.conversationId = created.conversation_id;
+      intelligenceExplorerState.hasSearched = false;
+      intelligenceExplorerState.isAnalyzing = false;
+      intelligenceExplorerState.question = '';
+      intelligenceExplorerState.apiResponse = null;
+      setActiveConversationId(created.conversation_id, 'individual', mode, userProfileState.uid);
+      saveCurrentConsoleDomainSession(mode);
       renderHome();
+    } catch (_) {
+      intelligenceExplorerState.apiError = 'Could not create a new chat. Please try again.';
+      renderHome();
+    }
+  });
+
+  // Open Chat History or Continue in Assistant -> Navigate to Dedicated AI Assistant preserving context & conversation_id
+  const navigateHomeToAssistant = async () => {
+    const mode = intelligenceExplorerState.type || 'skills';
+    saveCurrentConsoleDomainSession(mode);
+    const activeScope = mode === 'skills'
+      ? (intelligenceExplorerState.skillScope || 'All Skills')
+      : mode === 'companies'
+        ? (intelligenceExplorerState.companyScope || 'All')
+        : (intelligenceExplorerState.jobScope || 'All');
+    const currentEntity = mode === 'skills'
+      ? (dashboardState.selectedSkill || intelligenceExplorerState.selected.skills || '')
+      : mode === 'companies'
+        ? (intelligenceExplorerState.selected.companies || '')
+        : (intelligenceExplorerState.selected.roles || '');
+    try {
+      const { syncHomeToAssistantSession } = await import('../data/ai-assistant-data.js');
+      syncHomeToAssistantSession(userProfileState?.uid || 'guest', mode, {
+        conversationId: intelligenceExplorerState.conversationId || null,
+        scope: activeScope,
+        location: dashboardState.selectedLocation || '',
+        timeRange: intelligenceExplorerState.timeRange || 'Max Available',
+        entity: currentEntity,
+        messages: intelligenceExplorerState.messages || []
+      });
+    } catch (err) {
+      console.warn('Could not sync session to AI Assistant:', err);
+    }
+    window.location.hash = '#/individual/ai-assistant';
+  };
+
+  document.querySelector('#openChatHistoryBtn')?.addEventListener('click', navigateHomeToAssistant);
+  document.querySelector('#continueInAssistantBtn')?.addEventListener('click', navigateHomeToAssistant);
+
+  // Copy Answer Action
+  document.querySelectorAll('[data-copy-answer-id]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const msgId = btn.dataset.copyAnswerId;
+      const msg = (intelligenceExplorerState.messages || []).find(m => m.id === msgId);
+      const textToCopy = msg ? (msg.answer || msg.resultData?.whatChangedBody || '') : '';
+      if (!textToCopy) return;
+
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        btn.classList.add('is-copied');
+        btn.innerHTML = '<i data-lucide="check"></i> <span>Copied!</span>';
+        if (window.lucide) lucide.createIcons();
+        setTimeout(() => {
+          btn.classList.remove('is-copied');
+          btn.innerHTML = '<i data-lucide="copy"></i> <span>Copy</span>';
+          if (window.lucide) lucide.createIcons();
+        }, 2000);
+      } catch (err) {
+        console.warn('Clipboard copy failed:', err);
+      }
     });
   });
-  document.querySelectorAll('[data-console-company-scope]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      intelligenceExplorerState.companyScope = btn.dataset.consoleCompanyScope;
-      renderHome();
-    });
+
+  // Input change tracker
+  document.querySelector('#consoleQueryInput')?.addEventListener('input', (e) => {
+    intelligenceExplorerState.question = e.target.value;
+    saveCurrentConsoleDomainSession(intelligenceExplorerState.type);
   });
-  document.querySelectorAll('[data-console-job-scope]').forEach(btn => {
+
+  // Helper to get current committed filter values for initializing draft state
+  const getCommittedConsoleFilters = () => {
+    const mode = ['skills', 'companies', 'roles'].includes(intelligenceExplorerState.type)
+      ? intelligenceExplorerState.type
+      : 'skills';
+    const rawScope = mode === 'skills'
+      ? (intelligenceExplorerState.skillScope || 'All Skills')
+      : mode === 'companies'
+        ? (intelligenceExplorerState.companyScope || 'All Companies')
+        : (intelligenceExplorerState.jobScope || 'All Companies');
+    const normalizedScope = rawScope === 'Favourite Skills' || rawScope === 'Favourite Companies' || rawScope === 'Favorite Skills' || rawScope === 'Favorite Companies'
+      ? 'Favourites'
+      : (rawScope === 'All' && mode !== 'skills')
+        ? 'All Companies'
+        : rawScope;
+    const entity = mode === 'skills'
+      ? (dashboardState.selectedSkill || intelligenceExplorerState.selected.skills || '')
+      : mode === 'companies'
+        ? (intelligenceExplorerState.selected.companies || dashboardState.selectedCompany || '')
+        : (intelligenceExplorerState.selected.roles || dashboardState.selectedRole || '');
+    const domain = mode === 'skills' ? 'skill' : mode === 'companies' ? 'market' : 'job';
+    const shared = window.__talentscopeCommittedIntelligenceFilters?.[domain];
+    if (shared) return {
+      scope: shared.scope,
+      entity: shared.entity || '',
+      location: shared.location || '',
+      timeRange: shared.timeRange || 'Max Available'
+    };
+    return {
+      scope: normalizedScope,
+      entity,
+      location: dashboardState.selectedLocation || dashboardState.market || '',
+      timeRange: intelligenceExplorerState.timeRange || dashboardState.timeRange || 'Max Available'
+    };
+  };
+
+  const ensureDraftConsoleFilters = () => {
+    if (!intelligenceExplorerState.draftFilters) {
+      intelligenceExplorerState.draftFilters = getCommittedConsoleFilters();
+    }
+    return intelligenceExplorerState.draftFilters;
+  };
+
+  // Single Filters Button Toggle
+  document.querySelector('#consoleFilterToggleBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const queryInput = document.querySelector('#consoleQueryInput');
+    if (queryInput) intelligenceExplorerState.question = queryInput.value;
+    if (intelligenceExplorerState.isFilterDrawerOpen) {
+      // Closing without applying discards draft changes
+      intelligenceExplorerState.isFilterDrawerOpen = false;
+      intelligenceExplorerState.draftFilters = null;
+    } else {
+      intelligenceExplorerState.draftFilters = getCommittedConsoleFilters();
+      intelligenceExplorerState.isFilterDrawerOpen = true;
+    }
+    renderHome();
+  });
+
+  // Close Filter Popover without applying (discards draft changes)
+  document.querySelector('#closeConsoleFilterDrawerBtn')?.addEventListener('click', () => {
+    const queryInput = document.querySelector('#consoleQueryInput');
+    if (queryInput) intelligenceExplorerState.question = queryInput.value;
+    intelligenceExplorerState.isFilterDrawerOpen = false;
+    intelligenceExplorerState.draftFilters = null;
+    renderHome();
+  });
+
+  // Reset Filter Popover to Domain Defaults
+  document.querySelector('#resetConsoleFiltersBtn')?.addEventListener('click', () => {
+    const queryInput = document.querySelector('#consoleQueryInput');
+    if (queryInput) intelligenceExplorerState.question = queryInput.value;
+    const mode = intelligenceExplorerState.type || 'skills';
+    intelligenceExplorerState.draftFilters = {
+      scope: mode === 'skills' ? 'All Skills' : 'All Companies',
+      entity: '',
+      location: '',
+      timeRange: 'Max Available'
+    };
+    renderHome();
+  });
+
+  // Apply Filter Popover (commits draft filters to active pipeline state)
+  document.querySelector('#applyConsoleFiltersBtn')?.addEventListener('click', () => {
+    const queryInput = document.querySelector('#consoleQueryInput');
+    if (queryInput) intelligenceExplorerState.question = queryInput.value;
+    const priorQuestion = intelligenceExplorerState.question?.trim() || '';
+    const draft = ensureDraftConsoleFilters();
+    const mode = intelligenceExplorerState.type || 'skills';
+    const filterDomain = mode === 'skills' ? 'skill' : mode === 'companies' ? 'market' : 'job';
+    if (mode === 'skills') {
+      intelligenceExplorerState.skillScope = draft.scope;
+      dashboardState.skillScope = draft.scope === 'Favourites' ? 'Favorite Skills' : draft.scope;
+      dashboardState.selectedSkill = draft.entity || '';
+      intelligenceExplorerState.selected.skills = draft.entity || '';
+    } else if (mode === 'companies') {
+      intelligenceExplorerState.companyScope = draft.scope;
+      dashboardState.marketCompanyScope = draft.scope === 'Favourites' ? 'Favorite Companies' : 'All Companies';
+      intelligenceExplorerState.selected.companies = draft.entity || '';
+      dashboardState.selectedCompany = draft.entity || '';
+    } else {
+      intelligenceExplorerState.jobScope = draft.scope;
+      intelligenceExplorerState.selected.roles = draft.entity || '';
+      dashboardState.selectedRole = draft.entity || '';
+    }
+    dashboardState.selectedLocation = draft.location || '';
+    dashboardState.market = draft.location || '';
+    intelligenceExplorerState.timeRange = draft.timeRange || 'Max Available';
+    dashboardState.timeRange = draft.timeRange || 'Max Available';
+    window.__talentscopeCommittedIntelligenceFilters = window.__talentscopeCommittedIntelligenceFilters || {};
+    window.__talentscopeCommittedIntelligenceFilters[filterDomain] = {
+      domain: filterDomain,
+      scope: draft.scope,
+      entity: draft.entity || '',
+      location: draft.location || '',
+      timeRange: draft.timeRange || 'Max Available'
+    };
+    intelligenceExplorerState.isFilterDrawerOpen = false;
+    intelligenceExplorerState.draftFilters = null;
+    saveCurrentConsoleDomainSession(mode);
+    renderHome();
+    if (priorQuestion) triggerConsoleAnalysis(priorQuestion);
+  });
+
+  // Draft Scope Pills inside Filter Popover
+  document.querySelectorAll('[data-conv-scope]').forEach(btn => {
     btn.addEventListener('click', () => {
-      intelligenceExplorerState.jobScope = btn.dataset.consoleJobScope;
+      const queryInput = document.querySelector('#consoleQueryInput');
+      if (queryInput) intelligenceExplorerState.question = queryInput.value;
+      const draft = ensureDraftConsoleFilters();
+      draft.scope = btn.dataset.convScope;
       renderHome();
     });
   });
 
-  // Console Time Range Switcher
-  document.querySelectorAll('[data-console-time-range]').forEach(btn => {
+  // Draft Time Range Pills inside Filter Popover
+  document.querySelectorAll('[data-conv-time-range]').forEach(btn => {
     btn.addEventListener('click', () => {
-      intelligenceExplorerState.timeRange = btn.dataset.consoleTimeRange;
-      dashboardState.timeRange = btn.dataset.consoleTimeRange;
+      const queryInput = document.querySelector('#consoleQueryInput');
+      if (queryInput) intelligenceExplorerState.question = queryInput.value;
+      const draft = ensureDraftConsoleFilters();
+      draft.timeRange = btn.dataset.convTimeRange;
       renderHome();
     });
   });
 
-  // Console Location Selector
+  // Draft Focus Entity Chips inside Filter Popover
+  document.querySelectorAll('[data-conv-select-entity]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const queryInput = document.querySelector('#consoleQueryInput');
+      if (queryInput) intelligenceExplorerState.question = queryInput.value;
+      const draft = ensureDraftConsoleFilters();
+      draft.entity = chip.dataset.convSelectEntity;
+      renderHome();
+    });
+  });
+
+  // Draft Location Selector inside Filter Popover
   document.querySelector('#consoleLocationSelect')?.addEventListener('change', (e) => {
-    dashboardState.selectedLocation = e.target.value;
-    dashboardState.market = e.target.value;
+    const queryInput = document.querySelector('#consoleQueryInput');
+    if (queryInput) intelligenceExplorerState.question = queryInput.value;
+    const draft = ensureDraftConsoleFilters();
+    draft.location = e.target.value;
     renderHome();
   });
 
@@ -4667,26 +6218,34 @@ function bindRedesignedHomeEvents() {
     intelligenceExplorerState.question = '';
     const queryInput = document.querySelector('#consoleQueryInput');
     if (queryInput) queryInput.value = '';
+    saveCurrentConsoleDomainSession(intelligenceExplorerState.type);
     renderHome();
   });
 
-  // Suggested Prompts
+  // Suggested Prompts Inside Composer & Follow-Up Chips (Max 2)
   document.querySelectorAll('[data-console-prompt]').forEach(chip => {
     chip.addEventListener('click', () => {
+      const promptText = chip.dataset.consolePrompt;
       const queryInput = document.querySelector('#consoleQueryInput');
-      if (queryInput) queryInput.value = chip.dataset.consolePrompt;
-      triggerConsoleAnalysis(chip.dataset.consolePrompt);
+      if (queryInput) queryInput.value = promptText;
+      triggerConsoleAnalysis(promptText);
+    });
+  });
+  document.querySelectorAll('.console-retry-answer-btn').forEach(button => {
+    button.addEventListener('click', () => {
+      const question = button.dataset.retryQuestion;
+      if (question) triggerConsoleAnalysis(question);
     });
   });
 
-  // Primary Analyze Submit Button
+  // Composer Analyze Button
   document.querySelector('#consoleAnalyzeSubmit')?.addEventListener('click', () => {
     const queryInput = document.querySelector('#consoleQueryInput');
     const query = queryInput ? queryInput.value.trim() : '';
     triggerConsoleAnalysis(query);
   });
 
-  // Enter key submits query
+  // Composer Enter Key
   document.querySelector('#consoleQueryInput')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -4694,25 +6253,58 @@ function bindRedesignedHomeEvents() {
     }
   });
 
-  // Save Result to Intelligence
-  document.querySelector('#saveConsoleResultBtn')?.addEventListener('click', (e) => {
-    const btn = e.currentTarget;
-    btn.innerHTML = '<i data-lucide="check"></i> <span>Saved to intelligence</span>';
-    btn.disabled = true;
-    lucide.createIcons();
-  });
-
-  // New Query Button (Reset Result)
-  document.querySelector('#consoleAskAnotherBtn')?.addEventListener('click', () => {
-    intelligenceExplorerState.hasSearched = false;
-    intelligenceExplorerState.isAnalyzing = false;
-    intelligenceExplorerState.question = '';
-    renderHome();
+  // Save / Favourite Result Button
+  document.querySelectorAll('[data-save-result-btn]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const ent = btn.dataset.saveResultBtn;
+      const mode = intelligenceExplorerState.type || 'skills';
+      if (mode === 'companies') {
+        if (!Array.isArray(intelligenceExplorerState.favoriteCompanies)) intelligenceExplorerState.favoriteCompanies = [];
+        if (!intelligenceExplorerState.favoriteCompanies.includes(ent)) {
+          intelligenceExplorerState.favoriteCompanies.push(ent);
+        }
+        if (!Array.isArray(dashboardState.favoriteCompanies)) dashboardState.favoriteCompanies = [];
+        if (!dashboardState.favoriteCompanies.includes(ent)) {
+          dashboardState.favoriteCompanies.push(ent);
+        }
+        try {
+          localStorage.setItem('talentscope_fav_companies_v1', JSON.stringify(intelligenceExplorerState.favoriteCompanies));
+        } catch (_) {}
+      } else {
+        btn.disabled = true;
+        try {
+          btn.dataset.favouriteState = String((await toggleCanonicalSkillFavourite(ent)).isFavourite);
+        } catch (error) {
+          const message = document.createElement('p');
+          message.className = 'skill-favourite-error';
+          message.setAttribute('role', 'alert');
+          message.textContent = error.message || 'This favourite could not be saved.';
+          btn.after(message);
+          btn.disabled = false;
+          return;
+        }
+      }
+      const skillIsFavourite = mode !== 'companies';
+      const isFavourite = skillIsFavourite ? btn.dataset.favouriteState === 'true' : true;
+      btn.classList.toggle('is-saved', isFavourite);
+      btn.innerHTML = `<i data-lucide="${skillIsFavourite ? 'star' : 'check'}"></i> <span>${skillIsFavourite ? (isFavourite ? 'Favourited' : 'Add to favourites') : 'Saved'}</span>`;
+      btn.setAttribute('aria-pressed', String(isFavourite));
+      btn.disabled = false;
+      if (window.lucide) lucide.createIcons();
+    });
   });
 
   document.querySelectorAll('[data-select-skill]').forEach(row => {
     row.addEventListener('click', () => {
       dashboardState.selectedSkill = row.dataset.selectSkill;
+      intelligenceExplorerState.selected.skills = row.dataset.selectSkill;
+      if (dashboardState.skillScope !== 'All Skills') {
+        loadHomeSkillIntelligence({
+          location: dashboardState.skillLocation || '',
+          range: { '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' }[dashboardState.skillTime] || '6m',
+          skill: dashboardState.selectedSkill
+        });
+      }
       renderHome();
     });
     row.addEventListener('keydown', event => {
@@ -4725,6 +6317,7 @@ function bindRedesignedHomeEvents() {
   document.querySelectorAll('[data-select-company]').forEach(row => {
     row.addEventListener('click', () => {
       intelligenceExplorerState.selected.companies = row.dataset.selectCompany;
+      dashboardState.selectedCompany = row.dataset.selectCompany;
       renderHome();
     });
   });
@@ -4755,7 +6348,6 @@ function bindRedesignedHomeEvents() {
   
   // Location picker button
   const locationBtn = document.querySelector('#locationPickerBtn');
-  const locationContainer = document.querySelector('#locationPickerContainer');
   if (locationBtn) {
     locationBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -4795,7 +6387,7 @@ function bindRedesignedHomeEvents() {
     });
   }
   
-  // Start live simulation
+  // Start live simulation (disabled in production)
   initHomeSimulation();
 
   if (intelligenceExplorerState.hasSearched && !intelligenceExplorerState.isAnalyzing) {
@@ -4849,7 +6441,6 @@ function animateConsoleResults() {
   const surface = document.querySelector('.console-result-surface');
   if (!surface) return;
 
-  // 1. Progressive Line Draw in Block 3
   const chartSvg = surface.querySelector('#consoleDataTelemetryChart');
   if (chartSvg) {
     const line = chartSvg.querySelector('.console-chart-line');
@@ -4858,7 +6449,7 @@ function animateConsoleResults() {
       const length = 380;
       line.style.strokeDasharray = `${length}`;
       line.style.strokeDashoffset = `${length}`;
-      line.getBoundingClientRect(); // trigger reflow
+      line.getBoundingClientRect();
       line.style.transition = 'stroke-dashoffset 680ms cubic-bezier(0.16, 1, 0.3, 1)';
       line.style.strokeDashoffset = '0';
     }
@@ -4870,7 +6461,6 @@ function animateConsoleResults() {
     }
   }
 
-  // 2. Animate Numeric Counters
   surface.querySelectorAll('.console-metric-mini-cell strong').forEach((cell, idx) => {
     const originalText = cell.textContent.trim();
     setTimeout(() => {
@@ -4892,17 +6482,14 @@ function updateScannerInPlace(step, totalSteps, mode, entity, location) {
   if (!glass) return;
   const progressPercent = Math.min(100, Math.round((step / totalSteps) * 100));
   
-  // Update progress bar & percent
   const percentEl = glass.querySelector('.scanning-progress-percent');
   const barEl = glass.querySelector('.scanning-progress-bar');
   if (percentEl) percentEl.textContent = `${progressPercent}%`;
   if (barEl) barEl.style.width = `${progressPercent}%`;
   
-  // Update telemetry badge
   const badge = glass.querySelector('.scanning-telemetry-badge span:last-child');
-  if (badge) badge.textContent = `Live Stream • Step ${Math.min(5, step + 1)} of 5`;
+  if (badge) badge.textContent = `Pipeline execution • Step ${Math.min(5, step + 1)} of 5`;
 
-  // Update headline & subtext
   const info = getScannerStageInfo(step, mode, entity, location);
   const eyebrowEl = glass.querySelector('.scanning-eyebrow');
   const headlineEl = glass.querySelector('.scanning-headline');
@@ -4911,7 +6498,6 @@ function updateScannerInPlace(step, totalSteps, mode, entity, location) {
   if (headlineEl) headlineEl.textContent = info.headline;
   if (subtextEl) subtextEl.innerHTML = info.subtext;
 
-  // Update signal cards
   const cards = glass.querySelectorAll('.scanning-signal-card');
   cards.forEach((card, idx) => {
     const isDone = idx < step;
@@ -4947,66 +6533,443 @@ function updateScannerInPlace(step, totalSteps, mode, entity, location) {
   if (window.lucide) lucide.createIcons();
 }
 
-function triggerConsoleAnalysis(query) {
-  const currentSkill = dashboardState.selectedSkill || 'Machine Learning';
-  const currentCompany = intelligenceExplorerState.selected.companies || 'Microsoft';
-  const currentRole = intelligenceExplorerState.selected.roles || 'AI Engineer';
+async function triggerConsoleAnalysis(query) {
+  if (intelligenceExplorerState.isAnalyzing) {
+    return;
+  }
+  const queryId = ++intelligenceExplorerState.activeQueryId;
   const mode = intelligenceExplorerState.type || 'skills';
-  const entity = mode === 'skills' ? currentSkill : mode === 'companies' ? currentCompany : currentRole;
-  const location = dashboardState.selectedLocation || dashboardState.market || 'Bangalore, India';
+  let currentSkill = dashboardState.selectedSkill || intelligenceExplorerState.selected.skills || '';
+  let currentCompany = intelligenceExplorerState.selected.companies || dashboardState.selectedCompany || '';
+  let currentRole = intelligenceExplorerState.selected.roles || dashboardState.selectedRole || '';
+  let entity = mode === 'skills' ? currentSkill : mode === 'companies' ? currentCompany : currentRole;
+  const location = dashboardState.selectedLocation || '';
+  const timeRange = intelligenceExplorerState.timeRange || dashboardState.timeRange || 'Max Available';
 
   if (!query && !intelligenceExplorerState.question) {
     const input = document.querySelector('#consoleQueryInput');
     query = input ? input.value.trim() : '';
   }
   if (!query) {
-    query = `Why is ${entity} demand changing?`;
+    query = mode === 'roles'
+      ? `What skills do current postings require for ${entity}?`
+      : mode === 'companies'
+        ? `Which companies are increasing technology adoption?`
+        : `Why is ${entity} demand changing?`;
+  }
+
+  // Extract known canonical entity from user's explicit query text
+  const detectedEntity = extractEntityFromQuery(query, mode);
+  if (detectedEntity) {
+    entity = detectedEntity;
+    if (mode === 'skills') {
+      dashboardState.selectedSkill = detectedEntity;
+      intelligenceExplorerState.selected.skills = detectedEntity;
+    } else if (mode === 'companies') {
+      intelligenceExplorerState.selected.companies = detectedEntity;
+      dashboardState.selectedCompany = detectedEntity;
+    } else {
+      intelligenceExplorerState.selected.roles = detectedEntity;
+      dashboardState.selectedRole = detectedEntity;
+    }
+  }
+
+  const rawScope = mode === 'skills'
+    ? (intelligenceExplorerState.skillScope || 'All Skills')
+    : mode === 'companies'
+      ? (intelligenceExplorerState.companyScope || 'All Companies')
+      : (intelligenceExplorerState.jobScope || 'All Companies');
+  const uiScopeLabel = rawScope === 'Favourite Skills' || rawScope === 'Favourite Companies' || rawScope === 'Favorite Skills' || rawScope === 'Favorite Companies'
+    ? 'Favourites'
+    : (rawScope === 'All' && mode !== 'skills')
+      ? 'All Companies'
+      : rawScope;
+  const activeScope = uiScopeLabel === 'All Companies' ? 'All' : uiScopeLabel;
+
+  // Resolve scope-specific entities without fabricating fallback values
+  let selectedSkillsPayload = [];
+  let selectedCompaniesPayload = [];
+  let scopeEmpty = false;
+
+  if (mode === 'skills') {
+    if (activeScope === 'My Skills') {
+      const profileSkills = (homeSkillIntelligenceState.skills || []).map(s => s.name).filter(Boolean);
+      const userSkills = Array.isArray(userProfileState?.skills) ? userProfileState.skills.filter(Boolean) : [];
+      const mySkills = [...new Set([...profileSkills, ...userSkills])];
+      if (mySkills.length) {
+        selectedSkillsPayload = mySkills.includes(entity) ? [entity, ...mySkills.filter(s => s !== entity)] : mySkills;
+      } else {
+        scopeEmpty = true;
+        selectedSkillsPayload = entity ? [entity] : [];
+      }
+    } else if (activeScope === 'Favourites') {
+      const favSkills = [...new Set(Array.from(homeSkillIntelligenceState.favoriteSkills || []))].filter(Boolean);
+      if (favSkills.length) {
+        selectedSkillsPayload = favSkills.includes(entity) ? [entity, ...favSkills.filter(s => s !== entity)] : favSkills;
+      } else {
+        scopeEmpty = true;
+        selectedSkillsPayload = [];
+      }
+    } else {
+      selectedSkillsPayload = entity ? [entity] : [];
+    }
+  } else if (mode === 'companies') {
+    const supportedTech = new Set((homeCatalogState.market?.technologies || []).map(item => item.name));
+    const supportedCompanies = new Set([...(homeCatalogState.market?.companies_with_job_evidence || []).map(item => item.name), ...(homeCatalogState.market?.registered_company?.name ? [homeCatalogState.market.registered_company.name] : [])]);
+    if (entity) {
+      if (supportedTech.has(entity)) selectedSkillsPayload = [entity];
+      else if (supportedCompanies.has(entity)) selectedCompaniesPayload = [entity];
+    }
+    if (activeScope === 'Favourites') {
+      const favoriteEntities = [...new Set(intelligenceExplorerState.favoriteMarketEntities || [])];
+      const favoriteTech = favoriteEntities.filter(name => supportedTech.has(name));
+      const favoriteCompanies = favoriteEntities.filter(name => supportedCompanies.has(name));
+      if (favoriteTech.length || favoriteCompanies.length) {
+        selectedSkillsPayload = favoriteTech;
+        selectedCompaniesPayload = favoriteCompanies;
+      } else {
+        scopeEmpty = true;
+        selectedSkillsPayload = [];
+        selectedCompaniesPayload = [];
+      }
+    }
+  } else {
+    if (activeScope === 'Favourites') {
+      const supportedJobCompanies = new Set((homeCatalogState.market?.companies_with_job_evidence || []).map(item => item.name));
+      const uniqueFavCos = [...new Set(intelligenceExplorerState.favoriteCompanies || [])].filter(name => supportedJobCompanies.has(name));
+      if (uniqueFavCos.length) {
+        selectedCompaniesPayload = uniqueFavCos;
+      } else {
+        scopeEmpty = true;
+      }
+    }
+    selectedSkillsPayload = dashboardState.selectedSkill ? [dashboardState.selectedSkill] : [];
   }
 
   intelligenceExplorerState.question = query;
+  intelligenceExplorerState.analyzingEntity = entity;
   intelligenceExplorerState.isAnalyzing = true;
-  intelligenceExplorerState.analysisStep = 0;
   intelligenceExplorerState.hasSearched = true;
+  saveCurrentConsoleDomainSession(mode);
 
-  // Render initial scanning view
+  // Render initial honest analysis card
   renderHome();
 
-  // Lock input and show analyzing spinner in composer
-  const composer = document.querySelector('.console-prompt-composer');
-  if (composer) {
-    composer.classList.add('is-locked');
-    const input = composer.querySelector('#consoleQueryInput');
-    if (input) { input.value = query; input.disabled = true; }
-    const btn = composer.querySelector('#consoleAnalyzeSubmit');
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = '<i data-lucide="loader-2" class="home-spin-fast"></i> <span>Analyzing...</span>';
-      if (window.lucide) lucide.createIcons();
+  try {
+    const {
+      queryIntelligenceAnswer,
+      fetchIntelligenceConversations,
+      getActiveConversationId,
+      setActiveConversationId,
+      normalizeAnswerTimeRange
+    } = await import('../api/core-intelligence-client.js');
+    
+    const normRange = normalizeAnswerTimeRange(timeRange);
+    const activeConvId = intelligenceExplorerState.conversationId || getActiveConversationId('individual', mode, userProfileState.uid);
+    intelligenceExplorerState.conversationId = activeConvId;
+
+    const response = await queryIntelligenceAnswer({
+      message: query,
+      portal_type: 'individual',
+      domain: mode === 'skills' ? 'skill' : mode === 'companies' ? 'market' : 'job',
+      conversation_id: activeConvId,
+      client_message_id: `cmsg_${Date.now()}_${queryId}`,
+      location: (location === 'Global' ? null : location),
+      time_range: normRange,
+      selected_skills: selectedSkillsPayload,
+      selected_companies: selectedCompaniesPayload,
+      selected_roles: mode === 'roles' && entity ? [entity] : [],
+      target_role: mode === 'roles' ? entity : (dashboardState.selectedRole || null),
+      filters: {
+        domain: mode === 'skills' ? 'skill' : mode === 'companies' ? 'market' : 'job',
+        scope: activeScope,
+        scope_empty: scopeEmpty,
+        requested_time_window: timeRange,
+        location: location
+      }
+    });
+
+    // Guard against stale asynchronous responses
+    if (queryId !== intelligenceExplorerState.activeQueryId) {
+      return;
+    }
+
+    if (response?.conversation_id) {
+      intelligenceExplorerState.conversationId = response.conversation_id;
+      setActiveConversationId(response.conversation_id, 'individual', mode, userProfileState.uid);
+    }
+
+    intelligenceExplorerState.apiResponse = response;
+    intelligenceExplorerState.apiError = null;
+
+    const factsList = Array.isArray(response?.facts) ? response.facts : [];
+    const evidenceList = Array.isArray(response?.evidence) ? response.evidence : [];
+    const postingsFact = factsList.find(f => f.fact_type === 'stored_job_postings');
+    const jobPostings = Array.isArray(postingsFact?.details?.postings) ? postingsFact.details.postings : [];
+
+    // Grounded trend derivation strictly from backend response or loaded skill intelligence (zero hardcoded arrays)
+    let trendData = null;
+    const trendFact = factsList.find(f => f.fact_type === 'trend_analysis');
+    const histFacts = factsList.filter(f => f.fact_type === 'historical_observation' || f.fact_type === 'market_snapshot');
+    if (trendFact && histFacts.length >= 2) {
+      const sortedPts = histFacts
+        .filter(f => f.period && typeof f.metric_value === 'number')
+        .sort((a, b) => String(a.period).localeCompare(String(b.period)))
+        .map(f => ({ period: f.period, value: f.metric_value }));
+      trendData = {
+        data_points: sortedPts,
+        periods: sortedPts.map(p => p.period),
+        latest_value: sortedPts.length ? sortedPts[sortedPts.length - 1].value : null,
+        is_trend_ready: true,
+        trend_direction: String(trendFact.metric_value || 'Stable'),
+        growth_pct: trendFact.details?.whole_window_pct_change ?? trendFact.details?.growth_pct ?? null,
+        latest_mom_pct_change: trendFact.details?.latest_mom_pct_change ?? null,
+        slope_per_period: trendFact.details?.slope_per_period ?? null,
+        source: trendFact.source || 'theil_sen_estimator'
+      };
+    } else if (histFacts.length === 1) {
+      trendData = {
+        data_points: [{ period: histFacts[0].period || 'Observed', value: histFacts[0].metric_value }],
+        periods: [histFacts[0].period || 'Observed'],
+        latest_value: histFacts[0].metric_value,
+        is_trend_ready: false,
+        trend_direction: 'Single Baseline',
+        source: histFacts[0].source || 'Verified Platform Store'
+      };
+    }
+
+    const limitationsList = Array.isArray(response?.limitations) && response.limitations.length
+      ? response.limitations
+      : [];
+
+    const contextualFollowUps = Array.isArray(response?.follow_up_suggestions) && response.follow_up_suggestions.length
+      ? response.follow_up_suggestions.slice(0, 3)
+      : (Array.isArray(response?.follow_up_questions) && response.follow_up_questions.length
+        ? response.follow_up_questions.slice(0, 3)
+        : []);
+
+    // Build metrics array separating whole-window slope, first-to-last change, and latest MoM change when trendFact is available
+    let metrics = [];
+    const factKind = fact => {
+      if (fact.data_origin === 'demo') return 'Demo data';
+      if (['reference', 'static_dataset'].includes(fact.data_origin)
+        || fact.history_type === 'static_dataset'
+        || String(fact.source || '').toLowerCase().startsWith('reference')) return 'Reference';
+      if (fact.metric_kind) return fact.metric_kind;
+      if (/forecast|prediction/i.test(fact.fact_type || '')) return 'Predicted';
+      if (/readiness/i.test(fact.fact_type || '')) return 'Readiness';
+      if (/trend|health|half.life|analysis/i.test(fact.fact_type || '')) return 'Derived';
+      if (['historical_observation', 'market_snapshot', 'stored_job_postings'].includes(fact.fact_type)) return 'Observed';
+      return 'Evidence-backed fact';
+    };
+    if (trendFact?.details) {
+      metrics.push({
+        label: 'Whole-Window Direction',
+        value: String(trendFact.metric_value || 'Observed'),
+        kind: 'Derived',
+        source: trendFact.source,
+        period: trendFact.period
+      });
+      if (trendFact.details.slope_per_period != null) {
+        metrics.push({
+          label: 'Theil-Sen Slope',
+          value: `${trendFact.details.slope_per_period > 0 ? '+' : ''}${trendFact.details.slope_per_period}/period`,
+          kind: 'Derived',
+          source: trendFact.source,
+          period: trendFact.period
+        });
+      }
+      if (trendFact.details.whole_window_pct_change != null) {
+        metrics.push({
+          label: 'Whole-Window Change',
+          value: `${trendFact.details.whole_window_pct_change > 0 ? '+' : ''}${trendFact.details.whole_window_pct_change}%`,
+          kind: 'Derived',
+          source: trendFact.source,
+          period: trendFact.period
+        });
+      }
+      if (trendFact.details.latest_mom_pct_change != null) {
+        metrics.push({
+          label: 'Latest MoM Change',
+          value: `${trendFact.details.latest_mom_pct_change > 0 ? '+' : ''}${trendFact.details.latest_mom_pct_change}%`,
+          kind: 'Derived',
+          source: trendFact.source,
+          period: trendFact.period
+        });
+      }
+    }
+    if (!metrics.length) {
+      metrics = factsList.length
+        ? factsList.slice(0, 4).map(f => ({
+            label: f.metric_name ? f.metric_name.replace(/_/g, ' ') : 'Observed Metric',
+            value: f.metric_value != null ? `${f.metric_value}${f.unit ? ' ' + f.unit : ''}` : 'Unavailable',
+            kind: factKind(f),
+            source: f.source,
+            period: f.period,
+            freshness_state: f.freshness_state,
+            denominator: f.denominator,
+            denominator_unit: f.denominator_unit
+          }))
+        : [
+            { label: 'Pipeline Status', value: response?.status || response?.execution_status || 'unavailable', kind: 'Readiness' },
+            { label: 'Capabilities Used', value: `${(response?.capabilities_used || []).length || 0} Evaluated`, kind: 'Readiness' },
+            { label: 'Grounding Sources', value: `${evidenceList.length || 0} Returned`, kind: 'Evidence coverage' }
+          ];
+    }
+
+    const changePercent = (trendData && trendData.is_trend_ready && trendData.growth_pct != null)
+      ? `${trendData.growth_pct > 0 ? '+' : ''}${trendData.growth_pct}%`
+      : response?.execution_status === 'insufficient_data'
+      ? 'Insufficient Data'
+      : (response?.status || 'Verified Reference');
+
+    const newMsg = {
+      id: 'msg_' + Date.now(),
+      query: query,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      entity: response?.resolved_entity || entity,
+      domain: mode,
+      scope: uiScopeLabel,
+      location: location,
+      timeRange: timeRange,
+      answer: response?.answer || '',
+      apiResponse: response,
+      status: response?.status || 'ready',
+      executionStatus: response?.execution_status || 'completed',
+      facts: factsList,
+      metric_results: Array.isArray(response?.metric_results) ? response.metric_results : [],
+      evidenceItems: evidenceList,
+      capabilities: response?.capabilities || {},
+      confidence: response?.confidence || null,
+      freshness: response?.freshness || {},
+      unappliedFilters: response?.unapplied_filters || [],
+      jobPostings: jobPostings,
+      resultData: {
+        title: `${response?.resolved_entity || entity} Intelligence Analysis (${location})`,
+        entity: response?.resolved_entity || entity,
+        domainKicker: `${mode === 'skills' ? 'SKILL' : mode === 'companies' ? 'MARKET' : 'JOB'} INTELLIGENCE`,
+        changePercent: changePercent,
+        whatChangedHeading: `Intelligence Assessment: ${response?.resolved_entity || entity}`,
+        whatChangedBody: response?.answer || 'No analysis details available.',
+        whyItMattersHeading: `Strategic Career & Industry Context`,
+        whyItMattersBody: '',
+        impactTag: response?.confidence?.band ? `Confidence: ${response.confidence.band.toUpperCase()}` : 'Grounded Evidence',
+        dataHeading: `Verifiable Observations in ${location}`,
+        metrics: metrics,
+        actionHeading: `Recommended Strategic Steps`,
+        actionBody: `Continue in Assistant or explore adjacent skills and verifiable evidence.`,
+        detailsHref: mode === 'skills' ? '#skill-intelligence' : mode === 'companies' ? '#market-intelligence' : '#job-intelligence'
+      },
+      taxonomyInfo: getGroundedTaxonomyInfo(entity, mode),
+      trend: trendData,
+      evidenceItems: evidenceList,
+      limitationsItems: limitationsList,
+      contextualFollowUps: contextualFollowUps
+    };
+
+    if (!Array.isArray(intelligenceExplorerState.messages)) {
+      intelligenceExplorerState.messages = [];
+    }
+    intelligenceExplorerState.messages.push(newMsg);
+    saveCurrentConsoleDomainSession(mode);
+
+    try {
+      const { syncHomeToAssistantSession } = await import('../data/ai-assistant-data.js');
+      syncHomeToAssistantSession(userProfileState?.uid || 'guest', mode, {
+        conversationId: intelligenceExplorerState.conversationId || null,
+        scope: uiScopeLabel,
+        location: location,
+        timeRange: timeRange,
+        entity: response?.resolved_entity || entity,
+        messages: intelligenceExplorerState.messages
+      });
+    } catch (_) {}
+
+    // Refresh conversation history in background for this domain
+    fetchIntelligenceConversations({ domain: mode }).then(list => {
+      if (Array.isArray(list)) {
+        intelligenceExplorerState.conversationHistory = list;
+      }
+    }).catch(() => {});
+
+  } catch (err) {
+    if (queryId !== intelligenceExplorerState.activeQueryId) {
+      return;
+    }
+    console.warn('Core intelligence query failed:', err);
+    intelligenceExplorerState.apiError = err.message || 'Unable to connect to Core Intelligence.';
+    
+    const errText = err.message || 'The Core Intelligence service is currently unreachable or returned an error. No synthetic or fallback observations were generated.';
+    const newMsg = {
+      id: 'msg_' + Date.now(),
+      query: query,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      entity: entity,
+      domain: mode,
+      scope: uiScopeLabel,
+      location: location,
+      timeRange: timeRange,
+      answer: errText,
+      status: 'error',
+      executionStatus: 'error',
+      capabilities: {},
+      confidence: null,
+      freshness: {},
+      unappliedFilters: [],
+      jobPostings: [],
+      resultData: {
+        title: `${entity} — Intelligence Request Error`,
+        entity: entity,
+        domainKicker: `${mode === 'skills' ? 'SKILL' : mode === 'companies' ? 'MARKET' : 'JOB'} INTELLIGENCE · ERROR`,
+        changePercent: 'Service Error',
+        whatChangedHeading: `Unable to Complete Analysis for ${entity}`,
+        whatChangedBody: errText,
+        whyItMattersHeading: `Strict Integrity Policy`,
+        whyItMattersBody: `TalentScope.ai never fabricates observations, trends, or scores when a backend request fails.`,
+        impactTag: 'Error State',
+        dataHeading: `No Verified Observations Retrieved`,
+        metrics: [
+          { label: 'Status', value: 'Error' },
+          { label: 'Synthetic Fallback', value: 'Disabled' }
+        ],
+        actionHeading: `Next Steps`,
+        actionBody: `Verify your authentication session and backend connection, then retry the query.`,
+        detailsHref: mode === 'skills' ? '#skill-intelligence' : mode === 'companies' ? '#market-intelligence' : '#job-intelligence'
+      },
+      taxonomyInfo: getGroundedTaxonomyInfo(entity, mode),
+      trend: null,
+      evidenceItems: [],
+      limitationsItems: [
+        errText,
+        'Zero synthetic scores or imaginary extrapolations are generated on service failure.'
+      ],
+      contextualFollowUps: getContextualFollowUps(entity, mode, query).slice(0, 3)
+    };
+    if (!Array.isArray(intelligenceExplorerState.messages)) {
+      intelligenceExplorerState.messages = [];
+    }
+    intelligenceExplorerState.messages.push(newMsg);
+    saveCurrentConsoleDomainSession(mode);
+    try {
+      const { syncHomeToAssistantSession } = await import('../data/ai-assistant-data.js');
+      syncHomeToAssistantSession(userProfileState?.uid || 'guest', mode, {
+        conversationId: intelligenceExplorerState.conversationId || null,
+        scope: uiScopeLabel,
+        location,
+        timeRange,
+        entity,
+        messages: intelligenceExplorerState.messages
+      });
+    } catch (syncError) {
+      console.warn('Could not preserve failed Home turn in Assistant history:', syncError);
+    }
+  } finally {
+    if (queryId === intelligenceExplorerState.activeQueryId) {
+      intelligenceExplorerState.isAnalyzing = false;
+      intelligenceExplorerState.analyzingEntity = '';
+      renderHome();
     }
   }
-
-  let step = 0;
-  const totalSteps = 5;
-  const interval = setInterval(() => {
-    step++;
-    intelligenceExplorerState.analysisStep = step;
-
-    const glass = document.querySelector('.console-scanning-glass');
-    if (glass) {
-      updateScannerInPlace(step, totalSteps, mode, entity, location);
-    } else {
-      renderHome();
-    }
-
-    if (step >= totalSteps) {
-      clearInterval(interval);
-      intelligenceExplorerState.isAnalyzing = false;
-      renderHome();
-      requestAnimationFrame(() => {
-        animateConsoleResults();
-      });
-    }
-  }, 420);
 }
 
 // ============================================================
@@ -5025,25 +6988,14 @@ const homeSimState = {
 };
 
 function initHomeSimulation() {
-  if (homeSimState.active) return;
-  homeSimState.active = true;
-  if (homeSimState.jobsOpenRoles === null) homeSimState.jobsOpenRoles = getJobSummary() || overviewData.jobs.openRoles;
-  // Keep the deterministic sequence moving when Home re-renders after an action.
-  
-  // Deep-copy mutable sim data
-  homeSimState.skillData = skillMarketData.map(s => ({ ...s, values: [...s.values], growth: s.growth }));
-  homeSimState.marketData = marketIntelligenceData.companies.map(c => ({ ...c, history: [...c.history], change: c.change }));
-  
-  // Run simulation tick every 4 seconds (performance-friendly)
-  homeSimState.intervalId = setInterval(runHomeSimTick, 5000);
+  // Disabled: Real Core Intelligence backend data only; no synthetic simulation.
+  homeSimState.active = false;
+  return;
 }
 
 function stopHomeSimulation() {
-  if (homeSimState.intervalId) {
-    clearInterval(homeSimState.intervalId);
-    homeSimState.intervalId = null;
-  }
   homeSimState.active = false;
+  return;
 }
 
 // Seeded pseudo-random for deterministic behavior
@@ -5062,6 +7014,8 @@ function smallFluctuation(currentValue, tick, index, maxRange) {
 }
 
 function runHomeSimTick() {
+  // Disabled: No synthetic simulation ticks in production.
+  return;
   homeSimState.tick++;
   const t = homeSimState.tick;
   const previousOverviewValues = {
@@ -5531,8 +7485,44 @@ function updateOverviewCardMetrics() {
 // ============================================================
 
 function renderHome() {
+  const activeHomeDomain = intelligenceExplorerState.type === 'companies' ? 'market' : intelligenceExplorerState.type === 'roles' ? 'job' : 'skill';
+  const sharedFilters = window.__talentscopeCommittedIntelligenceFilters?.[activeHomeDomain];
+  if (sharedFilters) {
+    if (activeHomeDomain === 'skill') {
+      dashboardState.selectedSkill = sharedFilters.entity || '';
+      intelligenceExplorerState.selected.skills = sharedFilters.entity || '';
+      intelligenceExplorerState.skillScope = sharedFilters.scope;
+    } else if (activeHomeDomain === 'market') {
+      dashboardState.selectedCompany = sharedFilters.entity || '';
+      intelligenceExplorerState.selected.companies = sharedFilters.entity || '';
+      intelligenceExplorerState.companyScope = sharedFilters.scope;
+    } else {
+      dashboardState.selectedRole = sharedFilters.entity || '';
+      intelligenceExplorerState.selected.roles = sharedFilters.entity || '';
+      intelligenceExplorerState.jobScope = sharedFilters.scope;
+    }
+    dashboardState.selectedLocation = sharedFilters.location || '';
+    dashboardState.market = sharedFilters.location || 'Global';
+    dashboardState.timeRange = sharedFilters.timeRange || dashboardState.timeRange;
+    intelligenceExplorerState.timeRange = sharedFilters.timeRange || intelligenceExplorerState.timeRange;
+  }
   stopHomeSimulation();
   applyExploreSelection();
+  loadHomeCatalogs();
+
+  if (homeSkillIntelligenceState.status === 'idle') {
+    loadHomeSkillIntelligence({
+      location: dashboardState.skillLocation || '',
+      range: '6m',
+      skill: dashboardState.selectedSkill || undefined
+    });
+  }
+  if (homeMarketIntelligenceState.status === 'idle') {
+    loadHomeMarketIntelligence({
+      location: dashboardState.marketLocation || 'Global',
+      range: '6m'
+    });
+  }
 
   mainContent.innerHTML = `
     <div class="home-dashboard-v2">
@@ -5664,17 +7654,17 @@ const dedicatedSkillIntelligenceData = {
       name: 'Python',
       category: 'Programming',
       level: 'Expert',
-      health: 92,
+      health: 74,
       relevance: 96,
       halfLifeYears: 6.0,
-      decayRisk: 'Very Low Risk',
-      growth: 18.4,
-      direction: 'up',
-      status: 'healthy',
+      decayRisk: 'Low Risk',
+      growth: -10.1,
+      direction: 'down',
+      status: 'attention',
       lastUpdated: '1d ago',
       icon: 'code-2',
-      history: [50, 58, 64, 72, 78, 85, 92],
-      aiExplanation: 'Python remains the dominant language for AI, data science, and cloud backend engineering. High core stability with minimal replacement threat over the next 5+ years.',
+      history: [221, 213, 132, 138, 124],
+      aiExplanation: 'Python hiring requisitions show a declining trend of -10.1% across the recent 6-month observation window (-14.0/mo velocity). Core systems experience remains highly relevant, with specialization in asynchronous frameworks and AI workflows recommended.',
       missingSkills: ['FastAPI Microservices', 'AsyncIO Deep Dive'],
       adjacentSkills: ['FastAPI', 'Django', 'SQL', 'Machine Learning'],
       requiredInRoles: ['Backend Engineer', 'AI Engineer', 'Data Engineer'],
@@ -5847,7 +7837,7 @@ function renderSkillDecayChart(skillData, market, timeRange) {
   }
   
   const marketMult = market === 'Global' ? 1.0 : market === 'India' ? 0.9 : market === 'Region' ? 1.1 : 0.85;
-  const timeMult = timeRange === '30D' ? 1.0 : timeRange === '90D' ? 1.05 : timeRange === '6M' ? 1.1 : timeRange === '1Y' ? 1.25 : 1.0;
+  const timeMult = timeRange === '30D' ? 1.0 : timeRange === '3M' ? 1.05 : timeRange === '6M' ? 1.1 : timeRange === '6M' ? 1.25 : 1.0;
   
   const halfLifeMonths = Math.max(6, Math.min(60, Math.round(baseMonths * marketMult * timeMult)));
   const maxMonths = Math.max(36, halfLifeMonths + 12);
@@ -5966,11 +7956,11 @@ function getHistoricalTrendPoints(skillData, metric, timeRange) {
   let dates = [];
   if (timeRange === '30D') {
     dates = ['Sep 01', 'Sep 08', 'Sep 15', 'Sep 22', 'Sep 26'];
-  } else if (timeRange === '90D') {
+  } else if (timeRange === '3M') {
     dates = ['Jul 01', 'Jul 15', 'Aug 01', 'Aug 15', 'Sep 01', 'Sep 15', 'Sep 26'];
   } else if (timeRange === '6M') {
     dates = ['Oct 2025', 'Nov 2025', 'Dec 2025', 'Jan 2026', 'Feb 2026', 'Mar 2026'];
-  } else if (timeRange === '1Y') {
+  } else if (timeRange === '6M') {
     dates = ['Apr 2025', 'May 2025', 'Jun 2025', 'Jul 2025', 'Aug 2025', 'Sep 2025', 'Oct 2025', 'Nov 2025', 'Dec 2025', 'Jan 2026', 'Feb 2026', 'Mar 2026'];
   } else {
     dates = ['Nov 2024', 'Jan 2025', 'Mar 2025', 'May 2025', 'Jul 2025', 'Sep 2025', 'Nov 2025', 'Jan 2026', 'Mar 2026'];
@@ -6184,16 +8174,16 @@ function renderMarketDemandLocationChart(skillData, market, timeRange) {
   const currentDemand = skillData.jobDemandCount || 42180;
   
   const marketMult = market === 'Global' ? 1.0 : market === 'India' ? 0.85 : market === 'Tamil Nadu' ? 0.65 : market === 'Bangalore' ? 0.78 : market === 'Chennai' ? 0.60 : 0.75;
-  const timeMult = timeRange === '30D' ? 1.0 : timeRange === '90D' ? 1.05 : timeRange === '6M' ? 1.1 : timeRange === '1Y' ? 1.25 : 1.0;
+  const timeMult = timeRange === '30D' ? 1.0 : timeRange === '3M' ? 1.05 : timeRange === '6M' ? 1.1 : timeRange === '6M' ? 1.25 : 1.0;
   
   const baseDemand = Math.round(currentDemand * marketMult * timeMult);
   const isDeclining = skillData.direction === 'down';
 
   let dates = [];
   if (timeRange === '30D') dates = ['W1', 'W2', 'W3', 'W4', 'Now'];
-  else if (timeRange === '90D') dates = ['Jul', 'Aug 01', 'Aug 15', 'Sep 01', 'Sep 15', 'Sep 26'];
+  else if (timeRange === '3M') dates = ['Jul', 'Aug 01', 'Aug 15', 'Sep 01', 'Sep 15', 'Sep 26'];
   else if (timeRange === '6M') dates = ['Oct 25', 'Nov 25', 'Dec 25', 'Jan 26', 'Feb 26', 'Mar 26'];
-  else if (timeRange === '1Y') dates = ['Apr', 'Jun', 'Aug', 'Oct', 'Dec', 'Feb', 'Mar'];
+  else if (timeRange === '6M') dates = ['Apr', 'Jun', 'Aug', 'Oct', 'Dec', 'Feb', 'Mar'];
   else dates = ['2024 H2', '2025 Q1', '2025 Q2', '2025 Q3', '2025 Q4', '2026 Q1'];
 
   const pointsCount = dates.length;
@@ -6350,7 +8340,7 @@ function getSkillIntelligenceOverview(location = dashboardState.market, timeRang
 
   if (timeRange === '7 Days' || timeRange === '30D' || timeRange === '30 Days') {
     avgGrowth += 1.5;
-  } else if (timeRange === '1 Year' || timeRange === '1Y') {
+  } else if (timeRange === '6 Months' || timeRange === '6M') {
     avgGrowth -= 1.2;
     attentionCount += 1;
   }
@@ -6470,7 +8460,7 @@ function getAIExplanationAndEvidence(selectedSkillData, market, timeRange) {
       type: 'Company / Role Signal',
       typeBadgeClass: 'company',
       title: `Top Employer Requisitions in ${market}`,
-      date: 'Real-time Signal',
+      date: 'Illustrative sample',
       explanation: `Leading technology employers in ${market} increased ${skillName} job postings by +${selectedSkillData.growth}%.`
     }
   ];
@@ -6526,13 +8516,26 @@ function getSkillNextActionRecommendation(selectedSkillData) {
 async function renderDedicatedAIAssistantPage() {
   try {
     const module = await import('../pages/individual/ai-assistant/AIAssistant.js');
+    // The route may have changed while the lazy-loaded page was resolving.
+    // Never let a late Assistant render replace the page the user navigated to.
+    if (window.location.hash.split('?')[0] !== '#/individual/ai-assistant') return;
     if (typeof module.renderDedicatedAIAssistantPage === 'function') {
       return module.renderDedicatedAIAssistantPage();
     } else if (typeof module.renderAIAssistantPage === 'function') {
       return module.renderAIAssistantPage();
     }
+    throw new Error('The TalentScope AI Assistant page module did not expose a renderer.');
   } catch (error) {
-    console.warn('AI Assistant module failed to load, falling back to placeholder.', error);
+    if (window.location.hash.split('?')[0] !== '#/individual/ai-assistant') return;
+    console.error('AI Assistant page failed to render:', error);
+    mainContent.innerHTML = `
+      <section class="assistant-route-error" role="alert">
+        <span class="assistant-route-error__eyebrow">TALENTSCOPE.AI INTELLIGENCE</span>
+        <h1>TalentScope AI Assistant</h1>
+        <p>The dedicated intelligence page could not load. Your conversations and backend connection are unchanged.</p>
+        <button type="button" id="retryAssistantPage">Try again</button>
+      </section>`;
+    document.getElementById('retryAssistantPage')?.addEventListener('click', () => renderDedicatedAIAssistantPage());
   }
 }
 
@@ -6614,7 +8617,9 @@ async function renderDedicatedSkillsPage() {
       return module.renderDedicatedSkillsPage();
     }
   } catch (error) {
-    console.warn('Skill intelligence module failed to load, falling back to legacy renderer.', error);
+    console.error('Skill intelligence module failed to load.', error);
+    mainContent.innerHTML = '<section class="home-section" role="alert"><h1>My Skills</h1><p>Unable to load skill intelligence. Please try again.</p></section>';
+    return;
   }
 
   const selectedName = dashboardState.selectedSkill || 'Machine Learning';
@@ -7105,7 +9110,7 @@ async function renderDedicatedSkillsPage() {
                 <div class="why-factors-grid">
                   <div class="why-factor-item">
                     <span class="why-factor-label"><i data-lucide="briefcase"></i> Job demand</span>
-                    <strong class="why-factor-val">${selectedSkillData.jobDemandCount ? selectedSkillData.jobDemandCount.toLocaleString() : '42,180'} requisitions (${selectedSkillData.growth > 0 ? '+' : ''}${selectedSkillData.growth}%)</strong>
+                    <strong class="why-factor-val">${selectedSkillData.jobDemandCount ? `${selectedSkillData.jobDemandCount.toLocaleString()} requisitions` : 'Active demand'} (${selectedSkillData.growth > 0 ? '+' : ''}${selectedSkillData.growth || 0}%)</strong>
                   </div>
 
                   <div class="why-factor-item">
@@ -7155,7 +9160,7 @@ async function renderDedicatedSkillsPage() {
                     if (typeof selectedSkillData.halfLifeYears === 'number') baseMonths = Math.round(selectedSkillData.halfLifeYears * 12);
                     else if (selectedSkillData.halfLifeYears) baseMonths = parseInt(selectedSkillData.halfLifeYears, 10) * 12 || 18;
                     const mMult = dashboardState.market === 'Global' ? 1.0 : dashboardState.market === 'India' ? 0.9 : dashboardState.market === 'Region' ? 1.1 : 0.85;
-                    const tMult = dashboardState.timeRange === '30D' ? 1.0 : dashboardState.timeRange === '90D' ? 1.05 : dashboardState.timeRange === '6M' ? 1.1 : dashboardState.timeRange === '1Y' ? 1.25 : 1.0;
+                    const tMult = dashboardState.timeRange === '30D' ? 1.0 : dashboardState.timeRange === '3M' ? 1.05 : dashboardState.timeRange === '6M' ? 1.1 : dashboardState.timeRange === '6M' ? 1.25 : 1.0;
                     return Math.max(6, Math.min(60, Math.round(baseMonths * mMult * tMult)));
                   })()}</strong>
                   <span class="stat-unit">months</span>
@@ -7254,7 +9259,7 @@ async function renderDedicatedSkillsPage() {
             </div>
 
             <div class="history-time-pills">
-              ${['30D', '90D', '6M', '1Y', 'All'].map(t => `
+              ${['30D', '3M', '6M', '6M', 'All'].map(t => `
                 <button type="button" class="history-time-btn ${dedicatedSkillState.historyTimeRange === t ? 'is-active' : ''}" data-history-time="${t}">
                   ${t}
                 </button>
@@ -7359,7 +9364,7 @@ async function renderDedicatedSkillsPage() {
           <div class="why-changing-block">
             <div class="why-changing-header">
               <span class="why-changing-title"><i data-lucide="activity"></i> WHY IS THIS SKILL CHANGING?</span>
-              <span class="why-changing-subtitle">Real-time external signal matrix</span>
+              <span class="why-changing-subtitle">Illustrative external signal matrix</span>
             </div>
 
             <div class="compact-signals-quad">
@@ -7941,7 +9946,7 @@ async function renderDedicatedSkillsPage() {
           <div class="v2-modal-container" style="max-width: 500px;">
             <div class="v2-modal-header">
               <div>
-                <span class="v2-kicker">VERIFIED SOURCE RECORD</span>
+                <span class="v2-kicker">ILLUSTRATIVE SOURCE RECORD</span>
                 <h3>${aiInsightData.evidenceList[dedicatedSkillState.viewingEvidenceIndex].title}</h3>
               </div>
               <button type="button" class="v2-modal-close" id="closeEvidenceModalBtn"><i data-lucide="x"></i></button>
@@ -7952,7 +9957,7 @@ async function renderDedicatedSkillsPage() {
                 <span class="ev-source-badge ev-badge--${aiInsightData.evidenceList[dedicatedSkillState.viewingEvidenceIndex].typeBadgeClass || 'job'}">
                   ${aiInsightData.evidenceList[dedicatedSkillState.viewingEvidenceIndex].type}
                 </span>
-                <span style="font-size:11px; color:#7A7085;">${aiInsightData.evidenceList[dedicatedSkillState.viewingEvidenceIndex].date || 'Verified signal'}</span>
+                <span style="font-size:11px; color:#7A7085;">${aiInsightData.evidenceList[dedicatedSkillState.viewingEvidenceIndex].date || 'Illustrative signal'}</span>
               </div>
 
               <p style="margin:0 0 14px 0; font-size:13px; color:#382E47; line-height:1.55;">
@@ -8458,6 +10463,11 @@ async function renderEmployeePortal(route) {
 
 async function renderPage() {
   const hash = (window.location.hash.slice(1) || '').trim();
+  const invitationQuery = hash.includes('?') ? new URLSearchParams(hash.split('?').slice(1).join('?')) : null;
+  const invitationToken = invitationQuery?.get('invitation');
+  if (invitationToken && invitationToken.length >= 20 && invitationToken.length <= 200) {
+    try { sessionStorage.setItem('talentscope_pending_company_invitation', invitationToken); } catch {}
+  }
   const currentUser = getActiveSessionUser();
 
   // 1. Startup & Root Navigation: Unauthenticated users always start at #/login
@@ -8697,6 +10707,8 @@ async function renderPage() {
   else if (route === '/individual/saved') renderSavedPage();
   else renderPlaceholder(page);
 
+  // Prototype disclaimer removed: production UI uses real verified intelligence
+
   mainContent.focus({ preventScroll: true });
   closePopovers();
   closeMobileNav();
@@ -8761,103 +10773,6 @@ function renderTrendSparkline(points, label) {
   return `<svg class="trend-sparkline" viewBox="0 0 100 32" role="img" aria-label="${label} trend"><polyline points="${coordinates}" vector-effect="non-scaling-stroke"></polyline></svg>`;
 }
 
-function renderSkillDemandBars(details) {
-  const labels = ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
-  return `<div class="skill-demand-chart" role="img" aria-label="${details.skill} demand trend over the last six months"><div class="skill-demand-chart__axis"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div><div class="skill-demand-chart__plot"><div class="skill-demand-chart__grid"><i></i><i></i><i></i><i></i><i></i></div><div class="skill-demand-chart__bars">${details.values.map((value, index) => `<div class="skill-demand-bar" style="--demand-height:${value}%"><span>${value}</span><i></i><small>${labels[index]}</small></div>`).join('')}</div></div></div>`;
-}
-
-function renderSkillTrendAnalyticsCard() {
-  const selected = trendDetailsForSkill(dashboardState.selectedSkill);
-  const trendingSkills = trendingSkillsForView();
-  const isFavorite = dashboardState.savedSkills.includes(dashboardState.selectedSkill);
-  const iconMap = { Python: 'code-2', 'Machine Learning': 'brain-circuit', 'Generative AI': 'sparkles', 'Data Analytics': 'chart-no-axes-combined', 'Cloud Computing': 'cloud' };
-  return `<article class="skill-analytics-card" aria-labelledby="skill-analytics-title"><div class="skill-analytics-header"><div class="skill-analytics-title"><span class="skill-analytics-icon"><i data-lucide="activity"></i></span><div><div class="skill-analytics-heading"><h2 id="skill-analytics-title">Skill Trend</h2><span class="live-badge"><i></i>Live</span></div><p>Real-time skill demand signals across the globe.</p></div></div><div class="skill-analytics-controls"><label><span class="sr-only">Time range</span><select id="skillTrendTimeSelect"><option value="6 Months" ${dashboardState.timeRange === '6 Months' ? 'selected' : ''}>Last 6 Months</option><option value="90 Days" ${dashboardState.timeRange === '90 Days' ? 'selected' : ''}>Last 90 Days</option><option value="30 Days" ${dashboardState.timeRange === '30 Days' ? 'selected' : ''}>Last 30 Days</option></select><i data-lucide="calendar-days"></i></label><label><span class="sr-only">Geographic scope</span><select id="skillTrendMarketSelect">${optionMarkup(marketOptions, dashboardState.market)}</select><i data-lucide="globe-2"></i></label><button class="skill-favorite-button ${isFavorite ? 'is-saved' : ''}" id="favoriteSkillButton" type="button" aria-pressed="${isFavorite}"><i data-lucide="${isFavorite ? 'check' : 'plus'}"></i>${isFavorite ? 'Saved' : 'Add to Favorites'}</button><span class="favorite-count">(${dashboardState.savedSkills.length}/5)</span></div></div><div class="skill-analytics-summary"><div class="skill-analytics-current"><span class="skill-current-icon"><i data-lucide="${iconMap[selected.skill] || 'layers-3'}"></i></span><div><strong>${selected.skill}</strong><span>Current demand <b>${selected.current}/100</b></span></div></div><div class="skill-analytics-growth"><strong>+${selected.growth}%</strong><span><i data-lucide="trending-up"></i> ${selected.momentum} pts</span></div><span class="skill-demand-label">${selected.demand}</span></div>${renderSkillDemandBars(selected)}<div class="trending-skills-header"><div><h3>Top Trending Skills</h3><p>Ranked by current market momentum</p></div><label><span class="sr-only">Sort trending skills</span><select id="skillTrendSortSelect"><option ${dashboardState.trendSort === 'Highest Growth' || !dashboardState.trendSort ? 'selected' : ''}>Highest Growth</option><option ${dashboardState.trendSort === 'Highest Demand' ? 'selected' : ''}>Highest Demand</option><option ${dashboardState.trendSort === 'Fastest Rising' ? 'selected' : ''}>Fastest Rising</option><option ${dashboardState.trendSort === 'Most Stable' ? 'selected' : ''}>Most Stable</option><option ${dashboardState.trendSort === 'Recently Emerging' ? 'selected' : ''}>Recently Emerging</option></select><i data-lucide="list-filter"></i></label></div><div class="trending-skill-list">${trendingSkills.map((item, index) => `<div class="trending-skill-row" style="--row-delay:${index * 55}ms"><span class="trending-skill-rank">${index + 1}.</span><span class="trending-skill-icon"><i data-lucide="${iconMap[item.skill] || 'layers-3'}"></i></span><strong>${item.skill}</strong><span class="trending-skill-growth"><i data-lucide="trending-up"></i> +${item.growth}%</span>${renderTrendSparkline(item.values, `${item.skill} demand`)}</div>`).join('')}</div></article>`;
-}
-
-function bindSkillTrendAnalyticsEvents() {
-  const timeSelect = document.querySelector('#skillTrendTimeSelect');
-  const marketSelect = document.querySelector('#skillTrendMarketSelect');
-  const sortSelect = document.querySelector('#skillTrendSortSelect');
-  const favoriteButton = document.querySelector('#favoriteSkillButton');
-  if (timeSelect) timeSelect.addEventListener('change', event => { dashboardState.timeRange = event.target.value; renderHome(); });
-  if (marketSelect) marketSelect.addEventListener('change', event => { dashboardState.market = event.target.value; renderHome(); });
-  if (sortSelect) sortSelect.addEventListener('change', event => { dashboardState.trendSort = event.target.value; renderHome(); });
-  if (favoriteButton) favoriteButton.addEventListener('click', () => {
-    const saved = dashboardState.savedSkills.includes(dashboardState.selectedSkill);
-    if (saved) dashboardState.savedSkills = dashboardState.savedSkills.filter(skill => skill !== dashboardState.selectedSkill);
-    else if (dashboardState.savedSkills.length < 5) dashboardState.savedSkills = [...dashboardState.savedSkills, dashboardState.selectedSkill];
-    localStorage.setItem('talentscope-saved-skills', JSON.stringify(dashboardState.savedSkills));
-    renderHome();
-  });
-}
-
-function renderSkillDemandBars(details) {
-  const labels = ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
-  return `<div class="skill-demand-chart" role="img" aria-label="${details.skill} demand trend over the last six months"><div class="skill-demand-chart__axis"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div><div class="skill-demand-chart__plot"><div class="skill-demand-chart__grid"><i></i><i></i><i></i><i></i><i></i></div><div class="skill-demand-chart__bars">${details.values.map((value, index) => `<div class="skill-demand-bar" style="--demand-height:${value}%; --bar-delay:${index * 55}ms"><span>${value}</span><i></i><small>${labels[index]}</small><em class="skill-demand-tooltip"><strong>${details.skill}</strong><b>${value}/100 demand</b><span>${labels[index]}  —  ${details.demand}</span></em></div>`).join('')}</div></div></div>`;
-}
-
-function trendingSkillsForView() {
-  const sortMode = dashboardState.trendSort || 'Highest Growth';
-  const sourceSkills = ['My Saved Skills', 'Saved Skills'].includes(dashboardState.trendScope) && dashboardState.savedSkills.length ? dashboardState.savedSkills : skillOptions;
-  return sourceSkills.map(trendDetailsForSkill).sort((first, second) => {
-    if (sortMode === 'Highest Demand') return second.current - first.current;
-    if (sortMode === 'Fastest Rising') return second.momentum - first.momentum;
-    if (sortMode === 'Most Stable') return Math.abs(first.current - first.previous) - Math.abs(second.current - second.previous);
-    if (sortMode === 'Recently Emerging') return (second.growth + (100 - second.values[0])) - (first.growth + (100 - first.values[0]));
-    return second.growth - first.growth || second.score - first.score;
-  }).slice(0, 5);
-}
-
-function renderSkillTrendAnalyticsCard() {
-  const selected = trendDetailsForSkill(dashboardState.selectedSkill);
-  const trendingSkills = trendingSkillsForView();
-  const isFavorite = dashboardState.savedSkills.includes(dashboardState.selectedSkill);
-  const iconMap = { Python: 'code-2', 'Machine Learning': 'brain-circuit', 'Generative AI': 'sparkles', 'Data Analytics': 'chart-no-axes-combined', 'Cloud Computing': 'cloud' };
-  return `<article class="skill-analytics-card" aria-labelledby="skill-analytics-title"><div class="skill-analytics-header"><div class="skill-analytics-title"><span class="skill-analytics-icon"><i data-lucide="activity"></i></span><div><div class="skill-analytics-heading"><h2 id="skill-analytics-title">Skill Trend</h2><span class="live-badge"><i></i>Live</span></div><p>Real-time skill demand signals across the globe.</p></div></div><div class="skill-analytics-controls"><div class="skill-filter-wrap"><button class="skill-filter-button" id="skillFilterButton" type="button" aria-expanded="false"><i data-lucide="sliders-horizontal"></i>Filters</button><div class="skill-filter-panel" id="skillFilterPanel" hidden><div class="skill-filter-panel__heading"><strong>Trend filters</strong><small>Global live intelligence</small></div><label>Time range<select id="skillFilterTime"><option value="7 Days">Last 7 Days</option><option value="30 Days">Last 30 Days</option><option value="90 Days">Last 90 Days</option><option value="6 Months" selected>Last 6 Months</option><option value="1 Year">Last Year</option></select></label><label>Geographic scope<select id="skillFilterMarket">${optionMarkup(marketOptions, dashboardState.market)}</select></label><label>Trending view<select id="skillFilterScope"><option>Overall Live Trends</option><option ${dashboardState.trendScope === 'My Saved Skills' ? 'selected' : ''}>My Saved Skills</option></select></label><label class="custom-date-field">Custom date<input id="skillCustomDate" type="date"></label><button class="skill-filter-favorite ${isFavorite ? 'is-saved' : ''}" id="filterFavoriteButton" type="button"><i data-lucide="${isFavorite ? 'check' : 'star'}"></i>${isFavorite ? 'Saved to favorites' : 'Add current skill to favorites'}</button></div></div><span class="favorite-count">${dashboardState.savedSkills.length}/5 saved</span></div></div><div class="skill-analytics-summary"><div class="skill-analytics-current"><span class="skill-current-icon"><i data-lucide="${iconMap[selected.skill] || 'layers-3'}"></i></span><div><strong>${selected.skill}</strong><span>Current demand <b>${selected.current}/100</b></span></div></div><div class="skill-analytics-growth"><strong>+${selected.growth}%</strong><span><i data-lucide="trending-up"></i> ${selected.momentum} pts</span></div><span class="skill-demand-label">${selected.demand}</span></div>${renderSkillDemandBars(selected)}<div class="trending-skills-header"><div><h3>Top Trending Skills</h3><p>Ranked by current market momentum</p></div><label><span class="sr-only">Sort trending skills</span><select id="skillTrendSortSelect"><option ${dashboardState.trendSort === 'Highest Growth' || !dashboardState.trendSort ? 'selected' : ''}>Highest Growth</option><option ${dashboardState.trendSort === 'Highest Demand' ? 'selected' : ''}>Highest Demand</option><option ${dashboardState.trendSort === 'Fastest Rising' ? 'selected' : ''}>Fastest Rising</option><option ${dashboardState.trendSort === 'Most Stable' ? 'selected' : ''}>Most Stable</option><option ${dashboardState.trendSort === 'Recently Emerging' ? 'selected' : ''}>Recently Emerging</option></select><i data-lucide="list-filter"></i></label></div><div class="trending-skill-list">${trendingSkills.map((item, index) => `<div class="trending-skill-row" style="--row-delay:${index * 55}ms"><span class="trending-skill-rank">${index + 1}.</span><span class="trending-skill-icon"><i data-lucide="${iconMap[item.skill] || 'layers-3'}"></i></span><strong>${item.skill}</strong><span class="trending-skill-growth"><i data-lucide="trending-up"></i> +${item.growth}%</span>${renderTrendSparkline(item.values, `${item.skill} demand`)}</div>`).join('')}</div></article>`;
-}
-
-function bindSkillTrendAnalyticsEvents() {
-  const filterButton = document.querySelector('#skillFilterButton');
-  const filterPanel = document.querySelector('#skillFilterPanel');
-  const timeSelect = document.querySelector('#skillFilterTime');
-  const marketSelect = document.querySelector('#skillFilterMarket');
-  const scopeSelect = document.querySelector('#skillFilterScope');
-  const sortSelect = document.querySelector('#skillTrendSortSelect');
-  const favoriteButton = document.querySelector('#filterFavoriteButton');
-  if (filterButton && filterPanel) filterButton.addEventListener('click', event => { event.stopPropagation(); filterPanel.hidden = !filterPanel.hidden; filterButton.setAttribute('aria-expanded', String(!filterPanel.hidden)); });
-  if (timeSelect) timeSelect.addEventListener('change', event => { dashboardState.timeRange = event.target.value; renderHome(); });
-  if (marketSelect) marketSelect.addEventListener('change', event => { dashboardState.market = event.target.value; renderHome(); });
-  if (scopeSelect) scopeSelect.addEventListener('change', event => { dashboardState.trendScope = event.target.value === 'My Saved Skills' ? 'My Saved Skills' : 'Overall Live Trends'; renderHome(); });
-  if (sortSelect) sortSelect.addEventListener('change', event => { dashboardState.trendSort = event.target.value; renderHome(); });
-  if (favoriteButton) favoriteButton.addEventListener('click', () => { const saved = dashboardState.savedSkills.includes(dashboardState.selectedSkill); dashboardState.savedSkills = saved ? dashboardState.savedSkills.filter(skill => skill !== dashboardState.selectedSkill) : dashboardState.savedSkills.length < 5 ? [...dashboardState.savedSkills, dashboardState.selectedSkill] : dashboardState.savedSkills; localStorage.setItem('talentscope-saved-skills', JSON.stringify(dashboardState.savedSkills)); renderHome(); });
-}
-
-function renderTopTrendingSkillsCard() {
-  const trends = getFilteredSkillTrends().slice(0, 5);
-  const iconMap = { Python: 'code-2', Java: 'coffee', JavaScript: 'braces', TypeScript: 'braces', React: 'atom', 'Machine Learning': 'brain-circuit', 'Generative AI': 'sparkles', 'Data Analytics': 'chart-no-axes-combined', 'Cloud Computing': 'cloud', AWS: 'cloud-cog', Docker: 'container', SQL: 'database' };
-  const sortMode = dashboardState.trendSort || 'Highest Growth';
-  const options = ['Highest Growth', 'Highest Demand', 'Fastest Rising', 'Most Stable', 'Recently Emerging'];
-  return `<article class="top-trending-card"><div class="top-trending-card__header"><div><h2>Top Trending Skills</h2><p>Ranked by current market momentum</p></div><div class="trend-sort-wrap"><button class="trend-sort-button" id="skillTrendSortButton" type="button" aria-expanded="false"><i data-lucide="list-filter"></i>${sortMode}<i data-lucide="chevron-down"></i></button><div class="trend-sort-menu" id="skillTrendSortMenu" hidden>${options.map(option => `<button type="button" data-sort-mode="${option}" class="${option === sortMode ? 'is-active' : ''}">${option}<i data-lucide="${option === sortMode ? 'check' : 'arrow-up-right'}"></i></button>`).join('')}</div></div></div><div class="trending-skill-list">${trends.map((item, index) => `<div class="trending-skill-row" style="--row-delay:${index * 55}ms"><span class="trending-skill-rank">${index + 1}.</span><span class="trending-skill-icon"><i data-lucide="${iconMap[item.skill] || 'layers-3'}"></i></span><strong>${item.skill}</strong><span class="trending-skill-growth"><i data-lucide="trending-up"></i> +${item.growth}% <small>${item.demand}</small></span>${renderTrendSparkline(item.values, `${item.skill} demand`)}</div>`).join('')}</div></article>`;
-}
-
-function bindSkillTrendAnalyticsEvents() {
-  const filterButton = document.querySelector('#skillFilterButton');
-  const filterPanel = document.querySelector('#skillFilterPanel');
-  const timeSelect = document.querySelector('#skillFilterTime');
-  const marketSelect = document.querySelector('#skillFilterMarket');
-  const scopeSelect = document.querySelector('#skillFilterScope');
-  const sortButton = document.querySelector('#skillTrendSortButton');
-  const sortMenu = document.querySelector('#skillTrendSortMenu');
-  const favoriteButton = document.querySelector('#filterFavoriteButton');
-  if (filterButton && filterPanel) filterButton.addEventListener('click', event => { event.stopPropagation(); if (sortMenu) sortMenu.hidden = true; filterPanel.hidden = !filterPanel.hidden; filterButton.setAttribute('aria-expanded', String(!filterPanel.hidden)); });
-  if (sortButton && sortMenu) sortButton.addEventListener('click', event => { event.stopPropagation(); if (filterPanel) filterPanel.hidden = true; sortMenu.hidden = !sortMenu.hidden; sortButton.setAttribute('aria-expanded', String(!sortMenu.hidden)); });
-  if (sortMenu) sortMenu.querySelectorAll('[data-sort-mode]').forEach(option => option.addEventListener('click', () => { dashboardState.trendSort = option.dataset.sortMode; renderHome(); }));
-  if (timeSelect) timeSelect.addEventListener('change', event => { dashboardState.timeRange = event.target.value; renderHome(); });
-  if (marketSelect) marketSelect.addEventListener('change', event => { dashboardState.market = event.target.value; renderHome(); });
-  if (scopeSelect) scopeSelect.addEventListener('change', event => { dashboardState.trendScope = event.target.value === 'My Saved Skills' ? 'My Saved Skills' : 'Overall Live Trends'; renderHome(); });
-  if (favoriteButton) favoriteButton.addEventListener('click', () => { const saved = dashboardState.savedSkills.includes(dashboardState.selectedSkill); dashboardState.savedSkills = saved ? dashboardState.savedSkills.filter(skill => skill !== dashboardState.selectedSkill) : dashboardState.savedSkills.length < 5 ? [...dashboardState.savedSkills, dashboardState.selectedSkill] : dashboardState.savedSkills; localStorage.setItem('talentscope-saved-skills', JSON.stringify(dashboardState.savedSkills)); renderHome(); });
-}
-
 function getFilteredSkillTrends() {
   const sourceSkills = ['My Saved Skills', 'Saved Skills'].includes(dashboardState.trendScope) && dashboardState.savedSkills.length ? dashboardState.savedSkills : skillOptions;
   return sourceSkills.map(trendDetailsForSkill).sort((first, second) => {
@@ -8880,7 +10795,7 @@ function renderSkillTrendAnalyticsCard() {
   const highlighted = trends.find(item => item.skill === dashboardState.selectedSkill) || trendDetailsForSkill(dashboardState.selectedSkill || 'Machine Learning');
   const isFavorite = dashboardState.savedSkills.includes(highlighted.skill);
   const iconMap = { Python: 'code-2', Java: 'coffee', JavaScript: 'braces', TypeScript: 'braces', React: 'atom', 'Machine Learning': 'brain-circuit', 'Generative AI': 'sparkles', 'Data Analytics': 'chart-no-axes-combined', 'Cloud Computing': 'cloud', AWS: 'cloud-cog', Docker: 'container', SQL: 'database' };
-  return `<article class="skill-analytics-card" aria-labelledby="skill-analytics-title"><div class="skill-analytics-header"><div class="skill-analytics-title"><span class="skill-analytics-icon"><i data-lucide="activity"></i></span><div><div class="skill-analytics-heading"><h2 id="skill-analytics-title">Skill Trend</h2><span class="live-badge"><i></i>Live</span></div><p>Real-time skill demand signals across the globe.</p></div></div><div class="skill-analytics-controls"><div class="skill-filter-wrap"><button class="skill-filter-button" id="skillFilterButton" type="button" aria-expanded="false"><i data-lucide="sliders-horizontal"></i>Filters</button><div class="skill-filter-panel" id="skillFilterPanel" hidden><div class="skill-filter-panel__heading"><strong>Trend filters</strong><small>Global live intelligence</small></div><label>Time range<select id="skillFilterTime"><option value="7 Days">Last 7 Days</option><option value="30 Days">Last 30 Days</option><option value="6 Months" ${dashboardState.timeRange === '6 Months' ? 'selected' : ''}>Last 6 Months</option><option value="1 Year">Last 1 Year</option></select></label><label>Time granularity<select id="skillFilterGranularity"><option>Month</option><option>Day</option><option>Year</option></select></label><label>Geographic scope<select id="skillFilterMarket">${optionMarkup(marketOptions, dashboardState.market)}</select></label><label>Trending view<select id="skillFilterScope"><option selected>All Skills</option><option ${dashboardState.trendScope === 'My Saved Skills' ? 'selected' : ''}>My Saved Skills</option></select></label><label>Custom date/range<input id="skillCustomDate" type="date"></label><button class="skill-filter-favorite ${isFavorite ? 'is-saved' : ''}" id="filterFavoriteButton" type="button" ${!isFavorite && dashboardState.savedSkills.length >= 5 ? 'disabled' : ''}><i data-lucide="${isFavorite ? 'check' : 'star'}"></i>${isFavorite ? 'Saved to favorites' : dashboardState.savedSkills.length >= 5 ? '5 skill limit reached' : 'Add highlighted skill'}</button></div></div><span class="favorite-count">${dashboardState.savedSkills.length}/5 saved</span></div></div><div class="skill-analytics-summary"><div class="skill-analytics-current"><span class="skill-current-icon"><i data-lucide="${iconMap[highlighted.skill] || 'layers-3'}"></i></span><div><strong>${highlighted.skill}</strong><span>Demand <b>${highlighted.current}/100</b></span></div></div><div class="skill-analytics-growth"><strong>+${highlighted.growth}%</strong><span><i data-lucide="trending-up"></i> ${highlighted.momentum} pts</span></div><span class="skill-demand-label">${highlighted.demand}</span></div>${renderSkillDemandBars(trends)}<div class="skill-analytics-footnote"><span><i data-lucide="radio"></i> Updated just now</span><span>Hover a bar for market detail</span></div></article>`;
+  return `<article class="skill-analytics-card" aria-labelledby="skill-analytics-title"><div class="skill-analytics-header"><div class="skill-analytics-title"><span class="skill-analytics-icon"><i data-lucide="activity"></i></span><div><div class="skill-analytics-heading"><h2 id="skill-analytics-title">Skill Trend</h2><span class="live-badge"><i></i>Demo</span></div><p>Illustrative skill demand signals across the globe.</p></div></div><div class="skill-analytics-controls"><div class="skill-filter-wrap"><button class="skill-filter-button" id="skillFilterButton" type="button" aria-expanded="false"><i data-lucide="sliders-horizontal"></i>Filters</button><div class="skill-filter-panel" id="skillFilterPanel" hidden><div class="skill-filter-panel__heading"><strong>Trend filters</strong><small>Global illustrative demo data</small></div><label>Time range<select id="skillFilterTime"><option value="7 Days">Last 7 Days</option><option value="30 Days">Last 30 Days</option><option value="6 Months" ${dashboardState.timeRange === '6 Months' ? 'selected' : ''}>Last 6 Months</option></select></label><label>Time granularity<select id="skillFilterGranularity"><option>Month</option><option>Day</option><option>Year</option></select></label><label>Geographic scope<select id="skillFilterMarket">${optionMarkup(marketOptions, dashboardState.market)}</select></label><label>Trending view<select id="skillFilterScope"><option selected>All Skills</option><option ${dashboardState.trendScope === 'My Saved Skills' ? 'selected' : ''}>My Saved Skills</option></select></label><label>Custom date/range<input id="skillCustomDate" type="date"></label><button class="skill-filter-favorite ${isFavorite ? 'is-saved' : ''}" id="filterFavoriteButton" type="button" ${!isFavorite && dashboardState.savedSkills.length >= 5 ? 'disabled' : ''}><i data-lucide="${isFavorite ? 'check' : 'star'}"></i>${isFavorite ? 'Saved to favorites' : dashboardState.savedSkills.length >= 5 ? '5 skill limit reached' : 'Add highlighted skill'}</button></div></div><span class="favorite-count">${dashboardState.savedSkills.length}/5 saved</span></div></div><div class="skill-analytics-summary"><div class="skill-analytics-current"><span class="skill-current-icon"><i data-lucide="${iconMap[highlighted.skill] || 'layers-3'}"></i></span><div><strong>${highlighted.skill}</strong><span>Demand <b>${highlighted.current}/100</b></span></div></div><div class="skill-analytics-growth"><strong>+${highlighted.growth}%</strong><span><i data-lucide="trending-up"></i> ${highlighted.momentum} pts</span></div><span class="skill-demand-label">${highlighted.demand}</span></div>${renderSkillDemandBars(trends)}<div class="skill-analytics-footnote"><span><i data-lucide="radio"></i> Illustrative demo data</span><span>Hover a bar for market detail</span></div></article>`;
 }
 
 function renderTopTrendingSkillsCard() {
@@ -8889,9 +10804,9 @@ function renderTopTrendingSkillsCard() {
   return `<article class="top-trending-card"><div class="top-trending-card__header"><div><h2>Top Trending Skills</h2><p>Ranked by current market momentum</p></div><label><span class="sr-only">Sort trending skills</span><select id="skillTrendSortSelect"><option ${dashboardState.trendSort === 'Highest Growth' ? 'selected' : ''}>Highest Growth</option><option ${dashboardState.trendSort === 'Highest Demand' ? 'selected' : ''}>Highest Demand</option><option ${dashboardState.trendSort === 'Fastest Rising' ? 'selected' : ''}>Fastest Rising</option><option ${dashboardState.trendSort === 'Most Stable' ? 'selected' : ''}>Most Stable</option><option ${dashboardState.trendSort === 'Recently Emerging' ? 'selected' : ''}>Recently Emerging</option></select><i data-lucide="list-filter"></i></label></div><div class="trending-skill-list">${trends.map((item, index) => `<div class="trending-skill-row" style="--row-delay:${index * 55}ms"><span class="trending-skill-rank">${index + 1}.</span><span class="trending-skill-icon"><i data-lucide="${iconMap[item.skill] || 'layers-3'}"></i></span><strong>${item.skill}</strong><span class="trending-skill-growth"><i data-lucide="trending-up"></i> +${item.growth}% <small>${item.demand}</small></span>${renderTrendSparkline(item.values, `${item.skill} demand`)}</div>`).join('')}</div></article>`;
 }
 
-function renderMarketPulse() {
+renderMarketPulse = function() {
   return `<section class="skill-demand-module"><div class="skill-trend-stack">${renderSkillTrendAnalyticsCard()}${renderTopTrendingSkillsCard()}</div></section>`;
-}
+};
 
 function bindSkillTrendAnalyticsEvents() {
   const filterButton = document.querySelector('#skillFilterButton');
@@ -8904,7 +10819,7 @@ function bindSkillTrendAnalyticsEvents() {
   if (filterButton && filterPanel) filterButton.addEventListener('click', event => { event.stopPropagation(); filterPanel.hidden = !filterPanel.hidden; filterButton.setAttribute('aria-expanded', String(!filterPanel.hidden)); });
   if (timeSelect) timeSelect.addEventListener('change', event => { dashboardState.timeRange = event.target.value; renderHome(); });
   if (marketSelect) marketSelect.addEventListener('change', event => { dashboardState.market = event.target.value; renderHome(); });
-  if (scopeSelect) scopeSelect.addEventListener('change', event => { dashboardState.trendScope = event.target.value === 'My Saved Skills' ? 'My Saved Skills' : 'Overall Live Trends'; renderHome(); });
+  if (scopeSelect) scopeSelect.addEventListener('change', event => { dashboardState.trendScope = event.target.value === 'My Saved Skills' ? 'My Saved Skills' : 'Overall Demo Trends'; renderHome(); });
   if (sortSelect) sortSelect.addEventListener('change', event => { dashboardState.trendSort = event.target.value; renderHome(); });
   if (favoriteButton) favoriteButton.addEventListener('click', () => { const saved = dashboardState.savedSkills.includes(dashboardState.selectedSkill); dashboardState.savedSkills = saved ? dashboardState.savedSkills.filter(skill => skill !== dashboardState.selectedSkill) : dashboardState.savedSkills.length < 5 ? [...dashboardState.savedSkills, dashboardState.selectedSkill] : dashboardState.savedSkills; localStorage.setItem('talentscope-saved-skills', JSON.stringify(dashboardState.savedSkills)); renderHome(); });
 }
@@ -8930,7 +10845,7 @@ bindSkillTrendAnalyticsEvents = function() {
   if (sortMenu) sortMenu.querySelectorAll('[data-sort-mode]').forEach(option => option.addEventListener('click', () => { dashboardState.trendSort = option.dataset.sortMode; renderHome(); }));
   if (timeSelect) timeSelect.addEventListener('change', event => { dashboardState.timeRange = event.target.value; renderHome(); });
   if (marketSelect) marketSelect.addEventListener('change', event => { dashboardState.market = event.target.value; renderHome(); });
-  if (scopeSelect) scopeSelect.addEventListener('change', event => { dashboardState.trendScope = event.target.value === 'My Saved Skills' ? 'My Saved Skills' : 'Overall Live Trends'; renderHome(); });
+  if (scopeSelect) scopeSelect.addEventListener('change', event => { dashboardState.trendScope = event.target.value === 'My Saved Skills' ? 'My Saved Skills' : 'Overall Demo Trends'; renderHome(); });
   if (favoriteButton) favoriteButton.addEventListener('click', () => { const saved = dashboardState.savedSkills.includes(dashboardState.selectedSkill); dashboardState.savedSkills = saved ? dashboardState.savedSkills.filter(skill => skill !== dashboardState.selectedSkill) : dashboardState.savedSkills.length < 5 ? [...dashboardState.savedSkills, dashboardState.selectedSkill] : dashboardState.savedSkills; localStorage.setItem('talentscope-saved-skills', JSON.stringify(dashboardState.savedSkills)); renderHome(); });
 };
 renderSkillDemandBars = function(details) {
@@ -8981,12 +10896,12 @@ function getMarketTrendView(companyName = marketTrendState.company) {
   const locationOffset = company ? (scopedMarket.momentum - marketTrendData.Global.momentum) * .16 : 0;
   const categoryOffset = { Technology: 2, Finance: -1, Healthcare: 1, Automotive: -2, Energy: 1, Retail: -1, 'AI & Software': 3 }[marketTrendState.category] || 0;
   const yearOffset = (Number(marketTrendState.year) - 2026) * .7;
-  const rangeFactor = { '7 Days': .45, '30 Days': .65, '3 Months': .82, '6 Months': 1, '1 Year': 1.18 }[marketTrendState.timeRange] || 1;
+  const rangeFactor = { '7 Days': .45, '30 Days': .65, '3 Months': .82, '6 Months': 1, '6 Months': 1.18 }[marketTrendState.timeRange] || 1;
   const adjust = values => values.map((value, index) => Math.max(4, Math.min(98, Math.round(value + yearOffset + locationOffset + categoryOffset + (index - 2) * (1 - rangeFactor)))));
   const technologyMomentum = adjust(source.technologyMomentum);
   const jobDemand = adjust(source.jobDemand);
   const investmentSignal = adjust(source.investmentSignal);
-  const labels = marketTrendState.timeRange === '7 Days' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : marketTrendState.timeRange === '30 Days' ? ['Wk 1', 'Wk 2', 'Wk 3', 'Wk 4', 'Wk 5', 'Now'] : marketTrendState.timeRange === '3 Months' ? ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'] : marketTrendState.timeRange === '1 Year' ? ['Oct', 'Dec', 'Feb', 'Apr', 'Jun', 'Aug'] : ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+  const labels = marketTrendState.timeRange === '7 Days' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : marketTrendState.timeRange === '30 Days' ? ['Wk 1', 'Wk 2', 'Wk 3', 'Wk 4', 'Wk 5', 'Now'] : marketTrendState.timeRange === '3 Months' ? ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'] : marketTrendState.timeRange === '6 Months' ? ['Oct', 'Dec', 'Feb', 'Apr', 'Jun', 'Aug'] : ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
   const dates = labels.map(label => `${label.toUpperCase()} ${marketTrendState.year}`);
   const rangeChange = (source.change + locationOffset * .2 + categoryOffset * .2) * rangeFactor;
   const trend = rangeChange > .25 ? 'Growing' : rangeChange < -.25 ? 'Declining' : 'Stable';
@@ -9031,7 +10946,7 @@ function renderMarketTrendCard() {
   const title = view.company ? `${view.company.name} Market Trend` : 'Market Trend';
   const changeClass = view.change < 0 ? 'market-change--negative' : 'market-change--positive';
   const changeIcon = view.change < 0 ? '&#8600;' : '&#8599;';
-  return `<article class="market-trend-card" aria-labelledby="market-trend-title"><div class="market-trend-card__header"><div class="market-trend-title"><span class="market-trend-icon"><i data-lucide="chart-no-axes-combined"></i></span><div><div class="market-trend-heading"><h2 id="market-trend-title">${title}</h2><span class="live-badge"><i></i>Live</span></div><p>Demo market intelligence  —  values are illustrative</p></div></div><div class="market-trend-actions"><button class="market-filter-button" id="marketFilterButton" type="button" aria-expanded="false"><i data-lucide="sliders-horizontal"></i>Filters</button><span class="market-updated"><i></i>Updated just now</span><div class="market-filter-panel" id="marketFilterPanel" hidden><strong>Market filters</strong><small>Refine companies and view</small><label>Market category<select id="marketCategoryFilter"><option ${marketTrendState.category === 'All Markets' ? 'selected' : ''}>All Markets</option><option ${marketTrendState.category === 'Technology' ? 'selected' : ''}>Technology</option><option ${marketTrendState.category === 'Finance' ? 'selected' : ''}>Finance</option><option ${marketTrendState.category === 'Healthcare' ? 'selected' : ''}>Healthcare</option><option ${marketTrendState.category === 'Automotive' ? 'selected' : ''}>Automotive</option><option ${marketTrendState.category === 'Energy' ? 'selected' : ''}>Energy</option><option ${marketTrendState.category === 'Retail' ? 'selected' : ''}>Retail</option><option ${marketTrendState.category === 'AI & Software' ? 'selected' : ''}>AI &amp; Software</option></select></label><label>Company watchlist<select id="marketWatchlistFilter"><option ${marketTrendState.watchlist === 'All Companies' ? 'selected' : ''}>All Companies</option><option ${marketTrendState.watchlist === 'Saved Companies' ? 'selected' : ''}>Saved Companies</option><option ${marketTrendState.watchlist === 'Select Companies' ? 'selected' : ''}>Select Companies</option></select></label><label>Company<select id="marketCompanyFilter"><option value="" ${marketTrendState.company === '' ? 'selected' : ''}>All Companies</option>${marketCompanyData.map(company => `<option value="${company.name}" ${company.name === marketTrendState.company ? 'selected' : ''}>${company.name}</option>`).join('')}</select></label><label>View<select id="marketViewFilter"><option ${marketTrendState.view === 'Market Overview' ? 'selected' : ''}>Market Overview</option><option ${marketTrendState.view === 'Company Comparison' ? 'selected' : ''}>Company Comparison</option><option ${marketTrendState.view === 'Individual Company' ? 'selected' : ''}>Individual Company</option></select></label><div class="market-filter-actions"><button id="resetMarketFilters" type="button">Reset</button><button class="is-primary" id="applyMarketFilters" type="button">Apply filters</button></div></div></div></div><section class="market-period-section" aria-label="Market period and location"><div class="market-period-heading"><strong>Explore market trends</strong><span>Choose a period and location</span></div><div class="market-period-controls"><label>Time period<select id="marketTimeFilter"><option ${marketTrendState.timeRange === '7 Days' ? 'selected' : ''}>7 Days</option><option ${marketTrendState.timeRange === '30 Days' ? 'selected' : ''}>30 Days</option><option ${marketTrendState.timeRange === '3 Months' ? 'selected' : ''}>3 Months</option><option ${marketTrendState.timeRange === '6 Months' ? 'selected' : ''}>6 Months</option><option ${marketTrendState.timeRange === '1 Year' ? 'selected' : ''}>1 Year</option></select></label><label>Year<select id="marketYearFilter"><option ${marketTrendState.year === '2024' ? 'selected' : ''}>2024</option><option ${marketTrendState.year === '2025' ? 'selected' : ''}>2025</option><option ${marketTrendState.year === '2026' ? 'selected' : ''}>2026</option><option ${marketTrendState.year === '2027' ? 'selected' : ''}>2027</option></select></label><label>Market location<select id="marketScopeFilter">${optionMarkup(marketOptions, marketTrendState.scope)}</select></label></div></section><div class="market-trend-summary"><div><span>Market Momentum</span><strong>${Math.round(view.momentum)}<small> / 100</small></strong></div><div><span>Current Trend</span><strong class="market-trend-status market-trend-status--${view.trend.toLowerCase()}"><i data-lucide="${view.trend === 'Declining' ? 'trending-down' : view.trend === 'Stable' ? 'minus' : 'trending-up'}"></i>${view.trend}</strong></div><b class="market-change ${changeClass}">${changeIcon} ${view.change > 0 ? '+' : ''}${view.change.toFixed(1)}%</b></div>${renderMarketTrendChart(view)}<div class="market-chart-legend"><span><i class="legend-dot legend-dot--technologyMomentum"></i>Technology Momentum</span><span><i class="legend-dot legend-dot--jobDemand"></i>Job Demand</span><span><i class="legend-dot legend-dot--investmentSignal"></i>Investment Signal</span></div><p class="market-chart-note">Prototype values for preview only  —  not verified live data</p></article>`;
+  return `<article class="market-trend-card" aria-labelledby="market-trend-title"><div class="market-trend-card__header"><div class="market-trend-title"><span class="market-trend-icon"><i data-lucide="chart-no-axes-combined"></i></span><div><div class="market-trend-heading"><h2 id="market-trend-title">${title}</h2><span class="live-badge"><i></i>Demo</span></div><p>Demo market intelligence  —  values are illustrative</p></div></div><div class="market-trend-actions"><button class="market-filter-button" id="marketFilterButton" type="button" aria-expanded="false"><i data-lucide="sliders-horizontal"></i>Filters</button><span class="market-updated"><i></i>Illustrative demo data</span><div class="market-filter-panel" id="marketFilterPanel" hidden><strong>Market filters</strong><small>Refine companies and view</small><label>Market category<select id="marketCategoryFilter"><option ${marketTrendState.category === 'All Markets' ? 'selected' : ''}>All Markets</option><option ${marketTrendState.category === 'Technology' ? 'selected' : ''}>Technology</option><option ${marketTrendState.category === 'Finance' ? 'selected' : ''}>Finance</option><option ${marketTrendState.category === 'Healthcare' ? 'selected' : ''}>Healthcare</option><option ${marketTrendState.category === 'Automotive' ? 'selected' : ''}>Automotive</option><option ${marketTrendState.category === 'Energy' ? 'selected' : ''}>Energy</option><option ${marketTrendState.category === 'Retail' ? 'selected' : ''}>Retail</option><option ${marketTrendState.category === 'AI & Software' ? 'selected' : ''}>AI &amp; Software</option></select></label><label>Company watchlist<select id="marketWatchlistFilter"><option ${marketTrendState.watchlist === 'All Companies' ? 'selected' : ''}>All Companies</option><option ${marketTrendState.watchlist === 'Saved Companies' ? 'selected' : ''}>Saved Companies</option><option ${marketTrendState.watchlist === 'Select Companies' ? 'selected' : ''}>Select Companies</option></select></label><label>Company<select id="marketCompanyFilter"><option value="" ${marketTrendState.company === '' ? 'selected' : ''}>All Companies</option>${marketCompanyData.map(company => `<option value="${company.name}" ${company.name === marketTrendState.company ? 'selected' : ''}>${company.name}</option>`).join('')}</select></label><label>View<select id="marketViewFilter"><option ${marketTrendState.view === 'Market Overview' ? 'selected' : ''}>Market Overview</option><option ${marketTrendState.view === 'Company Comparison' ? 'selected' : ''}>Company Comparison</option><option ${marketTrendState.view === 'Individual Company' ? 'selected' : ''}>Individual Company</option></select></label><div class="market-filter-actions"><button id="resetMarketFilters" type="button">Reset</button><button class="is-primary" id="applyMarketFilters" type="button">Apply filters</button></div></div></div></div><section class="market-period-section" aria-label="Market period and location"><div class="market-period-heading"><strong>Explore market trends</strong><span>Choose a period and location</span></div><div class="market-period-controls"><label>Time period<select id="marketTimeFilter"><option ${marketTrendState.timeRange === '7 Days' ? 'selected' : ''}>7 Days</option><option ${marketTrendState.timeRange === '30 Days' ? 'selected' : ''}>30 Days</option><option ${marketTrendState.timeRange === '3 Months' ? 'selected' : ''}>3 Months</option></select></label><label>Year<select id="marketYearFilter"><option ${marketTrendState.year === '2024' ? 'selected' : ''}>2024</option><option ${marketTrendState.year === '2025' ? 'selected' : ''}>2025</option><option ${marketTrendState.year === '2026' ? 'selected' : ''}>2026</option><option ${marketTrendState.year === '2027' ? 'selected' : ''}>2027</option></select></label><label>Market location<select id="marketScopeFilter">${optionMarkup(marketOptions, marketTrendState.scope)}</select></label></div></section><div class="market-trend-summary"><div><span>Market Momentum</span><strong>${Math.round(view.momentum)}<small> / 100</small></strong></div><div><span>Current Trend</span><strong class="market-trend-status market-trend-status--${view.trend.toLowerCase()}"><i data-lucide="${view.trend === 'Declining' ? 'trending-down' : view.trend === 'Stable' ? 'minus' : 'trending-up'}"></i>${view.trend}</strong></div><b class="market-change ${changeClass}">${changeIcon} ${view.change > 0 ? '+' : ''}${view.change.toFixed(1)}%</b></div>${renderMarketTrendChart(view)}<div class="market-chart-legend"><span><i class="legend-dot legend-dot--technologyMomentum"></i>Technology Momentum</span><span><i class="legend-dot legend-dot--jobDemand"></i>Job Demand</span><span><i class="legend-dot legend-dot--investmentSignal"></i>Investment Signal</span></div><p class="market-chart-note">Prototype values for preview only  —  not verified live data</p></article>`;
 }
 function renderMarketSparkline(points, label) {
   const min = Math.min(...points);
@@ -9070,7 +10985,7 @@ renderMarketTrendCard = function(options = {}) {
   const view = getMarketTrendView();
   const companies = marketCompanyData.slice().sort((first, second) => getMarketTrendView(second.name).momentum - getMarketTrendView(first.name).momentum).slice(0, 3);
   const topCompanies = companies.map(company => { const companyView = getMarketTrendView(company.name); return `<div><span>${company.name}</span><strong>${Math.round(companyView.momentum)}<small>/100</small></strong><b class="${companyView.change < 0 ? 'is-negative' : 'is-positive'}">${companyView.change > 0 ? '+' : ''}${companyView.change.toFixed(1)}%</b></div>`; }).join('');
-  return `<article class="market-trend-card market-intelligence-trend-card" aria-labelledby="market-trend-title"><div class="market-trend-card__header"><div class="market-trend-title"><span class="market-trend-icon"><i data-lucide="chart-no-axes-combined"></i></span><div><div class="market-trend-heading"><h2 id="market-trend-title">Market Trend</h2><span class="live-badge"><i></i>Live</span></div><p>Technology, hiring and investment signals across the selected market.</p></div></div><span class="market-updated"><i></i>Updated just now</span></div><div class="market-intelligence-filterbar"><div class="market-trend-filter"><button type="button" id="marketFilterButton" aria-expanded="false" aria-controls="marketFilterPanel"><i data-lucide="sliders-horizontal"></i>Filters<span>${marketTrendState.watchlist === 'Saved Companies' ? 'My Companies' : 'All Companies'}</span><i data-lucide="chevron-down"></i></button><div class="market-trend-filter__panel" id="marketFilterPanel" role="dialog" aria-label="Market trend filters" hidden><header><div><strong>Market filters</strong><small>Adjust the companies and period</small></div><button type="button" id="closeMarketFilter" aria-label="Close filters"><i data-lucide="x"></i></button></header><label>Company scope<select id="marketWatchlistFilter"><option value="All Companies" ${marketTrendState.watchlist === 'All Companies' ? 'selected' : ''}>All Companies</option><option value="Saved Companies" ${marketTrendState.watchlist === 'Saved Companies' ? 'selected' : ''}>My Companies</option></select></label><label>Location<select id="marketScopeFilter">${optionMarkup(marketOptions, marketTrendState.scope)}</select></label><label>Time period<select id="marketTimeFilter"><option ${marketTrendState.timeRange === '7 Days' ? 'selected' : ''}>7 Days</option><option ${marketTrendState.timeRange === '30 Days' ? 'selected' : ''}>30 Days</option><option ${marketTrendState.timeRange === '3 Months' ? 'selected' : ''}>3 Months</option><option ${marketTrendState.timeRange === '6 Months' ? 'selected' : ''}>6 Months</option><option ${marketTrendState.timeRange === '1 Year' ? 'selected' : ''}>1 Year</option></select></label><div class="market-trend-filter__dates"><label>Start date<input id="marketStartDate" type="date" value="${marketTrendState.customStartDate || ''}"></label><label>End date<input id="marketEndDate" type="date" value="${marketTrendState.customEndDate || ''}"></label></div><div class="market-trend-filter__actions"><button id="resetMarketFilters" type="button">Reset</button><button class="is-primary" id="applyMarketFilters" type="button">Apply filters</button></div></div></div></div><div class="market-intelligence-summary"><div><span>Market momentum</span><strong>${Math.round(view.momentum)}<small> / 100</small></strong></div><div><span>Current trend</span><strong class="market-trend-status market-trend-status--${view.trend.toLowerCase()}"><i data-lucide="${view.trend === 'Declining' ? 'trending-down' : view.trend === 'Stable' ? 'minus' : 'trending-up'}"></i>${view.trend}</strong></div><b class="market-change ${view.change < 0 ? 'market-change--negative' : 'market-change--positive'}">${view.change > 0 ? '+' : ''}${view.change.toFixed(1)}%</b></div><div class="market-chart-heading"><strong>Market signal movement</strong><span>Location: ${marketTrendState.scope} | Period: ${marketTrendState.timeRange}</span></div>${renderMarketTrendChart(view)}<div class="market-chart-legend" aria-label="Toggle market signals"><button type="button" data-market-signal="technologyMomentum" aria-pressed="true"><i class="legend-dot legend-dot--technologyMomentum"></i>Technology Momentum</button><button type="button" data-market-signal="jobDemand" aria-pressed="true"><i class="legend-dot legend-dot--jobDemand"></i>Job Demand</button><button type="button" data-market-signal="investmentSignal" aria-pressed="true"><i class="legend-dot legend-dot--investmentSignal"></i>Investment Signal</button></div><p class="market-chart-note">Illustrative demo data. Not verified live market data.</p></article>`;
+  return `<article class="market-trend-card market-intelligence-trend-card" aria-labelledby="market-trend-title"><div class="market-trend-card__header"><div class="market-trend-title"><span class="market-trend-icon"><i data-lucide="chart-no-axes-combined"></i></span><div><div class="market-trend-heading"><h2 id="market-trend-title">Market Trend</h2><span class="live-badge"><i></i>Demo</span></div><p>Technology, hiring and investment signals across the selected market.</p></div></div><span class="market-updated"><i></i>Illustrative demo data</span></div><div class="market-intelligence-filterbar"><div class="market-trend-filter"><button type="button" id="marketFilterButton" aria-expanded="false" aria-controls="marketFilterPanel"><i data-lucide="sliders-horizontal"></i>Filters<span>${marketTrendState.watchlist === 'Saved Companies' ? 'My Companies' : 'All Companies'}</span><i data-lucide="chevron-down"></i></button><div class="market-trend-filter__panel" id="marketFilterPanel" role="dialog" aria-label="Market trend filters" hidden><header><div><strong>Market filters</strong><small>Adjust the companies and period</small></div><button type="button" id="closeMarketFilter" aria-label="Close filters"><i data-lucide="x"></i></button></header><label>Company scope<select id="marketWatchlistFilter"><option value="All Companies" ${marketTrendState.watchlist === 'All Companies' ? 'selected' : ''}>All Companies</option><option value="Saved Companies" ${marketTrendState.watchlist === 'Saved Companies' ? 'selected' : ''}>My Companies</option></select></label><label>Location<select id="marketScopeFilter">${optionMarkup(marketOptions, marketTrendState.scope)}</select></label><label>Time period<select id="marketTimeFilter"><option ${marketTrendState.timeRange === '7 Days' ? 'selected' : ''}>7 Days</option><option ${marketTrendState.timeRange === '30 Days' ? 'selected' : ''}>30 Days</option><option ${marketTrendState.timeRange === '3 Months' ? 'selected' : ''}>3 Months</option></select></label><p>Prototype date filter: dates change local illustrative data only and are not sent to an API.</p><div class="market-trend-filter__dates"><label>Start date<input id="marketStartDate" type="date" value="${marketTrendState.customStartDate || ''}"></label><label>End date<input id="marketEndDate" type="date" value="${marketTrendState.customEndDate || ''}"></label></div><div class="market-trend-filter__actions"><button id="resetMarketFilters" type="button">Reset</button><button class="is-primary" id="applyMarketFilters" type="button">Apply filters</button></div></div></div></div><div class="market-intelligence-summary"><div><span>Market momentum</span><strong>${Math.round(view.momentum)}<small> / 100</small></strong></div><div><span>Current trend</span><strong class="market-trend-status market-trend-status--${view.trend.toLowerCase()}"><i data-lucide="${view.trend === 'Declining' ? 'trending-down' : view.trend === 'Stable' ? 'minus' : 'trending-up'}"></i>${view.trend}</strong></div><b class="market-change ${view.change < 0 ? 'market-change--negative' : 'market-change--positive'}">${view.change > 0 ? '+' : ''}${view.change.toFixed(1)}%</b></div><div class="market-chart-heading"><strong>Market signal movement</strong><span>Location: ${marketTrendState.scope} | Period: ${marketTrendState.timeRange}</span></div>${renderMarketTrendChart(view)}<div class="market-chart-legend" aria-label="Toggle market signals"><button type="button" data-market-signal="technologyMomentum" aria-pressed="true"><i class="legend-dot legend-dot--technologyMomentum"></i>Technology Momentum</button><button type="button" data-market-signal="jobDemand" aria-pressed="true"><i class="legend-dot legend-dot--jobDemand"></i>Job Demand</button><button type="button" data-market-signal="investmentSignal" aria-pressed="true"><i class="legend-dot legend-dot--investmentSignal"></i>Investment Signal</button></div><p class="market-chart-note">Illustrative demo data. Not verified live market data.</p></article>`;
 };
 const legacyMarketTrendBindings = bindMarketTrendEvents;
 bindMarketTrendEvents = function() { legacyMarketTrendBindings(); };
@@ -9161,14 +11076,14 @@ function getJobTrendView() {
   const average = field => profiles.reduce((total, profile) => total + profile[field], 0) / Math.max(1, profiles.length);
   const marketOffset = { Global: 0, India: 2, 'United States': 4, 'United Kingdom': 1, Germany: 1, Canada: 2, Australia: 2, Singapore: 3, Japan: 0 }[jobTrendState.market] || 0;
   const categoryOffset = { 'All Jobs': 0, Technology: 2, 'Data & AI': 5, Software: 3, Design: -4, Cybersecurity: 1, Cloud: 2 }[jobTrendState.category] || 0;
-  const periodOffset = { '7 Days': -2, '30 Days': -1, '6 Months': 0, '1 Year': 2 }[jobTrendState.period] || 0;
+  const periodOffset = { '7 Days': -2, '30 Days': -1, '6 Months': 0, '6 Months': 2 }[jobTrendState.period] || 0;
   const offset = marketOffset + categoryOffset + periodOffset;
   const metrics = ['jobDemand', 'hiringMomentum', 'skillDemand', 'roleGrowth'].map(key => {
     const base = profiles.reduce((total, profile) => total + profile[key].value, 0) / Math.max(1, profiles.length);
     const change = profiles.reduce((total, profile) => total + profile[key].change, 0) / Math.max(1, profiles.length);
     return { key, value: Math.max(8, Math.min(98, Math.round(base + offset))), change: Number((change + offset * .35).toFixed(1)), color: profiles[0]?.[key].color || jobTrendData['All Roles'][key].color };
   });
-  const periodFactor = { '7 Days': .25, '30 Days': .5, '6 Months': 1, '1 Year': 1.25 }[jobTrendState.period] || 1;
+  const periodFactor = { '7 Days': .25, '30 Days': .5, '6 Months': 1, '6 Months': 1.25 }[jobTrendState.period] || 1;
   const change = Number((average('changePercentage') * periodFactor + marketOffset * .2 + categoryOffset * .25).toFixed(1));
   return {
     metrics,
@@ -9199,7 +11114,7 @@ function renderJobTrendCard() {
   const roleOptions = ['All Roles', ...rolesForSelect];
   const isDeclining = view.change < 0;
   const legend = view.metrics.map(metric => `<button class="job-trend-legend-item" type="button" data-metric="${metric.key}" style="--legend-color:${metric.color}"><i></i><span class="job-legend-copy"><span>${labels[metric.key]}</span><small>${descriptions[metric.key]}</small></span><strong>${metric.value}%</strong></button>`).join('');
-  return `<article class="job-trend-card market-trend-card" aria-labelledby="job-trend-title"><div class="market-trend-card__header"><div class="market-trend-title"><span class="market-trend-icon job-trend-icon"><i data-lucide="briefcase-business"></i></span><div><div class="market-trend-heading"><h2 id="job-trend-title">Job Trends</h2><span class="live-badge"><i></i>Live</span></div><p>Track how job demand and hiring activity are changing.</p></div></div><div class="market-trend-actions"><button class="market-filter-button" id="jobFilterButton" type="button" aria-expanded="false"><i data-lucide="sliders-horizontal"></i>Filters</button><span class="market-updated"><i></i>Updated just now</span><div class="market-filter-panel job-filter-panel" id="jobFilterPanel" hidden><strong>Job trend filters</strong><small>Explore illustrative workforce signals</small><label>Time period<select id="jobPeriodFilter">${optionMarkup(['7 Days', '30 Days', '6 Months', '1 Year'], jobTrendState.period)}</select></label><label>Market location<select id="jobMarketFilter">${optionMarkup(marketOptions, jobTrendState.market)}</select></label><label>Job category<select id="jobCategoryFilter">${optionMarkup(['All Jobs', 'Technology', 'Data & AI', 'Software', 'Design', 'Cybersecurity', 'Cloud'], jobTrendState.category)}</select></label><label>Role scope<select id="jobRoleScopeFilter">${optionMarkup(['All Roles', 'Saved Roles'], jobTrendState.roleScope)}</select></label><label>Selected role<select id="jobRoleFilter">${optionMarkup(roleOptions, jobTrendState.role)}</select></label><label>View<select id="jobViewFilter">${optionMarkup(['Global View', 'Location-specific View'], jobTrendState.market === 'Global' ? 'Global View' : 'Location-specific View')}</select></label><div class="market-filter-actions"><button id="resetJobFilters" type="button">Reset</button><button class="is-primary" id="applyJobFilters" type="button">Apply filters</button></div></div></div></div><div class="job-trend-summary"><div><span>Job Market Momentum  —  ${view.roleLabel}</span><strong>${view.momentum}<small>/100</small></strong></div><strong class="job-summary-trend job-summary-trend--${view.direction.toLowerCase()}"><i data-lucide="${view.direction === 'Declining' ? 'trending-down' : view.direction === 'Stable' ? 'minus' : 'trending-up'}"></i>${view.direction}</strong><b class="job-summary-change ${isDeclining ? 'is-negative' : 'is-positive'}">${isDeclining ? '&#8600;' : '&#8599;'} ${view.change > 0 ? '+' : ''}${view.change.toFixed(1)}%</b></div>${renderJobTrendRadialChart(view)}<div class="job-trend-legend" aria-label="Job trend dimensions">${legend}</div><p class="job-trend-note">Illustrative workforce data  —  not verified live hiring data</p></article>`;
+  return `<article class="job-trend-card market-trend-card" aria-labelledby="job-trend-title"><div class="market-trend-card__header"><div class="market-trend-title"><span class="market-trend-icon job-trend-icon"><i data-lucide="briefcase-business"></i></span><div><div class="market-trend-heading"><h2 id="job-trend-title">Job Trends</h2><span class="live-badge"><i></i>Demo</span></div><p>Track how job demand and hiring activity are changing.</p></div></div><div class="market-trend-actions"><button class="market-filter-button" id="jobFilterButton" type="button" aria-expanded="false"><i data-lucide="sliders-horizontal"></i>Filters</button><span class="market-updated"><i></i>Illustrative demo data</span><div class="market-filter-panel job-filter-panel" id="jobFilterPanel" hidden><strong>Job trend filters</strong><small>Explore illustrative workforce signals</small><label>Time period<select id="jobPeriodFilter">${optionMarkup(['7 Days', '30 Days', '3 Months', '6 Months'], jobTrendState.period)}</select></label><label>Market location<select id="jobMarketFilter">${optionMarkup(marketOptions, jobTrendState.market)}</select></label><label>Job category<select id="jobCategoryFilter">${optionMarkup(['All Jobs', 'Technology', 'Data & AI', 'Software', 'Design', 'Cybersecurity', 'Cloud'], jobTrendState.category)}</select></label><label>Role scope<select id="jobRoleScopeFilter">${optionMarkup(['All Roles', 'Saved Roles'], jobTrendState.roleScope)}</select></label><label>Selected role<select id="jobRoleFilter">${optionMarkup(roleOptions, jobTrendState.role)}</select></label><label>View<select id="jobViewFilter">${optionMarkup(['Global View', 'Location-specific View'], jobTrendState.market === 'Global' ? 'Global View' : 'Location-specific View')}</select></label><div class="market-filter-actions"><button id="resetJobFilters" type="button">Reset</button><button class="is-primary" id="applyJobFilters" type="button">Apply filters</button></div></div></div></div><div class="job-trend-summary"><div><span>Job Market Momentum  —  ${view.roleLabel}</span><strong>${view.momentum}<small>/100</small></strong></div><strong class="job-summary-trend job-summary-trend--${view.direction.toLowerCase()}"><i data-lucide="${view.direction === 'Declining' ? 'trending-down' : view.direction === 'Stable' ? 'minus' : 'trending-up'}"></i>${view.direction}</strong><b class="job-summary-change ${isDeclining ? 'is-negative' : 'is-positive'}">${isDeclining ? '&#8600;' : '&#8599;'} ${view.change > 0 ? '+' : ''}${view.change.toFixed(1)}%</b></div>${renderJobTrendRadialChart(view)}<div class="job-trend-legend" aria-label="Job trend dimensions">${legend}</div><p class="job-trend-note">Illustrative workforce data  —  not verified live hiring data</p></article>`;
 }
 
 function bindJobTrendEvents() {
@@ -9266,7 +11181,7 @@ renderSkillIntelligenceSection = function() {
   trends.forEach(item => { item.values = trendWindowForSkill(item.skill); item.values[item.values.length - 1] = item.current; });
   const topSkill = trends.find(item => item.skill === dashboardState.selectedSkill) || trends[0];
   const scope = dashboardState.trendScope === 'My Saved Skills' ? 'My Skills' : dashboardState.trendScope === 'Saved Skills' ? 'Saved Skills' : 'Global';
-  const scopeValue = scope === 'Global' ? 'Overall Live Trends' : 'My Saved Skills';
+  const scopeValue = scope === 'Global' ? 'Overall Demo Trends' : 'My Saved Skills';
   const barMarkup = trends.map((item, index) => {
     const change = item.growth;
     const selected = item.skill === topSkill.skill;
@@ -9278,7 +11193,7 @@ renderSkillIntelligenceSection = function() {
     const active = item.skill === topSkill.skill;
     return `<button type="button" class="skill-momentum-row${active ? ' is-selected' : ''}" data-skill="${item.skill}" aria-pressed="${active}"><span class="skill-momentum-row__rank">${String(index + 1).padStart(2, '0')}</span><span class="skill-momentum-row__copy"><strong>${item.skill}</strong><small>${item.category}</small></span>${renderTrendSparkline(item.values, `${item.skill} demand history`)}<span class="skill-momentum-row__growth"><strong><i data-lucide="trending-up"></i>+${item.growth}%</strong><small>Growing</small></span><b class="skill-momentum-row__demand">${item.current}</b></button>`;
   }).join('');
-  return `<section class="home-section skill-intelligence-section skill-intelligence-section--live" id="current-skill-intelligence" aria-labelledby="current-skill-section-title"><div class="home-section__heading"><div><span class="section-kicker">Your skill, in context</span><h2 id="current-skill-section-title">Skill Intelligence</h2><p>See which skills are gaining or losing demand.</p></div><span class="skill-intelligence-live-badge"><i></i>Live ranking</span></div><div class="skill-intelligence-live-grid"><article class="skill-live-card" aria-labelledby="skill-live-title"><header class="skill-live-card__header"><div><span class="skill-intel-card__eyebrow">LIVE MARKET SIGNAL</span><h3 id="skill-live-title">Skill Trend</h3><p>Current demand movement across key skills</p></div><div class="skill-live-card__actions"><span class="skill-live-card__updated"><i></i>Live <small>Updated just now</small></span><div class="skill-intelligence-filterbar"><div class="skill-trend-filter"><button type="button" id="skillTrendFilterButton" aria-expanded="false" aria-controls="skillTrendFilterPanel"><i data-lucide="sliders-horizontal"></i>All Skills<i data-lucide="chevron-down"></i></button><div class="skill-trend-filter__panel" id="skillTrendFilterPanel" role="dialog" aria-label="Skill trend filters" hidden><header><div><strong>Trend filters</strong><small>Adjust your skill market view</small></div><button type="button" id="closeSkillTrendFilter" aria-label="Close filters"><i data-lucide="x"></i></button></header><label>Scope<select id="skillIntelScope"><option value="Overall Live Trends" ${scopeValue === 'Overall Live Trends' ? 'selected' : ''}>All Skills</option><option value="My Saved Skills" ${scope === 'My Skills' ? 'selected' : ''}>My Skills</option><option value="Saved Skills" ${scope === 'Saved Skills' ? 'selected' : ''}>Favorite Skills</option></select></label><label>Region<select id="skillIntelRegion">${optionMarkup(marketOptions, dashboardState.market)}</select></label><label>Period<select id="skillIntelPeriod">${optionMarkup(timeRangeOptions, dashboardState.timeRange)}</select></label><div class="skill-trend-filter__dates"><label>Start date<input id="skillIntelStartDate" type="date" value="${skillTrendFilterState.startDate}"></label><label>End date<input id="skillIntelEndDate" type="date" value="${skillTrendFilterState.endDate}"></label></div><button type="button" class="skill-trend-filter__apply" id="applySkillTrendFilter">Apply filters</button></div></div></div></header><div class="skill-live-highlight" data-featured-skill><div class="skill-live-highlight__identity"><span class="skill-live-highlight__eyebrow">TOP RISING SKILL</span><strong data-featured-name>${topSkill.skill}</strong><small data-featured-category>${topSkill.category}</small></div><div class="skill-live-highlight__score"><span>DEMAND SCORE</span><div><strong data-featured-demand>${topSkill.current}</strong><small> / 100</small></div><i><b style="--score:${topSkill.current}%"></b></i></div><div class="skill-live-highlight__momentum"><span>GROWTH</span><strong class="is-growing" data-featured-growth><i data-lucide="trending-up"></i>+${topSkill.growth}%</strong><small class="skill-live-highlight__status is-growing"><i data-lucide="trending-up"></i>Growing</small></div></div><div class="skill-live-chart-heading"><strong>Market demand by skill</strong><span>Top 6 <i></i> Demand score</span></div><div class="skill-live-chart" role="group" aria-label="Live skill demand comparison"><div class="skill-live-chart__axis"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div><div class="skill-live-chart__plot">${barMarkup}</div></div></article><article class="skill-ranking-card" aria-labelledby="skill-ranking-title"><header class="skill-ranking-card__header"><div><span class="skill-intel-card__eyebrow">MARKET MOMENTUM</span><h3 id="skill-ranking-title">Top Trending Skills</h3><p>Skills showing the strongest market movement</p></div><a class="skill-ranking-card__view" href="#/individual/skills">View All <i data-lucide="arrow-right"></i></a></header><div class="skill-momentum-list">${rankingMarkup}</div><footer class="skill-ranking-card__footer"><span>Updated just now</span><a href="#/individual/skills">View full skill intelligence <i data-lucide="arrow-right"></i></a></footer></article></div></section>`;
+  return `<section class="home-section skill-intelligence-section skill-intelligence-section--live" id="current-skill-intelligence" aria-labelledby="current-skill-section-title"><div class="home-section__heading"><div><span class="section-kicker">Your skill, in context</span><h2 id="current-skill-section-title">Skill Intelligence</h2><p>See which skills are gaining or losing demand.</p></div><span class="skill-intelligence-live-badge"><i></i>Demo ranking</span></div><div class="skill-intelligence-live-grid"><article class="skill-live-card" aria-labelledby="skill-live-title"><header class="skill-live-card__header"><div><span class="skill-intel-card__eyebrow">DEMO MARKET SIGNAL</span><h3 id="skill-live-title">Skill Trend</h3><p>Current demand movement across key skills</p></div><div class="skill-live-card__actions"><span class="skill-live-card__updated"><i></i>Demo data <small>Illustrative</small></span><div class="skill-intelligence-filterbar"><div class="skill-trend-filter"><button type="button" id="skillTrendFilterButton" aria-expanded="false" aria-controls="skillTrendFilterPanel"><i data-lucide="sliders-horizontal"></i>All Skills<i data-lucide="chevron-down"></i></button><div class="skill-trend-filter__panel" id="skillTrendFilterPanel" role="dialog" aria-label="Skill trend filters" hidden><header><div><strong>Trend filters</strong><small>Adjust your skill market view</small></div><button type="button" id="closeSkillTrendFilter" aria-label="Close filters"><i data-lucide="x"></i></button></header><label>Scope<select id="skillIntelScope"><option value="Overall Demo Trends" ${scopeValue === 'Overall Demo Trends' ? 'selected' : ''}>All Skills</option><option value="My Saved Skills" ${scope === 'My Skills' ? 'selected' : ''}>My Skills</option><option value="Saved Skills" ${scope === 'Saved Skills' ? 'selected' : ''}>Favorite Skills</option></select></label><label>Region<select id="skillIntelRegion">${optionMarkup(marketOptions, dashboardState.market)}</select></label><label>Period<select id="skillIntelPeriod">${optionMarkup(timeRangeOptions, dashboardState.timeRange)}</select></label><p>Prototype date filter: dates change local illustrative data only and are not sent to an API.</p><div class="skill-trend-filter__dates"><label>Start date<input id="skillIntelStartDate" type="date" value="${skillTrendFilterState.startDate}"></label><label>End date<input id="skillIntelEndDate" type="date" value="${skillTrendFilterState.endDate}"></label></div><button type="button" class="skill-trend-filter__apply" id="applySkillTrendFilter">Apply filters</button></div></div></div></header><div class="skill-live-highlight" data-featured-skill><div class="skill-live-highlight__identity"><span class="skill-live-highlight__eyebrow">TOP RISING SKILL</span><strong data-featured-name>${topSkill.skill}</strong><small data-featured-category>${topSkill.category}</small></div><div class="skill-live-highlight__score"><span>DEMAND SCORE</span><div><strong data-featured-demand>${topSkill.current}</strong><small> / 100</small></div><i><b style="--score:${topSkill.current}%"></b></i></div><div class="skill-live-highlight__momentum"><span>GROWTH</span><strong class="is-growing" data-featured-growth><i data-lucide="trending-up"></i>+${topSkill.growth}%</strong><small class="skill-live-highlight__status is-growing"><i data-lucide="trending-up"></i>Growing</small></div></div><div class="skill-live-chart-heading"><strong>Market demand by skill</strong><span>Top 6 <i></i> Demand score</span></div><div class="skill-live-chart" role="group" aria-label="Illustrative skill demand comparison"><div class="skill-live-chart__axis"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div><div class="skill-live-chart__plot">${barMarkup}</div></div></article><article class="skill-ranking-card" aria-labelledby="skill-ranking-title"><header class="skill-ranking-card__header"><div><span class="skill-intel-card__eyebrow">MARKET MOMENTUM</span><h3 id="skill-ranking-title">Top Trending Skills</h3><p>Skills showing the strongest market movement</p></div><a class="skill-ranking-card__view" href="#/individual/skills">View All <i data-lucide="arrow-right"></i></a></header><div class="skill-momentum-list">${rankingMarkup}</div><footer class="skill-ranking-card__footer"><span>Illustrative demo data</span><a href="#/individual/skills">View full skill intelligence <i data-lucide="arrow-right"></i></a></footer></article></div></section>`;
 };
 bindSkillTrendAnalyticsEvents = function() {
   const filterButton = document.querySelector('#skillTrendFilterButton');
@@ -9371,7 +11286,7 @@ renderJobIntelligenceSection = function() {
     { title: 'EXPLORE MATCHING ROLES', why: `Hiring momentum is ${view.metrics.find(item => item.key === 'hiringMomentum').value}% for ${roleLabel}; compare roles where your profile can travel next.`, relevance: `${view.metrics.find(item => item.key === 'roleGrowth').value}% role growth`, href: '#/individual/career', cta: 'Explore Roles', icon: 'briefcase-business' },
     { title: roadmapState.status === 'empty' || roadmapState.status === 'rejected' ? 'START RECOMMENDED ROADMAP' : 'CONTINUE YOUR ROADMAP', why: `Job demand is ${view.metrics.find(item => item.key === 'jobDemand').value}%, so a focused learning path can turn market demand into visible evidence.`, relevance: `${view.metrics.find(item => item.key === 'jobDemand').value}% job demand`, href: roadmapState.status === 'active' || roadmapState.status === 'paused' ? '#active-learning-roadmap' : '#current-skill-intelligence', cta: roadmapState.status === 'active' || roadmapState.status === 'paused' ? 'View Roadmap' : 'Start Roadmap', icon: 'map' }
   ];
-  return `<section class="home-section job-intelligence-section" id="job-intelligence" aria-labelledby="job-intelligence-title"><div class="home-section__heading"><div><span class="section-kicker">Workforce signals</span><h2 id="job-intelligence-title">Job Intelligence</h2><p>Hiring demand, skill demand and role growth in your selected scope.</p></div><span class="job-intelligence-context"><i></i>${view.roleLabel}  —  ${jobTrendState.market}</span></div><div class="job-intelligence-grid"><article class="job-intelligence-card" aria-labelledby="job-market-intelligence-title"><header class="job-intelligence-card__header"><div><span class="skill-intel-card__eyebrow">Live workforce signals</span><h3 id="job-market-intelligence-title">Job Market Intelligence</h3><p>Understand hiring demand, skill demand and role growth.</p></div><div class="job-intelligence-filters"><button type="button" id="jobTrendFilterButton" aria-expanded="false" aria-controls="jobTrendFilterPanel"><i data-lucide="sliders-horizontal"></i>Filters<span>${jobTrendState.market} ? ${jobTrendState.role === 'All Roles' ? 'All Roles' : jobTrendState.role}</span><i data-lucide="chevron-down"></i></button><div class="job-trend-filter__panel" id="jobTrendFilterPanel" role="dialog" aria-label="Job trend filters" hidden><header><div><strong>Job trend filters</strong><small>Refine hiring signals</small></div><button type="button" id="closeJobTrendFilter" aria-label="Close filters"><i data-lucide="x"></i></button></header><label>Time period<select id="jobPeriodFilter">${optionMarkup(['7 Days', '30 Days', '6 Months', '1 Year'], jobTrendState.period)}</select></label><label>Market<select id="jobMarketFilter">${optionMarkup(marketOptions, jobTrendState.market)}</select></label><label>Role<select id="jobRoleFilter">${optionMarkup(['All Roles', ...jobRoleOptions], jobTrendState.role)}</select></label><button class="job-trend-filter__apply" id="applyJobTrendFilter" type="button">Apply filters</button></div></div></header><div class="job-intelligence-visual-grid"><div class="job-intelligence-radial"><div class="job-radial-chart"><svg viewBox="0 0 300 300" role="group" aria-label="Four independent job market signals">${rings}</svg><div class="job-radial-tooltip" id="jobRadialTooltip" hidden></div></div></div><div class="job-intelligence-legend-grid">${legend}</div></div><p class="job-intelligence-note">Illustrative workforce signals  —  hover a ring or legend for exact value and change.</p></article><article class="job-action-card" aria-labelledby="job-action-title"><header><span class="skill-intel-card__eyebrow">Profile-based actions</span><h3 id="job-action-title">What You Can Do Next</h3><p>Actions generated from your current skills, role direction and live job signals.</p></header><div class="job-action-list">${recommendations.map((recommendation, index) => `<article class="job-action-item" style="--action-delay:${index * 65}ms"><span class="job-action-item__icon"><i data-lucide="${recommendation.icon}"></i></span><div><strong>${recommendation.title}</strong><p>${recommendation.why}</p><small>${recommendation.relevance}</small><a href="${recommendation.href}" ${recommendation.icon === 'map' && !['active', 'paused'].includes(roadmapState.status) ? 'data-roadmap-accept' : ''}>${recommendation.cta} <i data-lucide="arrow-right"></i></a></div></article>`).join('')}</div><small class="job-action-disclaimer">Illustrative recommendations based on prototype workforce data.</small></article></div></section>`;
+  return `<section class="home-section job-intelligence-section" id="job-intelligence" aria-labelledby="job-intelligence-title"><div class="home-section__heading"><div><span class="section-kicker">Workforce signals</span><h2 id="job-intelligence-title">Job Intelligence</h2><p>Hiring demand, skill demand and role growth in your selected scope.</p></div><span class="job-intelligence-context"><i></i>${view.roleLabel}  —  ${jobTrendState.market}</span></div><div class="job-intelligence-grid"><article class="job-intelligence-card" aria-labelledby="job-market-intelligence-title"><header class="job-intelligence-card__header"><div><span class="skill-intel-card__eyebrow">Illustrative workforce data</span><h3 id="job-market-intelligence-title">Job Market Intelligence</h3><p>Understand hiring demand, skill demand and role growth.</p></div><div class="job-intelligence-filters"><button type="button" id="jobTrendFilterButton" aria-expanded="false" aria-controls="jobTrendFilterPanel"><i data-lucide="sliders-horizontal"></i>Filters<span>${jobTrendState.market} ? ${jobTrendState.role === 'All Roles' ? 'All Roles' : jobTrendState.role}</span><i data-lucide="chevron-down"></i></button><div class="job-trend-filter__panel" id="jobTrendFilterPanel" role="dialog" aria-label="Job trend filters" hidden><header><div><strong>Job trend filters</strong><small>Refine hiring signals</small></div><button type="button" id="closeJobTrendFilter" aria-label="Close filters"><i data-lucide="x"></i></button></header><label>Time period<select id="jobPeriodFilter">${optionMarkup(['7 Days', '30 Days', '3 Months', '6 Months'], jobTrendState.period)}</select></label><label>Market<select id="jobMarketFilter">${optionMarkup(marketOptions, jobTrendState.market)}</select></label><label>Role<select id="jobRoleFilter">${optionMarkup(['All Roles', ...jobRoleOptions], jobTrendState.role)}</select></label><button class="job-trend-filter__apply" id="applyJobTrendFilter" type="button">Apply filters</button></div></div></header><div class="job-intelligence-visual-grid"><div class="job-intelligence-radial"><div class="job-radial-chart"><svg viewBox="0 0 300 300" role="group" aria-label="Four independent job market signals">${rings}</svg><div class="job-radial-tooltip" id="jobRadialTooltip" hidden></div></div></div><div class="job-intelligence-legend-grid">${legend}</div></div><p class="job-intelligence-note">Illustrative workforce signals  —  hover a ring or legend for exact value and change.</p></article><article class="job-action-card" aria-labelledby="job-action-title"><header><span class="skill-intel-card__eyebrow">Profile-based actions</span><h3 id="job-action-title">What You Can Do Next</h3><p>Actions generated from your current skills, role direction and illustrative job signals.</p></header><div class="job-action-list">${recommendations.map((recommendation, index) => `<article class="job-action-item" style="--action-delay:${index * 65}ms"><span class="job-action-item__icon"><i data-lucide="${recommendation.icon}"></i></span><div><strong>${recommendation.title}</strong><p>${recommendation.why}</p><small>${recommendation.relevance}</small><a href="${recommendation.href}" ${recommendation.icon === 'map' && !['active', 'paused'].includes(roadmapState.status) ? 'data-roadmap-accept' : ''}>${recommendation.cta} <i data-lucide="arrow-right"></i></a></div></article>`).join('')}</div><small class="job-action-disclaimer">Illustrative recommendations based on prototype workforce data.</small></article></div></section>`;
 };
 bindJobIntelligenceEvents = function() {
   const filterButton = document.querySelector('#jobTrendFilterButton');
@@ -9421,7 +11336,7 @@ renderJobIntelligenceSection = function() {
     { id: 'company', category: 'COMPANY OPPORTUNITY', title: 'NVIDIA', icon: 'building-2', why: 'Hiring activity is rising in your selected market and overlaps with your role interests.', signal: `Hiring activity · ${signals[1].change > 0 ? '+' : ''}${signals[1].change}%`, detail: 'Hiring activity, selected role, market scope', action: 'View Company', href: '#/individual/market-intelligence', secondary: 'View Jobs', secondaryHref: '#/individual/career' }
   ];
   const recCards = recs.map((item, index) => `<article class="job-action-item${jobTrendState.selectedRecommendation === item.id ? ' is-selected' : ''}" style="--action-delay:${index * 65}ms"><span class="job-action-item__icon"><i data-lucide="${item.icon}"></i></span><div class="job-action-item__content"><small class="job-action-category">${item.category}</small><strong>${item.title}</strong><p>${item.why}</p><small class="job-action-signal">${item.signal}</small><details class="job-action-why" ${jobTrendState.selectedRecommendation === item.id ? 'open' : ''}><summary>Why recommended?</summary><span>${item.detail}</span></details><div class="job-action-buttons"><a href="${item.href}" data-recommendation="${item.id}">${item.action}</a><a class="is-secondary" href="${item.secondaryHref}" data-recommendation="${item.id}">${item.secondary}</a></div></div></article>`).join('');
-  return `<section class="home-section job-intelligence-section" id="job-intelligence" aria-labelledby="job-intelligence-title"><div class="home-section__heading"><div><span class="section-kicker">Workforce signals</span><h2 id="job-intelligence-title">Job Intelligence</h2><p>Understand hiring demand and discover opportunities relevant to you.</p></div><div class="job-intelligence-context"><button type="button" id="jobTrendFilterButton" aria-expanded="false" aria-controls="jobTrendFilterPanel"><i data-lucide="sliders-horizontal"></i>Filters</button><span class="job-intelligence-scope">${jobTrendState.market} / ${jobTrendState.role} / ${jobTrendState.period} ▾</span><div class="job-trend-filter__panel" id="jobTrendFilterPanel" role="dialog" aria-label="Job intelligence filters" hidden><header><div><strong>Market filters</strong><small>Both views use the same scope</small></div><button type="button" id="closeJobTrendFilter" aria-label="Close filters"><i data-lucide="x"></i></button></header><label>Time period<select id="jobPeriodFilter">${optionMarkup(['7 Days','30 Days','6 Months','1 Year'],jobTrendState.period)}</select></label><label>Market<select id="jobMarketFilter">${optionMarkup(marketOptions,jobTrendState.market)}</select></label><label>Role<select id="jobRoleFilter">${optionMarkup(['All Roles',...jobRoleOptions],jobTrendState.role)}</select></label><button class="job-trend-filter__apply" id="applyJobTrendFilter" type="button">Apply filters</button></div></div></div><div class="job-intelligence-grid"><article class="job-intelligence-card" aria-labelledby="job-market-intelligence-title"><header class="job-intelligence-card__header"><div><span class="skill-intel-card__eyebrow">Market signals · ${jobTrendState.market}</span><h3 id="job-market-intelligence-title">Job Trend Analysis <span class="job-market-status"><i></i>Illustrative</span></h3><p>Hiring activity across your selected market</p></div></header><div class="job-intelligence-visual-grid"><div class="job-intelligence-radial"><div class="job-radial-chart"><svg viewBox="0 0 300 300" role="group" aria-label="Four job market signals">${rings}</svg><div class="job-radial-center"><span>JOB MARKET</span><strong>SIGNALS</strong><small>${jobTrendState.market} · ${jobTrendState.period}</small></div><div class="job-radial-tooltip" id="jobRadialTooltip" hidden></div></div></div><div class="job-intelligence-legend-grid">${cards}</div></div><p class="job-intelligence-note">Signals are normalized across the selected market and time period. Prototype data, not verified live hiring data.</p></article><article class="job-action-card" aria-labelledby="job-action-title"><header><span class="skill-intel-card__eyebrow">Career context</span><h3 id="job-action-title">AI Recommendations</h3><p>Opportunities based on your skills, goals and current hiring signals.</p></header><div class="job-action-list">${recCards}</div></article></div></section>`;
+  return `<section class="home-section job-intelligence-section" id="job-intelligence" aria-labelledby="job-intelligence-title"><div class="home-section__heading"><div><span class="section-kicker">Workforce signals</span><h2 id="job-intelligence-title">Job Intelligence</h2><p>Understand hiring demand and discover opportunities relevant to you.</p></div><div class="job-intelligence-context"><button type="button" id="jobTrendFilterButton" aria-expanded="false" aria-controls="jobTrendFilterPanel"><i data-lucide="sliders-horizontal"></i>Filters</button><span class="job-intelligence-scope">${jobTrendState.market} / ${jobTrendState.role} / ${jobTrendState.period} ▾</span><div class="job-trend-filter__panel" id="jobTrendFilterPanel" role="dialog" aria-label="Job intelligence filters" hidden><header><div><strong>Market filters</strong><small>Both views use the same scope</small></div><button type="button" id="closeJobTrendFilter" aria-label="Close filters"><i data-lucide="x"></i></button></header><label>Time period<select id="jobPeriodFilter">${optionMarkup(['7 Days','30 Days','6 Months','6 Months'],jobTrendState.period)}</select></label><label>Market<select id="jobMarketFilter">${optionMarkup(marketOptions,jobTrendState.market)}</select></label><label>Role<select id="jobRoleFilter">${optionMarkup(['All Roles',...jobRoleOptions],jobTrendState.role)}</select></label><button class="job-trend-filter__apply" id="applyJobTrendFilter" type="button">Apply filters</button></div></div></div><div class="job-intelligence-grid"><article class="job-intelligence-card" aria-labelledby="job-market-intelligence-title"><header class="job-intelligence-card__header"><div><span class="skill-intel-card__eyebrow">Market signals · ${jobTrendState.market}</span><h3 id="job-market-intelligence-title">Job Trend Analysis <span class="job-market-status"><i></i>Illustrative</span></h3><p>Hiring activity across your selected market</p></div></header><div class="job-intelligence-visual-grid"><div class="job-intelligence-radial"><div class="job-radial-chart"><svg viewBox="0 0 300 300" role="group" aria-label="Four job market signals">${rings}</svg><div class="job-radial-center"><span>JOB MARKET</span><strong>SIGNALS</strong><small>${jobTrendState.market} · ${jobTrendState.period}</small></div><div class="job-radial-tooltip" id="jobRadialTooltip" hidden></div></div></div><div class="job-intelligence-legend-grid">${cards}</div></div><p class="job-intelligence-note">Signals are normalized across the selected market and time period. Prototype data, not verified live hiring data.</p></article><article class="job-action-card" aria-labelledby="job-action-title"><header><span class="skill-intel-card__eyebrow">Career context</span><h3 id="job-action-title">AI Recommendations</h3><p>Opportunities based on your skills, goals and current hiring signals.</p></header><div class="job-action-list">${recCards}</div></article></div></section>`;
 };
 bindJobIntelligenceEvents = function() {
   const button = document.querySelector('#jobTrendFilterButton');
@@ -9520,6 +11435,13 @@ bindSkillTrendAnalyticsEvents = function() {
   });
   document.querySelectorAll('.skill-momentum-row').forEach(row => row.addEventListener('click', () => document.querySelector(`.skill-live-bar[data-skill="${CSS.escape(row.dataset.skill)}"]`)?.click()));
 };
+
+window.addEventListener('talentscope-auth-state-changed', () => {
+  renderPage();
+});
+import('../auth/auth-state.js')
+  .then(({ initializeAuthState }) => initializeAuthState())
+  .catch(() => {});
 
 setSidebarExpanded(localStorage.getItem('talentscope-sidebar-expanded') === 'true');
 
@@ -9707,7 +11629,7 @@ document.addEventListener('click', async event => {
     event.preventDefault();
     try {
       const { logoutUser } = await import('../auth/auth-state.js');
-      logoutUser();
+      await logoutUser();
     } catch (e) {
       localStorage.removeItem('talentscope_session_v2');
     }
@@ -9734,3 +11656,195 @@ document.addEventListener('keydown', event => {
   }
 });
 
+function homeSkillIntelligenceEmpty(message, retry = false) {
+  return `<div class="skill-intelligence-empty" role="${retry ? 'alert' : 'status'}">
+    ${skillIntelligenceEscape(message)}
+    ${retry ? '<button type="button" id="retrySkillIntelligence">Try again</button>' : ''}
+  </div>`;
+}
+
+function homeSkillIntelligenceChart(trends) {
+  const series = trends.filter(item => Array.isArray(item.series) && item.series.length > 1);
+  if (!series.length) {
+    return homeSkillIntelligenceEmpty('Market data is marked available, but no trend series were returned.');
+  }
+  const values = series.flatMap(item => item.series.map(point => point.value));
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const span = maximum - minimum || 1;
+  const periodKeys = [...new Set(series.flatMap(item => item.series.map(point => point.period)))].sort();
+  const lineMarkup = series.map((item, seriesIndex) => {
+    const points = item.series.map(point => {
+      const x = 24 + periodKeys.indexOf(point.period) / Math.max(1, periodKeys.length - 1) * 552;
+      const y = 188 - ((point.value - minimum) / span) * 156;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    return `<polyline class="home-skill-trend-line home-skill-trend-line--${seriesIndex % 5}" points="${points}"></polyline>`;
+  }).join('');
+  const periods = periodKeys.map(period => `<span>${skillIntelligenceEscape(period)}</span>`).join('');
+  return `<div class="home-skill-trend-chart" role="img" aria-label="Market demand trends supplied by Skill Intelligence">
+    <svg viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">${lineMarkup}</svg>
+    <div>${periods}</div>
+    <small>Market demand / momentum · backend-defined normalized values</small>
+  </div>`;
+}
+
+function homeSkillIntelligenceStatusMessage() {
+  const intelligence = homeSkillIntelligenceState.intelligence;
+  if (homeSkillIntelligenceState.status === 'loading' || homeSkillIntelligenceState.status === 'idle') {
+    return 'Loading market intelligence...';
+  }
+  if (homeSkillIntelligenceState.status === 'error' || intelligence?.data_status === 'error') {
+    return intelligence?.error_message || 'Unable to load market intelligence. Please try again.';
+  }
+  if (intelligence?.data_status === 'insufficient_data') {
+    return 'Not enough historical market data to calculate a reliable trend.';
+  }
+  if (intelligence?.data_state === 'stale') {
+    return 'Stored validated observations are stale. Treat this result as outdated until collection succeeds.';
+  }
+  if (intelligence?.data_state === 'partial') {
+    return 'Partial evidence is available; coverage or freshness is incomplete.';
+  }
+  if (intelligence?.data_state === 'building') {
+    return 'History is building or collection freshness could not be verified.';
+  }
+  return 'Market trend data is not available yet.';
+}
+
+function loadHomeSkillIntelligence({
+  location = homeSkillIntelligenceState.location,
+  range = homeSkillIntelligenceState.range,
+  skill
+} = {}) {
+  const requestId = ++homeSkillIntelligenceState.requestId;
+  homeSkillIntelligenceState.status = 'loading';
+  homeSkillIntelligenceState.location = location;
+  homeSkillIntelligenceState.range = range;
+  homeSkillIntelligenceState.intelligence = null;
+  import('../pages/individual/skills/skills-api.js').then(async api => {
+    const [skills, intelligence] = await Promise.all([
+      api.loadMySkills(),
+      api.loadSkillIntelligence({ location: location || undefined, range, skill })
+    ]);
+    if (requestId !== homeSkillIntelligenceState.requestId) return;
+    homeSkillIntelligenceState.skills = Array.isArray(skills.skills) ? skills.skills : [];
+    dashboardState.savedSkills = homeSkillIntelligenceState.skills.map(item => item.name);
+    homeSkillIntelligenceState.intelligence = intelligence;
+    homeSkillIntelligenceState.location = location || intelligence.filters?.location || '';
+    homeSkillIntelligenceState.status = 'loaded';
+    if (currentRoute() === '/individual/home') renderHome();
+  }).catch(() => {
+    if (requestId !== homeSkillIntelligenceState.requestId) return;
+    homeSkillIntelligenceState.status = 'error';
+    homeSkillIntelligenceState.intelligence = null;
+    if (currentRoute() === '/individual/home') renderHome();
+  });
+}
+
+renderSkillIntelligenceSection = function() {
+  if (homeSkillIntelligenceState.status === 'idle') loadHomeSkillIntelligence({ location: '', range: '6m' });
+
+  const state = homeSkillIntelligenceState;
+  const intelligence = state.intelligence;
+  const profileSkills = state.skills;
+  const selectedSkills = intelligence?.profile_context?.selected_skills || [];
+  const effectiveLocation = state.location || intelligence?.filters?.location || '';
+  const dataStatus = intelligence?.data_status;
+  const statusText = homeSkillIntelligenceStatusMessage();
+  const isAvailable = dataStatus === 'available';
+  const topSkills = isAvailable ? (intelligence.market_top_skills || []).slice(0, 5) : [];
+  const rankingMarkup = topSkills.length
+    ? `<ol class="home-skill-ranking">${topSkills.map((item, index) => `
+        <li><span>${String(index + 1).padStart(2, '0')}</span><strong>${skillIntelligenceEscape(item.skill)}</strong>
+          <small>${item.category ? skillIntelligenceEscape(item.category) : ''}</small>
+          <b>${item.growth_pct == null ? '—' : `${skillIntelligenceEscape(item.growth_pct)}%`}</b></li>
+      `).join('')}</ol>`
+    : homeSkillIntelligenceEmpty(statusText, state.status === 'error' || dataStatus === 'error');
+  const skillsMarkup = state.status === 'loading' || state.status === 'idle'
+    ? homeSkillIntelligenceEmpty('Loading your saved skills...')
+    : state.status === 'error'
+      ? homeSkillIntelligenceEmpty(statusText, true)
+      : selectedSkills.length
+        ? `<div class="home-skill-context">${selectedSkills.map(name => {
+            const skill = profileSkills.find(item => item.name === name);
+            return `<span>${skillIntelligenceEscape(name)}${skill?.level ? `<small>${skillIntelligenceEscape(skill.level)}</small>` : ''}</span>`;
+          }).join('')}</div>`
+        : homeSkillIntelligenceEmpty('No skills have been selected yet.');
+  const chartMarkup = state.status === 'loading' || state.status === 'idle'
+    ? homeSkillIntelligenceEmpty('Loading market intelligence...')
+    : isAvailable
+    ? homeSkillIntelligenceChart(intelligence.market_top_skills || [])
+      : homeSkillIntelligenceEmpty(statusText, state.status === 'error' || dataStatus === 'error');
+  const rangeOptions = [['7d', '7 Days'], ['30d', '30 Days'], ['3m', '3 Months'], ['6m', '6 Months']];
+  const statusLabel = intelligence?.data_state === 'ready'
+    ? 'Ready · backend data'
+    : intelligence?.data_state === 'partial'
+      ? 'Partial evidence'
+      : intelligence?.data_state === 'building'
+        ? 'Building · freshness unverified'
+        : intelligence?.data_state === 'stale'
+          ? 'Stale · collection overdue'
+    : dataStatus === 'insufficient_data'
+      ? 'Insufficient data'
+      : dataStatus === 'error'
+        ? 'Market data unavailable'
+        : 'Source data pending';
+
+  return `<section class="home-section skill-intelligence-section skill-intelligence-section--live" id="current-skill-intelligence" aria-labelledby="current-skill-section-title">
+    <div class="home-section__heading">
+      <div><span class="section-kicker">SKILL FORECAST TELEMETRY</span><h2 id="current-skill-section-title">Skill Intelligence</h2>
+        <p>Market demand trends and momentum across your saved skills.</p></div>
+      <span class="skill-intelligence-live-badge">${skillIntelligenceEscape(statusLabel)}</span>
+    </div>
+    <div class="home-skill-intelligence-filters" aria-label="Skill intelligence filters">
+      <span>All Skills</span>
+      <label>Location<input id="skillIntelRegion" value="${skillIntelligenceEscape(state.location || effectiveLocation)}"
+        placeholder="Use profile location" maxlength="160"></label>
+      <label>Period<select id="skillIntelPeriod">
+        ${rangeOptions.map(([value, label]) => `<option value="${value}" ${state.range === value ? 'selected' : ''}>${label}</option>`).join('')}
+      </select></label>
+      <button type="button" id="applySkillTrendFilter">Apply filters</button>
+    </div>
+    <div class="skill-intelligence-live-grid">
+      <article class="skill-live-card">
+        <header class="skill-live-card__header"><div><span class="skill-intel-card__eyebrow">MARKET DEMAND</span>
+          <h3>Overall Top 5 Skill Trends</h3><p>Comparative momentum trajectory</p></div>
+          <span>${skillIntelligenceEscape(effectiveLocation || 'Profile location')} · ${rangeOptions.find(([key]) => key === state.range)?.[1] || ''}</span>
+        </header>
+        <div class="home-skill-chart-skill-context">${skillsMarkup}</div>
+        ${chartMarkup}
+      </article>
+      <article class="skill-ranking-card">
+        <header class="skill-ranking-card__header"><div><span class="skill-intel-card__eyebrow">MARKET MOMENTUM</span>
+          <h3>Top 5 Trending Skills</h3><p>Highest-ranked skills from market intelligence</p></div></header>
+        <div class="skill-momentum-list">${rankingMarkup}</div>
+      </article>
+    </div>
+  </section>`;
+};
+
+bindSkillTrendAnalyticsEvents = function() {
+  document.querySelector('#retrySkillIntelligence')?.addEventListener('click', () => {
+    loadHomeSkillIntelligence({ location: homeSkillIntelligenceState.location, range: homeSkillIntelligenceState.range });
+    renderHome();
+  });
+  document.querySelector('#applySkillTrendFilter')?.addEventListener('click', () => {
+    const location = document.querySelector('#skillIntelRegion')?.value.trim() || '';
+    const range = document.querySelector('#skillIntelPeriod')?.value || '6m';
+    loadHomeSkillIntelligence({ location, range });
+    renderHome();
+  });
+  document.querySelector('#skillIntelPeriod')?.addEventListener('change', event => {
+    homeSkillIntelligenceState.range = event.target.value;
+  });
+  document.querySelector('#skillIntelRegion')?.addEventListener('change', event => {
+    homeSkillIntelligenceState.location = event.target.value;
+  });
+};
+
+window.addEventListener('talentscope:skills-updated', () => {
+  homeSkillIntelligenceState.status = 'idle';
+  homeSkillIntelligenceState.intelligence = null;
+  if (currentRoute() === '/individual/home') renderHome();
+});

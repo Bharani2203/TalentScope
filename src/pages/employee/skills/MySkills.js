@@ -9,10 +9,15 @@ import {
   isCompanyEmployee
 } from '../../../data/employee/employee-data.js';
 import { openEmployeeModal } from '../components/EmployeeModal.js';
+import { querySkillIntelligence } from '../../../api/core-intelligence-client.js';
 
 let selectedSkillId = 'sk-cuda';
 let activeCategory = 'All';
 let activeStatus = 'All';
+let liveIntelligence = null;
+let intelligenceLoading = false;
+let intelligenceError = null;
+let lastQueriedSkill = null;
 
 const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -58,6 +63,16 @@ export function renderEmployeeMySkills() {
   }
 
   const selectedSkill = allSkills.find(s => s.id === selectedSkillId) || allSkills[0];
+  const matchingTrend = liveIntelligence?.trends?.find(t => 
+    (t.skill_name && t.skill_name.toLowerCase() === selectedSkill.name.toLowerCase()) ||
+    (t.skill_id && t.skill_id.toLowerCase() === selectedSkill.name.toLowerCase().replace(/[^a-z0-9]/g, '_'))
+  ) || (liveIntelligence?.trends?.length === 1 ? liveIntelligence.trends[0] : null);
+
+  const empAction = liveIntelligence?.action_recommendations?.find(a =>
+    a.target_id?.toLowerCase() === selectedSkill.name.toLowerCase() ||
+    a.target_id?.toLowerCase() === selectedSkill.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
+  ) || liveIntelligence?.action_recommendations?.[0]
+    || liveIntelligence?.raw?.action_recommendations?.[0];
 
   return `
     <div class="employee-page">
@@ -213,34 +228,97 @@ export function renderEmployeeMySkills() {
             </div>
             <div style="background: var(--emp-soft); border: 1px solid var(--emp-border-subtle); border-radius: 12px; padding: 12px;">
               <span style="font-size: 11px; font-weight: 750; color: var(--emp-text-muted); text-transform: uppercase;">Momentum</span>
-              <div style="font-size: 16px; font-weight: 800; color: var(--emp-success); margin-top: 4px;">
-                ${esc(selectedSkill.momentum)}
+              <div style="font-size: 15px; font-weight: 800; color: ${matchingTrend && !matchingTrend.is_trend_ready ? 'var(--emp-text-muted)' : 'var(--emp-success)'}; margin-top: 4px;">
+                ${matchingTrend
+                  ? (matchingTrend.is_trend_ready ? esc(matchingTrend.trend_label) : 'Insufficient Data')
+                  : esc(selectedSkill.momentum)}
               </div>
+              ${matchingTrend?.signal_badge ? `<div style="font-size: 10px; color: var(--emp-text-muted); margin-top: 2px;">${esc(matchingTrend.signal_badge)}</div>` : ''}
             </div>
           </div>
 
           <!-- Trend Chart -->
           <div style="background: #FFFFFF; border: 1px solid var(--emp-border); border-radius: 12px; padding: 14px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-              <span style="font-size: 11.5px; font-weight: 750; color: var(--emp-text-muted); text-transform: uppercase;">6-Month Momentum Trend</span>
-              <span style="font-size: 12px; font-weight: 700; color: var(--emp-success);">${esc(selectedSkill.momentum)}</span>
+              <span style="font-size: 11.5px; font-weight: 750; color: var(--emp-text-muted); text-transform: uppercase;">Momentum Trend</span>
+              <span style="font-size: 12px; font-weight: 700; color: ${matchingTrend && matchingTrend.is_trend_ready ? 'var(--emp-success)' : 'var(--emp-text-muted)'};">
+                ${matchingTrend ? (matchingTrend.is_trend_ready ? esc(matchingTrend.trend_label) : 'Insufficient Data') : esc(selectedSkill.momentum)}
+              </span>
             </div>
-            ${sparklineSVG(selectedSkill.trend, selectedSkill.status === 'Gap')}
+            ${matchingTrend && matchingTrend.is_trend_ready && matchingTrend.historical_series?.length > 1
+              ? sparklineSVG(matchingTrend.historical_series.map(pt => pt.value || 0), false)
+              : matchingTrend
+                ? `<div style="padding: 10px; background: var(--emp-soft); border-radius: 8px; font-size: 11.5px; color: var(--emp-text-secondary); line-height: 1.4;">
+                     <strong>Single Observed Period (${matchingTrend.consecutive_periods || 1} period)</strong><br>
+                     Multi-period trend requires consecutive historical periods. Forecast ready: <code>false</code>.
+                   </div>`
+                : sparklineSVG(selectedSkill.trend, selectedSkill.status === 'Gap')
+            }
           </div>
 
           <!-- Evidence & Alignment -->
           <div style="background: var(--emp-soft); border-radius: 12px; padding: 14px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--emp-border-subtle);">
-            <div style="font-weight: 750; color: var(--emp-primary); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-              <i data-lucide="shield-check"></i>
-              Target Requirement Alignment
+            <div style="font-weight: 750; color: var(--emp-primary); margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between;">
+              <span style="display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="shield-check"></i>
+                Target Requirement Alignment
+              </span>
+              ${liveIntelligence?.raw?.answer?.contextual_focus ? `
+                <span class="emp-badge emp-badge-primary" style="font-size: 10px;">${esc(liveIntelligence.raw.answer.contextual_focus)}</span>
+              ` : ''}
             </div>
             <div style="color: var(--emp-text-secondary);">
               ${esc(selectedSkill.roleRequirement)} · ${esc(selectedSkill.gap)}
             </div>
+            ${liveIntelligence?.raw?.answer ? `
+              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--emp-border-subtle);">
+                <div style="font-weight: 750; color: var(--emp-text-primary); font-size: 12.5px; margin-bottom: 2px;">
+                  ${esc(liveIntelligence.raw.answer.headline)}
+                </div>
+                <div style="color: var(--emp-text-secondary); font-size: 12px; line-height: 1.4;">
+                  ${esc(liveIntelligence.raw.answer.summary)}
+                </div>
+                ${liveIntelligence.raw.answer.key_insights?.length ? `
+                  <ul style="margin: 4px 0 0 16px; padding: 0; font-size: 11px; color: var(--emp-text-muted);">
+                    ${liveIntelligence.raw.answer.key_insights.map(ki => `<li>${esc(ki)}</li>`).join('')}
+                  </ul>
+                ` : ''}
+                ${liveIntelligence.raw.answer.limitations?.length ? `
+                  <div style="font-size: 10.5px; color: var(--emp-text-muted); margin-top: 4px;">
+                    <strong>Limitations:</strong> ${liveIntelligence.raw.answer.limitations.map(l => esc(l)).join(' ')}
+                  </div>
+                ` : ''}
+              </div>
+            ` : ''}
             <div style="font-size: 11px; color: var(--emp-text-muted); margin-top: 6px;">
-              Evidence: <strong>${esc(selectedSkill.evidenceBadge || selectedSkill.verifiedDate)}</strong>
+              Evidence: <strong>${liveIntelligence?.raw?.calculation_record_id ? `Core Intelligence (#${liveIntelligence.raw.calculation_record_id.slice(-8)})` : esc(selectedSkill.evidenceBadge || selectedSkill.verifiedDate)}</strong>
+              ${liveIntelligence?.sources_used?.length ? ` · Sources: ${liveIntelligence.sources_used.join(', ')}` : ''}
             </div>
           </div>
+
+          <!-- G2.5 Recommended Action Block -->
+          ${empAction ? `
+            <div style="background: #FFFFFF; border: 1px solid var(--emp-border); border-left: 4px solid var(--emp-primary); border-radius: 12px; padding: 14px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <span style="font-size: 11px; font-weight: 800; color: var(--emp-primary); text-transform: uppercase;">04 — RECOMMENDED NEXT ACTION</span>
+                <span class="emp-badge ${empAction.priority === 'high' ? 'emp-badge-warning' : 'emp-badge-primary'}" style="font-size: 10px; font-weight: 700;">Priority: ${esc(empAction.priority)}</span>
+              </div>
+              <div style="font-size: 13.5px; font-weight: 750; color: var(--emp-text-primary); margin-bottom: 4px;">
+                ${esc(empAction.title)}
+              </div>
+              <p style="font-size: 12px; color: var(--emp-text-secondary); line-height: 1.45; margin: 0 0 8px 0;">
+                ${esc(empAction.recommended_action)}
+              </p>
+              <div style="font-size: 11.5px; color: var(--emp-text-muted); line-height: 1.4; background: var(--emp-soft); padding: 8px 10px; border-radius: 6px; margin-bottom: 8px;">
+                <strong>Why this action:</strong> ${esc(empAction.why_it_matters)}
+              </div>
+              ${empAction.limitations?.length ? `
+                <div style="font-size: 10.5px; color: var(--emp-text-muted);">
+                  <strong>Limitation:</strong> ${esc(empAction.limitations[0])}
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
 
           <!-- Action Box: Dual Path (If Gap: Learn & Assess. If Strong: Contribute & Mentor) -->
           <div style="border-top: 1px solid var(--emp-border-subtle); padding-top: 14px; display: flex; flex-direction: column; gap: 10px;">
@@ -283,14 +361,63 @@ export function renderEmployeeMySkills() {
   `;
 }
 
+let employeeSkillRequestVersion = 0;
+
+export async function loadEmployeeSkillIntelligence(rerender) {
+  const currentVersion = ++employeeSkillRequestVersion;
+  const p = getEmployeeProfile();
+  const isCompany = isCompanyEmployee();
+  const selectedSkill = employeeSkillsData.find(s => s.id === selectedSkillId) || employeeSkillsData[0];
+  const querySkill = selectedSkill ? selectedSkill.name : 'Python';
+
+  if (lastQueriedSkill === querySkill && liveIntelligence) {
+    return;
+  }
+
+  intelligenceLoading = true;
+  intelligenceError = null;
+  lastQueriedSkill = querySkill;
+
+  try {
+    const res = await querySkillIntelligence({
+      portal_type: 'employee',
+      user_id: p.id,
+      company_id: isCompany ? (p.companyInitials || p.company) : null,
+      company_name: isCompany ? p.company : null,
+      current_role: p.role,
+      target_role: p.targetRole,
+      is_connected: isCompany,
+      skills: [querySkill],
+      range: '6m'
+    });
+    if (currentVersion !== employeeSkillRequestVersion) return;
+    liveIntelligence = res;
+    intelligenceLoading = false;
+    if (typeof rerender === 'function') rerender();
+  } catch (err) {
+    if (currentVersion !== employeeSkillRequestVersion) return;
+    console.warn('[Employee MySkills] Failed to fetch skill intelligence:', err);
+    intelligenceLoading = false;
+    intelligenceError = err.message || 'Failed to fetch skill intelligence';
+    if (typeof rerender === 'function') rerender();
+  }
+}
+
 export function bindEmployeeSkillsEvents(rerender) {
   // Row selection
   document.querySelectorAll('[data-select-skill]').forEach(row => {
     row.addEventListener('click', () => {
       selectedSkillId = row.dataset.selectSkill;
+      lastQueriedSkill = null;
       rerender();
+      loadEmployeeSkillIntelligence(rerender);
     });
   });
+
+  // Initial intelligence fetch
+  if (!liveIntelligence && !intelligenceLoading) {
+    loadEmployeeSkillIntelligence(rerender);
+  }
 
   // Category filters
   document.querySelectorAll('[data-category-filter]').forEach(btn => {

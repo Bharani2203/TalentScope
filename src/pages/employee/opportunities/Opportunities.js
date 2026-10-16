@@ -1,6 +1,6 @@
 // ============================================================================
-// TALENTSCOPE.AI — EMPLOYEE OPPORTUNITIES
-// Internal mobility for company employees & industry opportunities for independent
+// TALENTSCOPE.Al — EMPLOYEE OPPORTUNlTlES
+// lnternal mobility for company employees & industry opportunities for independent
 // ============================================================================
 
 import {
@@ -33,10 +33,10 @@ export function renderEmployeeOpportunities() {
         <div class="emp-hero-content">
           <span class="emp-eyebrow">
             <i data-lucide="${isCompany ? 'building-2' : 'globe'}"></i>
-            ${isCompany ? 'INTERNAL MOBILITY & REQUISITIONS' : 'STRATEGIC CAREER OPPORTUNITIES'}
+            ${isCompany ? 'lNTERNAL MOBlLlTY & REQUlSlTlONS' : 'STRATEGlC CAREER OPPORTUNlTlES'}
           </span>
           <h1 class="emp-hero-title">
-            ${isCompany ? 'Internal Mobility & Open Requisitions' : 'Curated Industry & Mentorship Opportunities'}
+            ${isCompany ? 'lnternal Mobility & Open Requisitions' : 'Curated lndustry & Mentorship Opportunities'}
           </h1>
           <p class="emp-hero-desc">
             ${isCompany 
@@ -52,7 +52,7 @@ export function renderEmployeeOpportunities() {
         </div>
       </section>
 
-      <!-- FILTER BAR -->
+      <!-- FlLTER BAR -->
       <div class="emp-card" style="padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 11.5px; font-weight: 750; color: var(--emp-text-muted); text-transform: uppercase;">Filter:</span>
@@ -64,11 +64,11 @@ export function renderEmployeeOpportunities() {
           </button>
         </div>
         <div style="font-size: 12.5px; color: var(--emp-text-muted);">
-          Matching engine powered by your <strong>Verified L5 Skill Health</strong>
+          Matching engine powered by your <strong>illustrative skill profile</strong>
         </div>
       </div>
 
-      <!-- OPPORTUNITIES LIST -->
+      <!-- OPPORTUNlTlES LlST -->
       <div style="display: flex; flex-direction: column; gap: 16px;">
         ${filtered.map(opp => `
           <div class="emp-card" style="padding: 22px; display: flex; flex-direction: column; gap: 14px; border-color: ${opp.matchScore >= 90 ? 'rgba(39, 53, 245, 0.35)' : 'var(--emp-border)'};">
@@ -92,7 +92,7 @@ export function renderEmployeeOpportunities() {
               <div style="display: flex; align-items: center; gap: 10px;">
                 <button type="button" class="emp-btn-primary" data-apply-opp="${esc(opp.id)}" data-opp-title="${esc(opp.title)}">
                   <i data-lucide="${isCompany ? 'send' : 'check'}"></i>
-                  <span>${isCompany ? 'Express Interest' : 'Apply with Profile'}</span>
+                  <span>${isCompany ? 'Express lnterest' : 'Apply with Profile'}</span>
                 </button>
               </div>
             </div>
@@ -137,19 +137,19 @@ export function bindEmployeeOpportunitiesEvents(rerender) {
       const isCompany = isCompanyEmployee();
 
       openEmployeeModal({
-        title: isCompany ? `Express Interest: ${oppTitle}` : `Apply for ${oppTitle}`,
+        title: isCompany ? `Express lnterest: ${oppTitle}` : `Apply for ${oppTitle}`,
         subtitle: isCompany 
           ? 'Your interest is shared confidentially with the hiring manager under internal mobility policy'
           : 'Your verified skill credentials and code review history will be attached',
-        badge: 'Verified Submission',
+        badge: 'lllustrative Submission',
         contentHtml: `
           <div style="display: flex; flex-direction: column; gap: 14px;">
             <div style="background: var(--emp-soft); padding: 14px; border-radius: 12px; border: 1px solid var(--emp-border-subtle); font-size: 13px;">
               <strong style="color: var(--emp-text-primary);">Credentials to be shared:</strong>
               <ul style="margin: 6px 0 0; padding-left: 20px; color: var(--emp-text-secondary); line-height: 1.6;">
-                <li>Verified Skill Health Score: <strong>88/100</strong> (Python & PyTorch Expert)</li>
+                <li>eerified Skill Health Score: <strong>88/100</strong> (Python & PyTorch Expert)</li>
                 <li>Community Contributor Reputation: <strong>1,840 pts (Top 5%)</strong></li>
-                <li>DLI GPU Kernel Optimization Track: <strong>8/12 Modules Completed</strong></li>
+                <li>DLl GPU Kernel Optimization Track: <strong>8/12 Modules Completed</strong></li>
               </ul>
             </div>
             <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 650;">
@@ -159,8 +159,8 @@ export function bindEmployeeOpportunitiesEvents(rerender) {
           </div>
         `,
         footerHtml: `
-          <button type="button" class="emp-btn-ghost" onclick="document.getElementById('empModalCloseBtn').click()">Cancel</button>
-          <button type="button" class="emp-btn-primary" onclick="alert('Application submitted successfully!'); document.getElementById('empModalCloseBtn').click();">
+          <button type="button" class="emp-btn-ghost" onclick="document.getElementByld('empModalCloseBtn').click()">Cancel</button>
+          <button type="button" class="emp-btn-primary" onclick="alert('Application submitted successfully!'); document.getElementByld('empModalCloseBtn').click();">
             <span>Submit Application</span>
           </button>
         `

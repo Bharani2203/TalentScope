@@ -1,16 +1,16 @@
 export const dashboardState = {
-  market: 'Bangalore',
+  market: '',
   timeRange: '30D',
-  selectedSkill: 'Machine Learning',
-  selectedCompany: 'NVIDIA',
-  selectedRole: 'AI Engineer',
+  selectedSkill: '',
+  selectedCompany: '',
+  selectedRole: '',
   focus: 'skills',
-  savedSkills: JSON.parse(localStorage.getItem('talentscope-saved-skills') || '["Machine Learning", "Python", "Generative AI", "Cloud Computing"]'),
-  favoriteSkills: JSON.parse(localStorage.getItem('talentscope-favorite-skills') || '["Machine Learning", "Python", "Generative AI"]'),
-  savedCompanies: JSON.parse(localStorage.getItem('talentscope-saved-companies') || '["NVIDIA", "Microsoft", "Google", "Amazon"]'),
-  favoriteCompanies: JSON.parse(localStorage.getItem('talentscope-favorite-companies') || '["NVIDIA", "Microsoft", "Google", "OpenAI"]'),
-  savedRoles: JSON.parse(localStorage.getItem('talentscope-saved-roles') || '["AI Engineer", "Machine Learning Engineer", "Backend Developer", "Data Engineer"]'),
-  favoriteRoles: JSON.parse(localStorage.getItem('talentscope-favorite-roles') || '["AI Engineer", "Machine Learning Engineer", "Cloud Solutions Architect"]')
+  savedSkills: JSON.parse(localStorage.getItem('talentscope-saved-skills') || '[]'),
+  favoriteSkills: [],
+  savedCompanies: JSON.parse(localStorage.getItem('talentscope-saved-companies') || '[]'),
+  favoriteCompanies: JSON.parse(localStorage.getItem('talentscope-favorite-companies') || '[]'),
+  savedRoles: JSON.parse(localStorage.getItem('talentscope-saved-roles') || '[]'),
+  favoriteRoles: JSON.parse(localStorage.getItem('talentscope-favorite-roles') || '[]')
 };
 
 export const dedicatedSkillState = {
@@ -62,6 +62,14 @@ export const learningState = {
   selectedFilter: 'All'
 };
 
+export const userProfileState = {
+  uid: 'USR-88291',
+  name: 'Arun Sharma',
+  email: 'arun.sharma@nvidia.internal',
+  skills: ['Python', 'Machine Learning', 'Generative AI', 'Cloud Computing', 'SQL'],
+  targetRole: 'AI Engineer',
+  location: 'Bangalore, India'
+};
+
 // Unified platform state and canonical registries
 export * from '../data/platform-state.js';
-

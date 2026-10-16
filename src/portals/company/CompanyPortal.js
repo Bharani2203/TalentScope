@@ -14,6 +14,7 @@ import { renderCompanyProfile, bindCompanyProfileEvents } from '../../pages/comp
 import { renderCompanyAIAssistant, bindCompanyAIAssistantEvents } from '../../pages/company/ai-assistant/AIAssistant.js';
 import { renderCompanySettings, bindCompanySettingsEvents } from '../../pages/company/settings/Settings.js';
 import { companyRoutes } from './navigation.js';
+import { mountCompanyConnectionRequests } from '../../pages/company/workforce/CompanyConnectionRequests.js';
 
 export function renderCompanyRoute(route) {
   const main = document.querySelector('#mainContent');
@@ -42,6 +43,7 @@ export function renderCompanyRoute(route) {
   } else if (route === '/company/workforce') {
     main.innerHTML = renderCompanyWorkforce();
     bindCompanyWorkforceEvents(rerender);
+    mountCompanyConnectionRequests(main, rerender);
   } else if (route === '/company/market') {
     main.innerHTML = renderCompanyMarketIntelligence();
     bindCompanyMarketEvents(rerender);
@@ -70,6 +72,8 @@ export function renderCompanyRoute(route) {
     main.innerHTML = renderCompanyHome();
     bindCompanyHomeEvents(rerender);
   }
+
+  main.insertAdjacentHTML('afterbegin', '<aside role="note" style="margin: 12px 0; padding: 10px 14px; border: 1px solid #D6C79A; border-radius: 8px; background: #FFF9E8; color: #574817; font-size: 13px;">Company portal prototype — workforce, market, and employee values are illustrative unless explicitly marked as backend data.</aside>');
 
   if (window.lucide && typeof window.lucide.createIcons === 'function') {
     window.lucide.createIcons();

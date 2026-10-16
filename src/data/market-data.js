@@ -1,5 +1,11 @@
-// Market Intelligence Data Architecture
-// Preserves legacy exports for backward compatibility and provides rich dedicated datasets
+// ============================================================================
+// TALENTSCOPE.AI — MARKET DATA (LEGACY / PROTOTYPE FALLBACK)
+// DEPRECATION NOTICE:
+// Live market intelligence is now served via the shared Core Intelligence engine
+// at FastAPI `/api/v1/intelligence/market` or `/api/v1/intelligence/core` via
+// `src/api/core-intelligence-client.js`.
+// The datasets below are retained strictly for backward compatibility and fallback.
+// ============================================================================
 
 export const jobMarketData = {
   roles: ['AI Engineer', 'Backend Engineer', 'Data Engineer', 'Cloud Architect', 'Cybersecurity Lead'],
@@ -29,7 +35,7 @@ export const jobMarketData = {
 };
 
 export const marketOptions = ['Global', 'India', 'Tamil Nadu', 'Bangalore', 'Chennai', 'Hyderabad', 'Pune', 'Remote', 'United States', 'United Kingdom', 'Germany', 'Singapore'];
-export const timeRangeOptions = ['7 Days', '30 Days', '90 Days', '6 Months', '1 Year'];
+export const timeRangeOptions = ['7 Days', '30 Days', '3 Months', '6 Months'];
 
 export const marketTrends = [
   { region: 'Global', growth: 14.8, index: 88, topSkills: ['Generative AI', 'Python', 'Cloud Computing'] },
@@ -801,7 +807,7 @@ export function getCompanyMarketDetails(companyName = 'NVIDIA', location = 'Glob
     Global: 1.0, India: 1.04, 'Tamil Nadu': 0.98, Bangalore: 1.06, Chennai: 0.96, Hyderabad: 1.02, Pune: 0.95, Remote: 1.01
   };
   const rangeMultipliers = {
-    '7 Days': 0.45, '7D': 0.45, '30 Days': 1.0, '30D': 1.0, '90 Days': 1.35, '90D': 1.35, '6 Months': 1.8, '6M': 1.8, '1 Year': 2.4, '1Y': 2.4
+    '7 Days': 0.45, '7D': 0.45, '30 Days': 1.0, '30D': 1.0, '3 Months': 1.35, '3M': 1.35, '6 Months': 1.8, '6M': 1.8
   };
   
   const locFactor = locMultipliers[location] || 1.0;

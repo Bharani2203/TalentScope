@@ -58,7 +58,7 @@ export function renderEmployeeProfile() {
         <div class="emp-hero-actions" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
           <button type="button" class="emp-btn-secondary" id="btnExportProfile">
             <i data-lucide="download"></i>
-            <span>Export Verified Dossier</span>
+            <span>Export Profile Preview</span>
           </button>
           <button type="button" class="emp-btn-primary" id="btnEditEmployeeProfile">
             <i data-lucide="edit-3"></i>
@@ -156,7 +156,7 @@ export function renderEmployeeProfile() {
           <div class="emp-card">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
               <h3 style="font-size: 16px; font-weight: 800; color: var(--emp-text-primary); margin: 0;">
-                Verified Skill Portfolio
+                Illustrative Skill Portfolio
               </h3>
               <a href="#/employee/skills" class="emp-btn-ghost emp-btn-sm">Inspect Skills</a>
             </div>
@@ -231,7 +231,7 @@ function openEmployeeEditModal(rerender) {
           </div>
           <div>
             <h3 id="editEmpModalTitle" style="margin: 0; font-size: 16px; font-weight: 800; color: var(--emp-text-primary);">Edit Employee Profile</h3>
-            <span style="font-size: 12px; color: var(--emp-text-muted);">${isCompany ? 'Verified Internal Record' : 'Independent Professional Record'}</span>
+            <span style="font-size: 12px; color: var(--emp-text-muted);">${isCompany ? 'Illustrative Internal Record' : 'Independent Professional Record'}</span>
           </div>
         </div>
         <button type="button" class="portal-modal-close-btn" id="empModalCloseBtn" style="background: none; border: none; cursor: pointer; color: var(--emp-text-muted); padding: 6px; border-radius: 6px;">

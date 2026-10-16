@@ -11,6 +11,7 @@ import { renderEmployeeOpportunities, bindEmployeeOpportunitiesEvents } from '..
 import { renderEmployeeProfile, bindEmployeeProfileEvents } from '../../pages/employee/profile/Profile.js';
 import { renderEmployeeAIAssistant, bindEmployeeAIAssistantEvents } from '../../pages/employee/ai-assistant/AIAssistant.js';
 import { employeeRoutes } from './navigation.js';
+import { renderEmployeeCompanyConnection, bindEmployeeCompanyConnection } from '../../pages/employee/company/CompanyConnection.js';
 import {
   getEmployeeProfile,
   isCompanyEmployee,
@@ -30,7 +31,7 @@ export function renderEmployeeRoute(route) {
   const main = document.querySelector('#mainContent');
   if (!main) return;
 
-  const resolvedRoute = (route === '/employee/career' || route === '/employee/company') 
+  const resolvedRoute = route === '/employee/career'
     ? '/employee/growth' 
     : route;
 
@@ -49,7 +50,7 @@ export function renderEmployeeRoute(route) {
           <i data-lucide="shield"></i> Employee Portal
         </span>
         <span class="emp-badge ${isCompany ? 'emp-badge-success' : 'emp-badge-primary'}" style="font-size: 11px;">
-          ${isCompany ? 'NVIDIA Connected' : 'Independent Mode'}
+          Preview data
         </span>
       </div>
     `;
@@ -64,6 +65,9 @@ export function renderEmployeeRoute(route) {
   } else if (resolvedRoute === '/employee/skills') {
     main.innerHTML = renderEmployeeMySkills();
     bindEmployeeSkillsEvents(rerender);
+  } else if (resolvedRoute === '/employee/company') {
+    main.innerHTML = renderEmployeeCompanyConnection();
+    bindEmployeeCompanyConnection();
   } else if (resolvedRoute === '/employee/growth') {
     main.innerHTML = renderEmployeeMyGrowth();
     bindEmployeeGrowthEvents(rerender);
@@ -90,6 +94,8 @@ export function renderEmployeeRoute(route) {
     bindEmployeeHomeEvents();
   }
 
+  main.insertAdjacentHTML('afterbegin', '<aside role="note" style="margin: 12px 0; padding: 10px 14px; border: 1px solid #D6C79A; border-radius: 8px; background: #FFF9E8; color: #574817; font-size: 13px;">Employee portal preview — sample workforce and company data. Company membership is determined by the backend; this preview state is not proof of a connection.</aside>');
+
   // Bind state changed listener once
   if (!employeeStateListenerBound) {
     window.addEventListener('talentscope:employee-state-changed', () => {
@@ -105,7 +111,7 @@ export function renderEmployeeRoute(route) {
 
 function renderEmployeeNotifications() {
   const isCompany = isCompanyEmployee();
-  const pendingInvs = (getCompanyInvitations() || []).filter(inv => inv.status === 'pending');
+  const pendingInvs = [];
   const bookings = getCanonicalBookings() || [];
 
   return `
@@ -119,7 +125,7 @@ function renderEmployeeNotifications() {
       </section>
 
       <div class="emp-card" style="display: flex; flex-direction: column; gap: 14px;">
-        <!-- PENDING COMPANY INVITATIONS -->
+        <div role="note" style="padding:12px;border:1px solid var(--emp-border-subtle);border-radius:10px">Company invitations are not actionable from local demo records. Open <a href="#/employee/company">Company Connection</a> for server-backed membership requests.</div>
         ${pendingInvs.map(inv => `
           <div style="display: flex; align-items: flex-start; gap: 14px; padding: 18px; background: rgba(39, 53, 245, 0.05); border-radius: 12px; border: 1.5px solid rgba(39, 53, 245, 0.3);">
             <div class="emp-icon-box" style="background: #2735F5; color: #FFF; width: 42px; height: 42px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0;">
@@ -219,10 +225,8 @@ function bindEmployeeNotificationsEvents(rerender) {
   document.querySelectorAll('.emp-accept-inv-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
+      return; // Local mock invitation IDs are not valid backend invitation tokens.
       const invId = btn.getAttribute('data-inv-id');
-      acceptCompanyInvitation(invId);
-      localStorage.setItem('talentscope-employee-type', 'company_employee');
-      window.dispatchEvent(new CustomEvent('talentscope:employee-state-changed'));
       rerender();
       alert('✓ Company invitation accepted! You are now connected to NVIDIA Enterprise Solutions.');
     });
@@ -232,7 +236,6 @@ function bindEmployeeNotificationsEvents(rerender) {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       const invId = btn.getAttribute('data-inv-id');
-      rejectCompanyInvitation(invId);
       rerender();
     });
   });
@@ -258,21 +261,18 @@ function renderEmployeeSettings() {
             Dual Employee Operating Mode
           </h3>
           <p style="font-size: 13px; color: var(--emp-text-secondary); margin: 0 0 14px;">
-            Test both employee portal states dynamically. Switch between a company-invited employee (connected to NVIDIA) and a self-registered independent professional.
+            Connection membership is controlled by the backend. Local demo state does not establish company membership.
           </p>
           <div style="display: flex; align-items: center; gap: 16px; background: var(--emp-soft); padding: 16px; border-radius: 14px; border: 1px solid var(--emp-border-subtle);">
             <div style="flex: 1;">
               <div style="font-weight: 750; font-size: 14px; color: var(--emp-text-primary);">
-                Current Active State: <span style="color: var(--emp-primary);">${isCompany ? 'Company-Invited Employee (NVIDIA)' : 'Independent Professional (Open Market)'}</span>
+                Current connection state: <span style="color: var(--emp-primary);">Check Company Connection</span>
               </div>
               <div style="font-size: 12px; color: var(--emp-text-muted); margin-top: 2px;">
                 ${isCompany ? 'Displays company pod alignment, internal promotion readiness, and Blackwell signals.' : 'Eliminates all company-dependent data; displays market career benchmarks and open opportunities.'}
               </div>
             </div>
-            <button type="button" class="emp-btn-primary" id="btnSettingsToggleState">
-              <i data-lucide="repeat"></i>
-              <span>Switch to ${isCompany ? 'Independent Mode' : 'Company Mode'}</span>
-            </button>
+            <a class="emp-btn-primary" href="#/employee/company">Manage verified connection</a>
           </div>
         </div>
 
@@ -317,11 +317,4 @@ function renderEmployeeSettings() {
 }
 
 function bindEmployeeSettingsEvents(rerender) {
-  const toggleBtn = document.querySelector('#btnSettingsToggleState');
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', () => {
-      toggleEmployeeType();
-      rerender();
-    });
-  }
 }

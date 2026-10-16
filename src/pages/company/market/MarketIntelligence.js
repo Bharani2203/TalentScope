@@ -5,10 +5,47 @@
 
 import { companyProfile } from '../../../data/company/company-data.js';
 import { openCompanyModal } from '../components/CompanyModal.js';
+import { queryMarketIntelligence } from '../../../api/core-intelligence-client.js';
+import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
 
 const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[c]);
+
+let companyMarketData = null;
+let companyMarketLoading = false;
+let companyMarketError = null;
+
+let companyMarketRequestVersion = 0;
+
+export async function loadCompanyMarketData(rerender) {
+  if (companyMarketData || companyMarketLoading) return;
+  const currentVersion = ++companyMarketRequestVersion;
+  companyMarketLoading = true;
+  companyMarketError = null;
+  const p = companyProfile;
+
+  try {
+    const res = await queryMarketIntelligence({
+      portal_type: 'company',
+      company_id: p.id,
+      company_name: p.name,
+      industry: p.industry,
+      workforce_headcount: p.globalHeadcount,
+      range: '6m'
+    });
+    if (currentVersion !== companyMarketRequestVersion) return;
+    companyMarketData = res;
+    companyMarketLoading = false;
+    if (typeof rerender === 'function') rerender();
+  } catch (err) {
+    if (currentVersion !== companyMarketRequestVersion) return;
+    console.warn('[Company MarketIntelligence] Failed to load market intelligence:', err);
+    companyMarketLoading = false;
+    companyMarketError = err.message || 'Failed to load market intelligence';
+    if (typeof rerender === 'function') rerender();
+  }
+}
 
 const marketTrends = [
   {
@@ -114,6 +151,36 @@ export function renderCompanyMarketIntelligence() {
 
   return `
     <div class="company-page company-market">
+      <aside role="note" class="cmp-card" style="margin-bottom:14px;border-color:#D6C79A;background:#FFF9E8;color:#574817">Illustrative market intelligence prototype. Example company, technology and hiring values are not verified market data.</aside>
+      ${companyMarketData?.answer ? `
+        <div class="cmp-card" style="margin-bottom: 14px; padding: 14px 18px; background: #F8F9FD; border-left: 4px solid var(--cmp-primary, #874FFF); font-size: 13px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <div style="font-weight: 750; color: var(--cmp-primary, #874FFF); display: flex; align-items: center; gap: 6px;">
+              <i data-lucide="sparkles"></i>
+              <span>${esc(companyMarketData.answer.headline)}</span>
+            </div>
+            <span class="cmp-badge cmp-badge--primary" style="font-size: 10.5px;">${esc(companyMarketData.answer.contextual_focus || 'Market Ecosystem Intelligence')}</span>
+          </div>
+          <p style="color: var(--cmp-text-secondary, #475467); margin: 0 0 8px 0; line-height: 1.45;">
+            ${esc(companyMarketData.answer.summary)}
+          </p>
+          ${companyMarketData.answer.key_insights?.length ? `
+            <ul style="margin: 0 0 8px 18px; padding: 0; font-size: 12px; color: var(--cmp-text-muted, #667085); line-height: 1.4;">
+              ${companyMarketData.answer.key_insights.map(ki => `<li>${esc(ki)}</li>`).join('')}
+            </ul>
+          ` : ''}
+          ${companyMarketData.answer.limitations?.length ? `
+            <div style="font-size: 11px; color: var(--cmp-text-muted, #667085); border-top: 1px dashed #D0D5DD; padding-top: 6px;">
+              <strong>Data Boundary:</strong> ${companyMarketData.answer.limitations.map(l => esc(l)).join(' ')}
+            </div>
+          ` : ''}
+          ${renderIntelligenceEvidencePanel(companyMarketData, {
+            title: 'Company market evidence',
+            loading: companyMarketLoading,
+            error: companyMarketError
+          })}
+        </div>
+      ` : ''}
       <!-- 1. HERO -->
       <section class="cmp-hero">
         <div class="cmp-hero__content">
@@ -208,13 +275,21 @@ export function renderCompanyMarketIntelligence() {
                 </tr>
               </thead>
               <tbody>
-                ${companyTechnologies.map(tech => `
+                ${companyTechnologies.map(tech => {
+                  const trendMatch = companyMarketData?.trends?.find(t =>
+                    (t.skill_name && tech.name.toLowerCase().includes(t.skill_name.toLowerCase())) ||
+                    (t.skill_id && tech.name.toLowerCase().includes(t.skill_id.toLowerCase()))
+                  );
+                  return `
                   <tr>
                     <td>
                       <strong style="color: var(--cmp-text-primary); font-size: 13.5px;">${esc(tech.name)}</strong>
                     </td>
                     <td>
-                      <span class="cmp-badge cmp-badge--success" style="font-weight: 800;">${esc(tech.marketDemand)}</span>
+                      <span class="cmp-badge ${trendMatch && !trendMatch.is_trend_ready ? 'cmp-badge--neutral' : 'cmp-badge--success'}" style="font-weight: 800;">
+                        ${trendMatch ? (trendMatch.is_trend_ready ? esc(trendMatch.trend_label) : 'Insufficient Data') : esc(tech.marketDemand)}
+                      </span>
+                      ${trendMatch?.signal_badge ? `<div style="font-size: 10px; color: var(--cmp-text-muted); margin-top: 2px;">${esc(trendMatch.signal_badge)}</div>` : ''}
                     </td>
                     <td>
                       <span style="font-weight: 600; color: var(--cmp-text-primary);">${esc(tech.companyUsage)}</span>
@@ -233,7 +308,8 @@ export function renderCompanyMarketIntelligence() {
                       </button>
                     </td>
                   </tr>
-                `).join('')}
+                `;
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -283,7 +359,11 @@ export function renderCompanyMarketIntelligence() {
   `;
 }
 
-export function bindCompanyMarketEvents() {
+export function bindCompanyMarketEvents(rerender) {
+  if (!companyMarketData && !companyMarketLoading) {
+    loadCompanyMarketData(rerender);
+  }
+
   document.querySelectorAll('.inspect-tech-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const techName = btn.dataset.tech;

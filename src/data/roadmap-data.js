@@ -1074,6 +1074,15 @@ export function calculateRoadmapProgress(roadmap) {
 
 export function loadLearningRoadmapState() {
   try {
+    if (typeof localStorage === 'undefined') {
+      return {
+        status: 'none',
+        progress: 0,
+        title: 'No Active Roadmap',
+        currentStep: { name: 'Choose a learning path' },
+        milestones: []
+      };
+    }
     const saved = localStorage.getItem(roadmapStorageKey) || localStorage.getItem(legacyRoadmapStorageKey);
     if (saved) {
       const parsed = JSON.parse(saved);
@@ -1098,11 +1107,14 @@ export function loadLearningRoadmapState() {
     console.warn('Error reading saved roadmap state:', err);
   }
 
-  // Default initial active roadmap preset
-  const defaultRoadmap = JSON.parse(JSON.stringify(ROADMAP_PRESETS['Improve Skill']));
-  defaultRoadmap.status = 'active';
-  defaultRoadmap.progress = 64;
-  return defaultRoadmap;
+  // Default initial roadmap state: honest empty state (no synthetic active progress)
+  return {
+    status: 'none',
+    progress: 0,
+    title: 'No Active Roadmap',
+    currentStep: { name: 'Choose a learning path' },
+    milestones: []
+  };
 }
 
 export function saveLearningRoadmapState(roadmap) {

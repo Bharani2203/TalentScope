@@ -257,8 +257,9 @@ function renderInputByType(question, val = {}, userType, previousAnswers) {
 
   // G. Skill Level Matrix
   if (question.type === 'skill-level-matrix') {
-    const rawSkills = previousAnswers['skills'] || previousAnswers['emp_skills'] || ['Python', 'SQL', 'Git'];
-    const skills = Array.isArray(rawSkills) ? rawSkills : (rawSkills.skills || ['Python', 'SQL', 'Git']);
+    const fallbackSkills = userType === 'individual' ? [] : ['Python', 'SQL', 'Git'];
+    const rawSkills = previousAnswers['skills'] || previousAnswers['emp_skills'] || fallbackSkills;
+    const skills = Array.isArray(rawSkills) ? rawSkills : (rawSkills.skills || fallbackSkills);
     const levelMap = typeof val === 'object' && !Array.isArray(val) ? val : {};
 
     return `

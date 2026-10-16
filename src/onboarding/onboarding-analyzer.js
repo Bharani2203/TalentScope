@@ -29,7 +29,7 @@ export function renderAnalysisPage(container) {
   const stages = [
     { id: 1, label: 'Understanding your profile context', icon: 'user-check' },
     { id: 2, label: 'Mapping your skills & capability clusters', icon: 'layers' },
-    { id: 3, label: 'Connecting live workforce & market signals', icon: 'trending-up' },
+    { id: 3, label: 'Preparing illustrative workforce & market context', icon: 'trending-up' },
     { id: 4, label: 'Evaluating role alignment & mobility avenues', icon: 'compass' },
     { id: 5, label: 'Preparing your personalized intelligence profile', icon: 'sparkles' }
   ];
@@ -304,7 +304,7 @@ function generateEmployeeReport(answers, user, employeeType) {
         ? 'View your departmental skill health, milestone progress, and internal promotion criteria.'
         : 'Explore independent career benchmarks and verified skill milestones.',
       cta: isConnected ? 'Explore My Growth' : 'Explore Career Intelligence',
-      route: '#/employee/overview'
+      route: '#/employee/home'
     }
   };
 }
@@ -352,7 +352,7 @@ function generateCompanyReport(answers, user) {
       headline: 'Enter Workforce Intelligence',
       why: 'Access the executive workforce dashboard, simulate scenario planning, and monitor company-wide skill health.',
       cta: 'Enter Workforce Intelligence',
-      route: '#/company/overview'
+      route: '#/company/home'
     }
   };
 }

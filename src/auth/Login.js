@@ -4,9 +4,14 @@
 // Direct portal routing based on user type & company connection
 // ============================================================================
 
-import { authenticateUser, getAllUsers, determineUserRedirect } from './auth-state.js';
+import { auth, googleProvider, GoogleAuthProvider, getGoogleConflictMethods, linkPendingGoogleCredential, rememberGoogleAccountConflict, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from './firebase-client.js';
+import { determineUserRedirect, getProfileSyncErrorKind, syncCurrentFirebaseUser } from './auth-state.js';
+import { profileSyncErrorMessage } from './auth-api.js';
+import { authTraceNow, logAuthTrace, recordAuthEvent, setAuthDiagnosticState } from './auth-trace.js';
+import { ensureAuthDiagnosticsPanel } from './auth-diagnostics-panel.js';
 
 export function renderLoginPage(container) {
+  ensureAuthDiagnosticsPanel();
   const root = container || document.getElementById('mainContent') || document.getElementById('appShell') || document.body;
 
   root.innerHTML = `
@@ -29,11 +34,12 @@ export function renderLoginPage(container) {
               Strategic Workforce Intelligence
             </span>
             <h1>Forecast skills. Shape your career and workforce.</h1>
-            <p>Predict role evolution, align capabilities with market signals, and bridge skill gaps in real time.</p>
+            <p>Explore skill and career examples. Current market intelligence is not connected on this preview.</p>
           </div>
 
-          <!-- Animated Live Signal Cards -->
+          <!-- Illustrative prototype signals -->
           <div class="ts-auth-signals-stack">
+            <p role="note">Illustrative sample data — these values are not current provider or workforce measurements.</p>
             <div class="ts-auth-signal-card">
               <div class="ts-auth-signal-left">
                 <div class="ts-auth-signal-icon is-purple">
@@ -121,7 +127,7 @@ export function renderLoginPage(container) {
             </button>
           </form>
 
-          <div class="ts-auth-divider">OR</div>
+          <div class="ts-auth-divider" id="loginDivider">OR</div>
 
           <button type="button" class="ts-auth-btn-google" id="googleLoginBtn">
             <svg viewBox="0 0 24 24" width="18" height="18">
@@ -133,33 +139,7 @@ export function renderLoginPage(container) {
             <span>Continue with Google</span>
           </button>
 
-          <!-- Quick Seed Demo Accounts for Effortless Testing -->
-          <div class="ts-auth-demo-bar">
-            <span class="ts-auth-demo-label">
-              <i data-lucide="key-round"></i>
-              Demo accounts (click to test):
-            </span>
-            <div class="ts-auth-demo-pills">
-              <button type="button" class="ts-auth-demo-pill" data-demo-email="alex@example.com">
-                <span>Alex M.</span>
-                <span class="badge">Individual</span>
-              </button>
-              <button type="button" class="ts-auth-demo-pill" data-demo-email="sarah@techcorp.com">
-                <span>Sarah J.</span>
-                <span class="badge">Connected</span>
-              </button>
-              <button type="button" class="ts-auth-demo-pill" data-demo-email="david@dev.io">
-                <span>David C.</span>
-                <span class="badge">Independent</span>
-              </button>
-              <button type="button" class="ts-auth-demo-pill" data-demo-email="admin@novatech.com">
-                <span>NovaTech</span>
-                <span class="badge">Company</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="ts-auth-footer-prompt">
+          <div class="ts-auth-footer-prompt" id="loginFooterPrompt">
             Don't have an account?
             <a href="#/signup" id="linkToSignup">Create account</a>
           </div>
@@ -196,37 +176,80 @@ function bindLoginEvents() {
     });
   }
 
-  // Quick Demo Account Pill Fill
-  document.querySelectorAll('[data-demo-email]').forEach(pill => {
-    pill.addEventListener('click', () => {
-      const email = pill.getAttribute('data-demo-email');
-      emailInput.value = email;
-      passwordInput.value = 'password123';
-      clearAlert();
-    });
-  });
-
-  // Forgot Password Toast
+  // Firebase password-reset email
   if (forgotLink) {
-    forgotLink.addEventListener('click', (e) => {
+    forgotLink.addEventListener('click', async (e) => {
       e.preventDefault();
-      const email = emailInput.value.trim() || 'your email';
-      showAlert(`Password reset link sent to ${email}. Check your inbox.`, 'success');
+      const email = emailInput.value.trim();
+      if (!email) {
+        showAlert('Enter your email address first.', 'error');
+        emailInput.focus();
+        return;
+      }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        showAlert('If this account exists, Firebase has sent a password reset email.', 'success');
+      } catch (error) {
+        showAlert(authErrorMessage(error), 'error');
+      }
     });
   }
 
-  // Google OAuth Simulation
+  // Firebase Google sign-in
   if (googleBtn) {
-    googleBtn.addEventListener('click', () => {
-      emailInput.value = 'alex@example.com';
-      passwordInput.value = 'password123';
-      form.requestSubmit();
+    googleBtn.addEventListener('click', async () => {
+      const originalGoogleHtml = googleBtn.innerHTML;
+      googleBtn.disabled = true;
+      googleBtn.innerHTML = '<span>Connecting with Google...</span>';
+      clearAlert();
+      const loginStarted = authTraceNow();
+      const signInStarted = authTraceNow();
+      let firebaseSignInSucceeded = false;
+      try {
+        recordAuthEvent('LOGIN_STARTED', { result: 'google' });
+        recordAuthEvent('GOOGLE_SIGN_IN_STARTED');
+        const credential = await signInWithPopup(auth, googleProvider);
+        firebaseSignInSucceeded = true;
+        recordAuthEvent('GOOGLE_SIGN_IN_SUCCESS', { duration_ms: authTraceNow() - signInStarted });
+        logAuthTrace('firebase_sign_in', { duration_ms: authTraceNow() - signInStarted, result: 'success' });
+        let firebaseUser = credential.user;
+        firebaseUser = await linkPendingGoogleCredential(firebaseUser);
+        const user = await syncCurrentFirebaseUser(firebaseUser);
+        logAuthTrace('login_to_profile_ready', { duration_ms: authTraceNow() - loginStarted, result: 'success' });
+        showAlert('Signed in successfully. Redirecting...', 'success');
+        routeAuthenticatedUser(user);
+        recordAuthEvent('AUTH_FLOW_COMPLETED', { result: 'google' });
+      } catch (error) {
+        if (!firebaseSignInSucceeded) {
+          recordAuthEvent('GOOGLE_SIGN_IN_ERROR', {
+            duration_ms: authTraceNow() - signInStarted,
+            category: error?.code || 'GOOGLE_SIGN_IN_FAILED',
+            error_name: error?.name
+          });
+        }
+        recordAuthEvent('AUTH_FLOW_FAILED', { category: error?.code || error?.kind || 'GOOGLE_SIGN_IN_FAILED' });
+        if (error?.code) logAuthTrace('firebase_sign_in', { duration_ms: authTraceNow() - signInStarted, result: 'failed', error_code: error.code });
+        else if (error?.kind) logAuthTrace('login_to_profile_ready', { duration_ms: authTraceNow() - loginStarted, result: error.kind });
+        if (error?.code === 'auth/popup-closed-by-user') {
+          showAlert('Google sign-in was cancelled.', 'info');
+        } else if (error?.code === 'auth/account-exists-with-different-credential') {
+          rememberGoogleAccountConflict(error);
+          const methods = await getGoogleConflictMethods(error);
+          showAlert(accountConflictMessage(methods), 'error');
+        } else {
+          showAuthError(error);
+        }
+      } finally {
+        googleBtn.disabled = false;
+        googleBtn.innerHTML = originalGoogleHtml;
+        if (window.lucide) window.lucide.createIcons();
+      }
     });
   }
 
   // Form Submit Handler
   if (form) {
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearAlert();
 
@@ -252,44 +275,147 @@ function bindLoginEvents() {
       }
 
       submitBtn.disabled = true;
-      submitBtn.innerHTML = `<span>Signing in...</span>`;
-
-      // Short smooth transition
-      setTimeout(() => {
-        const result = authenticateUser(email, password);
-
-        if (!result.success) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = `<span>Sign In</span><i data-lucide="arrow-right"></i>`;
-          if (window.lucide) window.lucide.createIcons();
-          showAlert(result.error || "We couldn't sign you in. Check your details and try again.", 'error');
-          return;
+      submitBtn.innerHTML = '<span>Signing in...</span>';
+      const loginStarted = authTraceNow();
+      const signInStarted = authTraceNow();
+      let firebaseSignInSucceeded = false;
+      try {
+        recordAuthEvent('LOGIN_STARTED', { result: 'email_password' });
+        recordAuthEvent('EMAIL_SIGN_IN_STARTED');
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        firebaseSignInSucceeded = true;
+        recordAuthEvent('EMAIL_SIGN_IN_SUCCESS', { duration_ms: authTraceNow() - signInStarted });
+        logAuthTrace('firebase_sign_in', { duration_ms: authTraceNow() - signInStarted, result: 'success' });
+        let firebaseUser = credential.user;
+        firebaseUser = await linkPendingGoogleCredential(firebaseUser);
+        const user = await syncCurrentFirebaseUser(firebaseUser);
+        logAuthTrace('login_to_profile_ready', { duration_ms: authTraceNow() - loginStarted, result: 'success' });
+        showAlert('Signed in successfully. Redirecting...', 'success');
+        routeAuthenticatedUser(user);
+        recordAuthEvent('AUTH_FLOW_COMPLETED', { result: 'email_password' });
+      } catch (error) {
+        if (!firebaseSignInSucceeded) {
+          recordAuthEvent('EMAIL_SIGN_IN_ERROR', {
+            duration_ms: authTraceNow() - signInStarted,
+            category: error?.code || 'EMAIL_SIGN_IN_FAILED',
+            error_name: error?.name
+          });
         }
-
-        // Successful login
-        showAlert(`Welcome back, ${result.user.name}! Redirecting...`, 'success');
-        submitBtn.innerHTML = `<span>Authenticated</span><i data-lucide="check"></i>`;
+        recordAuthEvent('AUTH_FLOW_FAILED', { category: error?.code || error?.kind || 'EMAIL_SIGN_IN_FAILED' });
+        if (error?.code) logAuthTrace('firebase_sign_in', { duration_ms: authTraceNow() - signInStarted, result: 'failed', error_code: error.code });
+        else if (error?.kind) logAuthTrace('login_to_profile_ready', { duration_ms: authTraceNow() - loginStarted, result: error.kind });
+        showAuthError(error);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>Sign In</span><i data-lucide="arrow-right"></i>';
         if (window.lucide) window.lucide.createIcons();
-
-        setTimeout(() => {
-          window.location.hash = result.redirectTo;
-        }, 500);
-      }, 350);
+      }
     });
   }
 
   function showAlert(msg, type = 'error') {
     if (!alertArea) return;
-    alertArea.innerHTML = `
-      <div class="ts-auth-alert is-${type}" role="alert">
-        <i data-lucide="${type === 'error' ? 'alert-circle' : 'check-circle-2'}"></i>
-        <span>${msg}</span>
-      </div>
-    `;
+    const alert = document.createElement('div');
+    alert.className = `ts-auth-alert is-${type}`;
+    alert.setAttribute('role', 'alert');
+    const icon = document.createElement('i');
+    icon.dataset.lucide = type === 'error' ? 'alert-circle' : 'check-circle-2';
+    const text = document.createElement('span');
+    text.textContent = msg;
+    alert.append(icon, text);
+    alertArea.replaceChildren(alert);
     if (window.lucide) window.lucide.createIcons();
   }
 
   function clearAlert() {
     if (alertArea) alertArea.innerHTML = '';
   }
+
+  function showAuthError(error) {
+    if (!error?.kind) {
+      showAlert(authErrorMessage(error), 'error');
+      return;
+    }
+    showAlert(profileSyncErrorMessage(error), 'error');
+    addProfileRetryButton();
+  }
+
+  function addProfileRetryButton() {
+    if (!auth.currentUser || !alertArea) return;
+    const retryButton = document.createElement('button');
+    retryButton.type = 'button';
+    retryButton.className = 'ts-auth-btn-google';
+    retryButton.textContent = 'Retry profile connection';
+    retryButton.addEventListener('click', async () => {
+      retryButton.disabled = true;
+      try {
+        const user = await syncCurrentFirebaseUser(auth.currentUser);
+        window.location.hash = determineUserRedirect(user);
+      } catch (error) {
+        showAuthError(error);
+      }
+    });
+    alertArea.appendChild(retryButton);
+  }
+
+  function routeAuthenticatedUser(user) {
+    const startedAt = authTraceNow();
+    const destination = determineUserRedirect(user);
+    const onboardingRequired = !user.onboarding_completed;
+    recordAuthEvent(onboardingRequired ? 'ONBOARDING_REQUIRED' : 'PORTAL_READY', {
+      onboarding: onboardingRequired ? 'REQUIRED' : 'COMPLETE',
+      route: destination
+    });
+    setAuthDiagnosticState({ onboarding: onboardingRequired ? 'REQUIRED' : 'COMPLETE' });
+    window.location.hash = destination;
+    recordAuthEvent('ROUTE_TRANSITION', { duration_ms: authTraceNow() - startedAt, route: destination });
+    logAuthTrace('route_transition', { duration_ms: authTraceNow() - startedAt, result: 'profile_route_selected' });
+  }
+
+  const priorSyncError = getProfileSyncErrorKind();
+  if (priorSyncError && auth.currentUser) {
+    showAuthError({ kind: priorSyncError, name: 'ProfileSyncError' });
+  }
+}
+
+function authErrorMessage(error) {
+  if (error?.kind) {
+    return profileSyncErrorMessage(error);
+  }
+  if (error?.message && error.code === undefined) return error.message;
+  switch (error?.code) {
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+      return 'Email or password is incorrect.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Wait a while, then try again.';
+    case 'auth/network-request-failed':
+      return 'Could not reach Firebase Authentication. Check your connection.';
+    case 'auth/unauthorized-domain':
+      return 'This website domain is not authorized in Firebase Authentication.';
+    case 'auth/popup-closed-by-user':
+      return 'Google sign-in was canceled.';
+    case 'auth/popup-blocked':
+      return 'Your browser blocked the Google sign-in popup. Allow popups and try again.';
+    case 'auth/email-already-in-use':
+      return 'An account already exists for this email. Sign in with its existing method.';
+    case 'auth/account-exists-with-different-credential':
+      return 'This email already uses another sign-in method. Sign in with that method to connect Google.';
+    case 'auth/credential-already-in-use':
+    case 'auth/provider-already-linked':
+      return 'This Google account is already connected to another Firebase user. Sign in to that account to continue.';
+    case 'auth/email-not-verified':
+      return 'Please verify your email before continuing.';
+    default:
+      return 'Sign-in failed. Check your details and try again.';
+  }
+}
+
+function accountConflictMessage(methods) {
+  const hasPassword = methods.includes('password');
+  const providerHint = hasPassword
+    ? ' Sign in with this email and password; Google will then be connected to that same account.'
+    : ' Sign in with the method you used for this account; Google will then be connected to that same account.';
+  return `This email already belongs to an account.${providerHint}`;
 }

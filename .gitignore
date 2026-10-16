@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+**/*service-account*.json
+**/*firebase-adminsdk*.json
+**/secrets/
+node_modules/
+.venv/
+**/.pytest_cache/
+**/.pytest-*/
+**/__pycache__/
+*.py[cod]
+*.sqlite3

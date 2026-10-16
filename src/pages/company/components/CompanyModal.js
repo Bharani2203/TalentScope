@@ -101,10 +101,14 @@ export function openCompanyModal({
 
   // Confirm button
   if (onConfirm) {
-    modalRoot.querySelector('#cmpModalConfirmBtn')?.addEventListener('click', () => {
-      const shouldClose = onConfirm();
-      if (shouldClose !== false) {
-        closeCompanyModal();
+    modalRoot.querySelector('#cmpModalConfirmBtn')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      if (button.disabled) return;
+      try {
+        const shouldClose = await onConfirm();
+        if (shouldClose !== false) closeCompanyModal();
+      } catch {
+        // Modal actions own their user-facing error state.
       }
     });
   }

@@ -23,7 +23,7 @@ const rbacUsers = [
 
 const dataConnectors = [
   { id: 'src-wd', name: 'Workday HCM Enterprise', type: 'Core HRIS & Headcount', status: 'Healthy & Connected', lastSync: '14 mins ago', records: '29,600 Employees', icon: 'database' },
-  { id: 'src-dli', name: 'NVIDIA Deep Learning Institute (DLI)', type: 'Skill Verification API', status: 'Real-time Webhook', lastSync: 'Active Now', records: '1,840 Active Certifications', icon: 'award' },
+  { id: 'src-dli', name: 'NVIDIA Deep Learning Institute (DLI)', type: 'Skill Verification API', status: 'Illustrative demo status', lastSync: 'Demo', records: '1,840 Active Certifications', icon: 'award' },
   { id: 'src-gh', name: 'GitHub Enterprise Server', type: 'Engineering Codebase Stacks', status: 'Healthy & Connected', lastSync: '1 hour ago', records: '482 Internal Repositories', icon: 'git-branch' },
   { id: 'src-li', name: 'LinkedIn Talent Insights API', type: 'External Market Benchmarking', status: 'Daily Batch Sync', lastSync: 'Today at 04:00 AM', records: 'Market Supply Trends', icon: 'globe' }
 ];

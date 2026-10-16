@@ -16,24 +16,99 @@ import {
   saveOnboardingDraft,
   clearOnboardingDraft
 } from '../auth/auth-state.js';
+import {
+  loadIndividualOnboardingProfile,
+  saveIndividualOnboardingStep,
+  loadRoleOnboardingProfile,
+  saveRoleOnboardingStep
+} from './onboarding-api.js';
 
 let onboardingSession = {
   userType: 'individual',
   employeeType: null,
   companyName: null,
   stepIndex: 0,
-  answers: {}
+  answers: {},
+  completedSteps: [],
+  pendingSteps: []
 };
 
-export function renderOnboardingPage(container) {
+export async function renderOnboardingPage(container) {
   const root = container || document.getElementById('mainContent') || document.getElementById('appShell') || document.body;
-  initializeSession();
+  root.innerHTML = '<div role="status" aria-live="polite">Loading your saved onboarding progress...</div>';
+  const initResult = await initializeSession();
+  if (!root.isConnected || !window.location.hash.includes('/onboarding')) return;
   renderCurrentQuestionView(root);
+  if (initResult?.error) showSaveStatus(root, initResult.error, true);
 }
 
-function initializeSession() {
+async function initializeSession() {
   const user = getCurrentUser();
-  const draft = getOnboardingDraft();
+  const draft = getOnboardingDraft(user?.userType === 'individual' ? 'individual' : undefined);
+
+  if (user?.userType === 'individual') {
+    let remoteProfile;
+    let loadError = null;
+    try {
+      remoteProfile = await loadIndividualOnboardingProfile();
+    } catch (error) {
+      loadError = error?.message || 'Could not load your saved onboarding profile.';
+    }
+
+    const answers = { ...(remoteProfile?.answers || {}) };
+    const pendingSteps = Array.isArray(draft?.pendingSteps) ? draft.pendingSteps : [];
+    if (pendingSteps.length) {
+      for (const step of pendingSteps) {
+        const question = INDIVIDUAL_QUESTIONS.find(item => item.stepNumber === step);
+        if (question && Object.hasOwn(draft.answers || {}, question.id)) {
+          answers[question.id] = draft.answers[question.id];
+        }
+      }
+    }
+
+    const remoteStep = remoteProfile?.onboarding?.current_step || 1;
+    onboardingSession = {
+      userType: 'individual',
+      employeeType: null,
+      companyName: null,
+      stepIndex: pendingSteps.length
+        ? Math.max(0, Math.min(draft.stepIndex || 0, INDIVIDUAL_QUESTIONS.length - 1))
+        : Math.max(0, Math.min(remoteStep - 1, INDIVIDUAL_QUESTIONS.length - 1)),
+      answers,
+      completedSteps: remoteProfile?.onboarding?.completed_steps || [],
+      pendingSteps
+    };
+
+    if (loadError && draft) {
+      onboardingSession.answers = { ...answers, ...(draft.answers || {}) };
+      onboardingSession.stepIndex = Math.max(0, Math.min(draft.stepIndex || 0, INDIVIDUAL_QUESTIONS.length - 1));
+      onboardingSession.pendingSteps = Array.from(new Set([
+        ...pendingSteps,
+        (draft.stepIndex || 0) + 1
+      ]));
+    }
+    saveOnboardingDraft(onboardingSession);
+    return { error: loadError };
+  }
+
+  if (user?.userType === 'employee' || user?.userType === 'company') {
+    const type = user.userType;
+    let remote = null;
+    try { remote = await loadRoleOnboardingProfile(type); } catch {}
+    const answers = { ...(remote?.answers || {}), ...(draft?.answers || {}) };
+    onboardingSession = {
+      userType: type,
+      employeeType: draft?.employeeType || user.employeeType || null,
+      companyName: draft?.companyName || user.companyName || null,
+      stepIndex: Math.max(0, Math.min((remote?.onboarding?.current_step || draft?.stepIndex + 1 || 1) - 1,
+        (type === 'employee' ? EMPLOYEE_QUESTIONS : COMPANY_QUESTIONS).length - 1)),
+      answers,
+      completedSteps: remote?.onboarding?.completed_steps || draft?.completedSteps || [],
+      pendingSteps: draft?.pendingSteps || []
+    };
+    saveOnboardingDraft(onboardingSession);
+    return;
+  }
 
   if (draft) {
     onboardingSession = {
@@ -41,7 +116,9 @@ function initializeSession() {
       employeeType: draft.employeeType || user?.employeeType || null,
       companyName: draft.companyName || user?.companyName || null,
       stepIndex: typeof draft.stepIndex === 'number' ? draft.stepIndex : 0,
-      answers: draft.answers || {}
+      answers: draft.answers || {},
+      completedSteps: draft.completedSteps || [],
+      pendingSteps: draft.pendingSteps || []
     };
   } else if (user) {
     onboardingSession = {
@@ -52,7 +129,9 @@ function initializeSession() {
       answers: {
         name: user.name || '',
         companyName: user.companyName || ''
-      }
+      },
+      completedSteps: [],
+      pendingSteps: []
     };
   } else {
     // Default fallback
@@ -61,7 +140,9 @@ function initializeSession() {
       employeeType: null,
       companyName: null,
       stepIndex: 0,
-      answers: {}
+      answers: {},
+      completedSteps: [],
+      pendingSteps: []
     };
   }
 }
@@ -155,6 +236,7 @@ function renderCurrentQuestionView(root) {
               `}
             </div>
 
+            <span id="obSaveStatus" role="status" aria-live="polite" hidden></span>
             <button type="button" class="ts-ob-continue-btn" id="obContinueBtn">
               <span>${currentIdx === maxSteps - 1 ? getFinalButtonLabel(onboardingSession.userType) : 'Continue'}</span>
               <i data-lucide="${currentIdx === maxSteps - 1 ? 'sparkles' : 'arrow-right'}"></i>
@@ -207,18 +289,28 @@ function bindOnboardingEvents(root, currentQ, currentIdx, maxSteps) {
   });
 
   // B. Skip Button
-  root.querySelector('#obSkipBtn')?.addEventListener('click', () => {
-    advanceToNext(root, currentIdx, maxSteps);
+  root.querySelector('#obSkipBtn')?.addEventListener('click', async () => {
+    currentVal = harvestCurrentInput(container, currentQ, currentVal);
+    onboardingSession.answers[currentQ.id] = currentVal;
+    const saved = await persistCurrentStep(root, currentQ, currentVal);
+    if (saved) advanceToNext(root, currentIdx, maxSteps);
   });
 
   // C. Continue Button
-  root.querySelector('#obContinueBtn')?.addEventListener('click', () => {
+  root.querySelector('#obContinueBtn')?.addEventListener('click', async event => {
+    const invalidInput = container.querySelector(':invalid');
+    if (invalidInput) {
+      invalidInput.reportValidity();
+      return;
+    }
     // Read input values before advancing
-    harvestCurrentInput(container, currentQ, currentVal);
+    currentVal = harvestCurrentInput(container, currentQ, currentVal);
     onboardingSession.answers[currentQ.id] = currentVal;
-    saveOnboardingDraft(onboardingSession);
-
-    advanceToNext(root, currentIdx, maxSteps);
+    const button = event.currentTarget;
+    button.disabled = true;
+    const saved = await persistCurrentStep(root, currentQ, currentVal);
+    button.disabled = false;
+    if (saved) advanceToNext(root, currentIdx, maxSteps);
   });
 
   // D. Event delegations inside question body
@@ -411,14 +503,59 @@ function harvestCurrentInput(container, question, currentVal) {
     currentVal.text = container.querySelector('#qf_textarea')?.value.trim() || '';
   } else if (question.type === 'role-selector') {
     const inputRole = container.querySelector('#roleSearchInput')?.value.trim();
-    if (inputRole) currentVal = inputRole;
+    currentVal = inputRole || '';
   } else if (question.type === 'experience-conditional') {
     const study = container.querySelector('#qf_studyField')?.value.trim();
     if (study) {
       if (typeof currentVal === 'string') currentVal = { experience: currentVal, studyField: study };
       else currentVal.studyField = study;
+    } else if (currentVal && typeof currentVal === 'object') {
+      delete currentVal.studyField;
     }
+  } else if (question.type === 'skill-level-matrix') {
+    const levels = {};
+    container.querySelectorAll('[data-skill-row]').forEach(row => {
+      const selectedLevel = row.querySelector('[data-level-skill].is-active');
+      if (selectedLevel) {
+        levels[row.getAttribute('data-skill-row')] = selectedLevel.getAttribute('data-level-key');
+      }
+    });
+    currentVal = levels;
   }
+  return currentVal;
+}
+
+async function persistCurrentStep(root, question, answer) {
+  const step = question.stepNumber;
+  onboardingSession.pendingSteps = Array.from(new Set([
+    ...(onboardingSession.pendingSteps || []),
+    step
+  ]));
+  saveOnboardingDraft(onboardingSession);
+  showSaveStatus(root, 'Saving your answer...', false);
+
+  try {
+    const result = onboardingSession.userType === 'individual'
+      ? await saveIndividualOnboardingStep(step, answer)
+      : await saveRoleOnboardingStep(onboardingSession.userType, step, question.id, answer);
+    onboardingSession.pendingSteps = onboardingSession.pendingSteps.filter(item => item !== step);
+    onboardingSession.completedSteps = result.onboarding.completed_steps || [];
+    saveOnboardingDraft(onboardingSession);
+    showSaveStatus(root, 'Saved', false);
+    return true;
+  } catch (error) {
+    showSaveStatus(root, error?.message || 'Your answer could not be saved. Please retry.', true);
+    return false;
+  }
+}
+
+function showSaveStatus(root, message, isError) {
+  const status = root.querySelector('#obSaveStatus');
+  if (!status) return;
+  status.textContent = message;
+  status.hidden = !message;
+  status.setAttribute('aria-label', isError ? 'Save error' : 'Save status');
+  status.dataset.state = isError ? 'error' : 'success';
 }
 
 function advanceToNext(root, currentIdx, maxSteps) {
@@ -427,7 +564,6 @@ function advanceToNext(root, currentIdx, maxSteps) {
     saveOnboardingDraft(onboardingSession);
     renderCurrentQuestionView(root);
   } else {
-    // Final Step -> Navigate to Analysis Engine
     saveOnboardingDraft(onboardingSession);
     window.location.hash = '#/onboarding/analysis';
   }
@@ -566,7 +702,7 @@ function getIllustrationSub(questionId) {
     return 'Your selections directly map into our skill graph to identify strengths and bridgeable gaps.';
   }
   if (questionId.includes('role')) {
-    return 'We cross-reference live market requisition requirements against your current trajectory.';
+    return 'This prototype explanation uses illustrative market context; it is not a live requisition analysis.';
   }
   if (questionId.includes('cmp')) {
     return 'Tailors your company intelligence view to identify high-risk skill clusters and internal mobility.';

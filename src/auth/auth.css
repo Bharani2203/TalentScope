@@ -364,6 +364,10 @@
   gap: 18px;
 }
 
+.ts-auth-verification[hidden] {
+  display: none;
+}
+
 .ts-auth-field {
   display: flex;
   flex-direction: column;

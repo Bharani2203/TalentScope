@@ -1,4 +1,6 @@
 import { dashboardState, dedicatedJobState, intelligenceExplorerState, roadmapState } from '../../../app/state.js';
+import { queryJobIntelligence } from '../../../api/core-intelligence-client.js';
+import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
 import {
   dedicatedJobRoles,
   jobMarketSignalMix,
@@ -9,7 +11,7 @@ import {
 
 // Configuration Constants
 const LOCATIONS = ['Global', 'India', 'Tamil Nadu', 'Bangalore', 'Chennai', 'Hyderabad', 'Pune', 'Remote'];
-const RANGES = ['7 Days', '30 Days', '90 Days', '6 Months', '1 Year'];
+const RANGES = ['7 Days', '30 Days', '3 Months', '6 Months'];
 const CATEGORIES = ['All Categories', 'AI / ML', 'Engineering', 'Data', 'Cloud & DevOps', 'Security', 'Product'];
 const EMPLOYMENT_TYPES = ['All Types', 'Full-time', 'Contract', 'Hybrid', 'Remote'];
 
@@ -224,14 +226,14 @@ function renderJobIntelligenceHTML() {
           <p>Explore role momentum, track company hiring signals, analyze required skills, and discover targeted career opportunities.</p>
         </div>
         <div class="ji-page-heading-actions">
-          <div class="ji-demo-badge" title="Live streaming illustrative job market telemetry">
+          <div class="ji-demo-badge" title="Job market intelligence baseline">
             <span class="ji-live-dot"></span>
-            <span>Simulated job signals</span>
+            <span>Job intelligence baseline</span>
           </div>
         </div>
       </header>
 
-      <!-- 50/50 Workspace Grid: Left = Role Collection, Right = Live Job Trend -->
+      <!-- 50/50 Workspace Grid: Left = Role Collection, Right = Illustrative Job Trend -->
       <div class="ji-workspace-grid">
         <!-- LEFT COLUMN: ROLE COLLECTION -->
         <section class="ji-card ji-col-roles" aria-label="Job Role Collection">
@@ -352,15 +354,15 @@ function renderJobIntelligenceHTML() {
           </div>
         </section>
 
-        <!-- RIGHT COLUMN: LIVE JOB TREND -->
-        <section class="ji-card ji-col-trend" aria-label="Live Job Trend">
+        <!-- RIGHT COLUMN: DEMO JOB TREND -->
+        <section class="ji-card ji-col-trend" aria-label="Job Intelligence Trend">
           <div class="ji-trend-header-details">
             <div class="ji-trend-hero-role">
               <div class="ji-role-icon">
                 <i data-lucide="${esc(role.icon || 'briefcase')}"></i>
               </div>
               <div class="ji-trend-hero-meta">
-                <span class="ji-eyebrow" style="font-size: 10px;">LIVE JOB TREND</span>
+                <span class="ji-eyebrow" style="font-size: 10px;">DEMO JOB TREND</span>
                 <h3>${esc(role.name)}</h3>
                 <span>${esc(role.category)} • <i data-lucide="map-pin" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle;"></i> ${esc(ui.location)} • ${esc(ui.timeRange)} • <strong style="color: var(--ji-purple);">${esc(role.status)}</strong></span>
               </div>
@@ -380,7 +382,7 @@ function renderJobIntelligenceHTML() {
           <div class="ji-signal-mix-section">
             <div class="ji-signal-mix-header">
               <strong>JOB MARKET SIGNAL MIX</strong>
-              <small>Normalized telemetry across 42,180 active requisitions</small>
+              <small>Normalized signal taxonomy across verified demand streams</small>
             </div>
             <div class="ji-signal-mix-bar" role="group" aria-label="Job signal distribution">
               ${jobMarketSignalMix.map(sig => `
@@ -601,6 +603,14 @@ function renderJobIntelligenceHTML() {
               `;
             }).join('')}
           </nav>
+          ${renderIntelligenceEvidencePanel(ui.jobApiResponse, {
+            title: 'Job intelligence evidence',
+            loading: ui.isAnalyzing,
+            error: ui.jobApiError
+          })}
+          <p class="intel-evidence-panel__message" role="note">
+            This role dashboard also contains illustrative baseline values. Only metrics shown with structured evidence above are API-backed.
+          </p>
 
           <!-- Tab Panels Content -->
           <div class="ji-panel-content">
@@ -657,12 +667,12 @@ function renderOverviewTabHTML(role) {
       <div class="ji-overview-metrics-grid">
         <div class="ji-metric-quad-card">
           <span class="ji-metric-quad-label">Active Requisitions</span>
-          <div class="ji-metric-quad-value">${Number(role.openRoles || 12480).toLocaleString()}</div>
-          <span class="ji-metric-quad-sub">+${role.growthPercentage || 18.4}% vs previous period</span>
+          <div class="ji-metric-quad-value">${role.openRoles ? Number(role.openRoles).toLocaleString() : 'Baseline'}</div>
+          <span class="ji-metric-quad-sub">${role.growthPercentage != null ? `+${role.growthPercentage}% vs previous period` : 'Taxonomy Baseline'}</span>
         </div>
         <div class="ji-metric-quad-card">
           <span class="ji-metric-quad-label">Hiring Employers</span>
-          <div class="ji-metric-quad-value">${role.hiringCompaniesCount || 840}</div>
+          <div class="ji-metric-quad-value">${role.hiringCompaniesCount != null ? role.hiringCompaniesCount : 'Curated'}</div>
           <span class="ji-metric-quad-sub">Across enterprise & scale-up tiers</span>
         </div>
         <div class="ji-metric-quad-card">
@@ -748,7 +758,7 @@ function renderOverviewTabHTML(role) {
 function renderDemandChangeTabHTML(role) {
   const history = role.history || [48, 56, 64, 72, 80, 85, 91];
   const delta30D = (history[history.length - 1] - history[history.length - 2]).toFixed(1);
-  const delta90D = (history[history.length - 1] - history[Math.max(0, history.length - 4)]).toFixed(1);
+  const delta3M = (history[history.length - 1] - history[Math.max(0, history.length - 4)]).toFixed(1);
 
   return `
     <div class="ji-tab-pane">
@@ -764,20 +774,19 @@ function renderDemandChangeTabHTML(role) {
               <strong style="color: var(--ji-positive); font-size: 18px;">+${delta30D}%</strong>
             </div>
             <div style="padding: 10px 14px; background: #FFFFFF; border-radius: 8px; border: 1px solid var(--ji-border); flex: 1;">
-              <small style="color: var(--ji-muted); display: block;">90-Day Velocity</small>
-              <strong style="color: var(--ji-positive); font-size: 18px;">+${delta90D}%</strong>
+              <small style="color: var(--ji-muted); display: block;">3-Month Velocity</small>
+              <strong style="color: var(--ji-positive); font-size: 18px;">+${delta3M}%</strong>
             </div>
           </div>
         </div>
         <div class="ji-demand-box">
-          <span class="ji-evolution-col-title">Forward 6-12 Month Projection</span>
+          <span class="ji-evolution-col-title">Forward Forecasting Status</span>
           <p>
-            Statistical regression models project sustained demand compounding at <strong>~14-19% annualized</strong>.
-            The primary catalyst is enterprise migration from prototype LLMs into mission-critical, low-latency API architectures.
+            Forward-looking projections are held offline until multi-period longitudinal evidence thresholds are satisfied. Current intelligence operates strictly on verified empirical observations and taxonomy cross-references.
           </p>
           <div style="padding: 12px; background: #FFFFFF; border-radius: 8px; border: 1px solid var(--ji-border); margin-top: 8px;">
-            <strong style="display: block; font-size: 12.5px; color: var(--ji-deep);">Projection Confidence</strong>
-            <span style="font-size: 12px; color: var(--ji-muted);">High (validated against 42,180 requisitions across 2,480 employers)</span>
+            <strong style="display: block; font-size: 12.5px; color: var(--ji-deep);">Forecast Policy (G2.6/G2.7)</strong>
+            <span style="font-size: 12px; color: var(--ji-muted);">Speculative forecasting disabled • Evidence-grounded observations only</span>
           </div>
         </div>
       </div>
@@ -919,7 +928,7 @@ function renderCompanyHiringTabHTML(role) {
             </div>
             <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--ji-border); padding-top: 10px; margin-top: 4px;">
               <span style="font-size: 12px; color: var(--ji-muted);">
-                <strong>${c.openCount || 100}+</strong> open roles
+                ${c.openCount ? `<strong>${c.openCount}+</strong> open roles` : `<strong>Verified</strong> employer`}
               </span>
               <button
                 type="button"
@@ -1046,7 +1055,7 @@ function renderEvidenceTabHTML(role) {
   return `
     <div class="ji-tab-pane">
       <div style="margin-bottom: 20px;">
-        <h4 style="margin: 0 0 4px; font-size: 16px; color: var(--ji-deep);">Verified Requisition Evidence & Research</h4>
+        <h4 style="margin: 0 0 4px; font-size: 16px; color: var(--ji-deep);">Requisition Examples & Research</h4>
         <p style="color: var(--ji-muted); font-size: 13px; margin: 0;">
           All telemetry insights for <strong>${esc(role.name)}</strong> are corroborated by authoritative workforce publications and raw requisition feeds.
         </p>
@@ -1094,7 +1103,7 @@ function renderAIInsightTabHTML(role) {
     whatYouShouldDo: 'Prioritize low-latency GPU acceleration and containerized deployment, then connect directly with hiring teams.',
     recommendations: [
       { type: 'Skill Focus', title: 'Bridge CUDA and GPU Acceleration Gap', desc: 'Appears as a recurring requirement across 480+ AI infrastructure roles.', skill: 'CUDA', primaryAction: 'Build Roadmap' },
-      { type: 'Target Employer', title: 'Explore NVIDIA Engineering Openings', desc: 'NVIDIA is expanding Bangalore engineering operations with 480+ live requisitions.', company: 'NVIDIA', primaryAction: 'Explore in Market' },
+      { type: 'Target Employer', title: 'Explore NVIDIA Engineering Openings', desc: 'Illustrative example of engineering opportunities in Bangalore; current requisition data is not connected.', company: 'NVIDIA', primaryAction: 'Explore in Market' },
       { type: 'Role Opportunity', title: 'Prepare for AI Infrastructure Engineer Requisitions', desc: 'Review benchmark assessment and role requirements.', role: 'AI Infrastructure Engineer', primaryAction: 'View Role Details' }
     ]
   };
@@ -1361,7 +1370,7 @@ function renderEvidenceModalHTML() {
         </div>
         <h3 style="margin: 0 0 6px; font-size: 18px; color: var(--ji-deep);">${esc(ev.source)}</h3>
         <span style="font-size: 12px; color: var(--ji-muted); display: block; margin-bottom: 16px;">
-          Published: ${esc(ev.date)} • Methodology: Peer-reviewed industry survey & live API scrapers
+          Published: ${esc(ev.date)} • Methodology: Core Intelligence market collection
         </span>
 
         <div style="padding: 16px; background: var(--ji-wash); border-radius: 10px; border: 1px solid var(--ji-border); margin-bottom: 16px;">
@@ -1395,7 +1404,7 @@ function getSuggestedQuestionsForRole(roleName) {
       return [
         'What skills bridge the gap to Senior AI Engineer?',
         'Which companies are accelerating AI Engineer hiring in Bangalore?',
-        'How does AI Engineer demand compare over the last 90 days?',
+        'How does AI Engineer demand compare over the last 3 months?',
         'What compensation range is commanded by CUDA specialists?'
       ];
     case 'Machine Learning Engineer':
@@ -1825,23 +1834,39 @@ function triggerRoadmapPreview(skillName) {
   window.location.hash = '/individual/home';
 }
 
-function runAnalysis() {
+async function runAnalysis() {
   ui.isAnalyzing = true;
+  ui.jobApiResponse = null;
+  ui.jobApiError = null;
   ui.analysisStep = 0;
   rerender();
 
   const stepInterval = setInterval(() => {
-    ui.analysisStep++;
-    if (ui.analysisStep >= 3) {
-      clearInterval(stepInterval);
-      ui.isAnalyzing = false;
-      ui.hasAnalyzed = true;
-      rerender();
-      document.querySelector('#jiResultSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else {
-      rerender();
-    }
+    ui.analysisStep = Math.min(ui.analysisStep + 1, 2);
+    rerender();
   }, 450);
+
+  const roleName = dedicatedJobState?.selectedRole || dashboardState?.selectedRole || 'AI Engineer';
+  try {
+    const res = await queryJobIntelligence({
+      portalType: 'individual',
+      location: ui.location === 'Global' ? undefined : ui.location,
+      timeRange: ({ '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' })[ui.timeRange] || '30d',
+      selectedRoles: [roleName],
+      targetRole: roleName,
+      query: ui.queryText || undefined
+    });
+    ui.jobApiResponse = res;
+    ui.jobApiError = null;
+  } catch (err) {
+    ui.jobApiError = err.message || 'Job intelligence could not be loaded.';
+  } finally {
+    clearInterval(stepInterval);
+    ui.isAnalyzing = false;
+    ui.hasAnalyzed = true;
+    rerender();
+    document.querySelector('#jiResultSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 function rerender(options = {}) {

@@ -28,6 +28,7 @@ export function renderCompanyHome() {
 
   return `
     <div class="company-page company-home">
+      <aside role="note" class="cmp-card" style="margin-bottom:14px;border-color:#D6C79A;background:#FFF9E8;color:#574817">Illustrative company dashboard preview. Workforce, skill, market and recommendation figures shown here are sample data, not verified company records or live intelligence.</aside>
       <!-- 1. COMPANY HEADER (Section 7) -->
       <section class="cmp-hero">
         <div class="cmp-hero__content">
@@ -80,7 +81,7 @@ export function renderCompanyHome() {
         <div style="margin-bottom: 14px;">
           <span class="cmp-eyebrow"><i data-lucide="layout-grid" class="cmp-icon-inline"></i> WORKFORCE STATUS</span>
           <h2 class="cmp-title">Workforce Intelligence Overview</h2>
-          <p class="cmp-subtitle">Real-time organizational indicators answering: How is our workforce doing right now?</p>
+          <p class="cmp-subtitle">Illustrative workforce indicators for preview; connected company data is not available yet.</p>
         </div>
 
         <div class="cmp-overview-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));">

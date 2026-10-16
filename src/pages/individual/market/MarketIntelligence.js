@@ -1,12 +1,13 @@
 import { dashboardState, dedicatedMarketState, intelligenceExplorerState } from '../../../app/state.js';
-import {
-  dedicatedMarketCompanies, getCompaniesForScope, getCompanyMarketDetails,
-  searchCompanies, getRelatedCompanySignals, marketOptions, timeRangeOptions
-} from '../../../data/market-data.js';
+import { queryMarketIntelligence } from '../../../api/core-intelligence-client.js';
+import { loadSkillIntelligence, saveFavouriteSkillIds } from '../skills/skills-api.js';
+import { formatObservationPeriod, loadMarketCatalog, loadSkillCatalog, saveMarketFavourites } from '../../../api/intelligence-catalog-client.js';
+import { paginateCatalog } from '../../../utils/catalog-pagination.js';
+import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
 
 // Configuration Constants
 const LOCATIONS = ['Global', 'India', 'Tamil Nadu', 'Bangalore', 'Chennai', 'Hyderabad', 'Pune', 'Remote'];
-const RANGES = ['7 Days', '30 Days', '90 Days', '6 Months', '1 Year'];
+const RANGES = ['7 Days', '30 Days', '3 Months', '6 Months'];
 const INDUSTRIES = ['All Industries', 'Semiconductors & AI Hardware', 'Enterprise Cloud & Software', 'Generative AI & Frontier', 'Cloud Data Platforms'];
 const SIGNALS = ['All Signals', 'Investment', 'Technology', 'Hiring', 'Market Momentum'];
 const COMPANY_SIZES = ['All Sizes', 'Enterprise (10,000+)', 'Growth (1,000-10,000)', 'Scaleup (<1,000)'];
@@ -52,6 +53,42 @@ let ui = {
 };
 
 let simTimer = null;
+let marketApiResponse = null;
+let marketApiError = null;
+let marketApiLoading = false;
+let marketRequestVersion = 0;
+let marketCatalog = null;
+let skillCatalog = null;
+let marketCompanyFavouriteIds = [];
+let skillFavouriteIds = [];
+let marketCatalogStatus = 'loading';
+let marketCatalogError = '';
+let marketCatalogQuery = '';
+let marketCatalogSort = 'name';
+let marketCompanyPage = 1;
+let marketCatalogSource = 'all';
+let marketFavoriteError = '';
+let marketFavoriteSaving = false;
+
+if (typeof window !== 'undefined' && !window.__talentscopeMarketSkillFavouriteListener) {
+  window.__talentscopeMarketSkillFavouriteListener = true;
+  window.addEventListener('talentscope:favourites-updated', event => {
+    if (event.detail?.domain !== 'skill' || !Array.isArray(event.detail.skill_ids)) return;
+    skillFavouriteIds = [...new Set(event.detail.skill_ids)];
+    if (skillCatalog) skillCatalog.favorite_skill_ids = skillFavouriteIds;
+    syncMarketFavouritePresentation();
+    if (document.getElementById('marketIntelligencePageRoot')) rerender();
+  });
+}
+
+function syncMarketFavouritePresentation() {
+  if (!marketCatalog) return;
+  const technologyIds = new Set((marketCatalog.technologies || []).map(item => item.skill_id));
+  marketCatalog.favorite_entity_ids = [...new Set([
+    ...marketCompanyFavouriteIds.filter(id => !technologyIds.has(id)),
+    ...skillFavouriteIds
+  ])];
+}
 
 function getSelectedCompanyData() {
   const compName = dedicatedMarketState.selectedCompany || dashboardState.selectedCompany || 'NVIDIA';
@@ -348,7 +385,7 @@ function renderConsole(model) {
             <i data-lucide="scan-search"></i>
           </div>
           <strong>${getAnalysisStepText()}</strong>
-          <small>Connecting real-time market data, company signals, and workforce indicators...</small>
+          <small>Core Intelligence market signals and company indicators.</small>
           <div class="mi-analysis-progress-bar">
             <div class="mi-analysis-progress-fill"></div>
           </div>
@@ -539,7 +576,7 @@ function renderResultSection(model) {
               <span class="mi-result-tag"><i data-lucide="clock"></i> ${esc(ui.timeRange)}</span>
               <span class="mi-result-tag">·</span>
               <span class="mi-demo-badge" style="padding: 2px 8px; font-size: 10.5px;">
-                <span class="mi-live-dot" style="width: 6px; height: 6px;"></span> Simulated market signals
+                <span class="mi-live-dot" style="width: 6px; height: 6px;"></span> Market intelligence signals
               </span>
             </div>
           </div>
@@ -629,7 +666,7 @@ function renderOverviewTab(model) {
     <div style="background: var(--mi-wash); border: 1px solid var(--mi-border); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 10px;">
       <div style="display: flex; align-items: center; justify-content: space-between;">
         <strong style="font-size: 15px; color: var(--mi-deep);"><i data-lucide="sparkles" style="color: var(--mi-purple); vertical-align: middle;"></i> Holistic Market Intelligence Synthesis</strong>
-        <span class="mi-demo-badge">Verified Prototype Signal</span>
+        <span class="mi-demo-badge">Market Intelligence Synthesis</span>
       </div>
       <p style="font-size: 13.5px; color: var(--mi-ink); line-height: 1.6; margin: 0;">
         ${esc(model.name)} demonstrates exceptional momentum (+${model.change}%) in the ${esc(model.industry)} sector. Capital allocation toward infrastructure scaling and accelerated hiring across engineering hubs are strongly reinforcing technology demand.
@@ -782,19 +819,25 @@ function renderInvestmentTab(model) {
   const investments = model.investments || [];
 
   return `
-    <div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+    <div style="margin-bottom: 16px;">
+      <div style="padding: 10px 14px; background: #FFF9E8; border: 1px solid #D6C79A; border-radius: 8px; color: #574817; font-size: 12.5px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <span><strong>Signal Status: Not Available</strong> — Capital expenditure and investment funding streams are not currently collected in the verified Core Intelligence ingestion network. Capital indicators below reflect baseline configuration schemas.</span>
+        <span class="mi-demo-badge" style="background: #F3ECE0; color: #735C2B;">Not in Live Pipeline</span>
+      </div>
       <p style="margin: 0; font-size: 13px; color: var(--mi-muted);">
-        Capital expenditures, R&D allocation, and infrastructure financing driving market movements.
+        Capital expenditures, R&D allocation, and infrastructure financing driving market movements for ${esc(model.name)}.
       </p>
-      <span class="mi-demo-badge">Illustrative investment signal</span>
     </div>
 
     <div class="mi-invest-grid">
       ${investments.map(inv => `
         <div class="mi-invest-card">
-          <strong style="font-size: 15px; color: var(--mi-deep);">${esc(inv.focus)}</strong>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+            <strong style="font-size: 15px; color: var(--mi-deep);">${esc(inv.focus)}</strong>
+            <span class="mi-demo-badge" style="font-size: 10px;">Baseline Indicator</span>
+          </div>
           <div class="mi-invest-scale">${esc(inv.scale)}</div>
-          <span class="mi-trend-pill is-up" style="align-self: flex-start;">${esc(inv.signal)}</span>
+          <span class="mi-trend-pill" style="align-self: flex-start; background: #EEF1F6; color: #4B5563;">${esc(inv.signal)}</span>
           <p style="font-size: 12.5px; color: var(--mi-ink); line-height: 1.5; margin: 0;">${esc(inv.detail)}</p>
         </div>
       `).join('')}
@@ -822,7 +865,7 @@ function renderEvidenceTab(model) {
               <strong>${esc(ev.source)}</strong>
               <span class="mi-evidence-badge">
                 <i data-lucide="check-circle-2" style="width: 12px; height: 12px;"></i>
-                Verified Source
+                Illustrative Source
               </span>
               <span style="font-size: 11.5px; color: var(--mi-muted);">${esc(ev.date)} · ${esc(ev.type)}</span>
             </div>
@@ -967,7 +1010,7 @@ function renderEvidenceModal(evidence) {
         <div class="mi-modal-header">
           <div style="display: flex; align-items: center; gap: 8px;">
             <i data-lucide="file-search" style="color: var(--mi-purple);"></i>
-            <h3>Verified Evidence Citation</h3>
+            <h3>Sample Evidence Citation</h3>
           </div>
           <button type="button" class="mi-modal-close" id="miCloseEvidenceModalBtn"><i data-lucide="x"></i></button>
         </div>
@@ -1000,7 +1043,7 @@ function renderEvidenceModal(evidence) {
 
 function getAnalysisStepText() {
   const steps = [
-    'Scanning real-time company signals and filing disclosures...',
+    'Scanning illustrative company signals and sample disclosures...',
     'Evaluating technology momentum and stack adoption...',
     'Synthesizing workforce hiring requisitions and strategic insights...'
   ];
@@ -1012,125 +1055,152 @@ function getAnalysisStepText() {
 // ============================================================================
 
 export function renderMarketIntelligenceHTML() {
-  const model = getSelectedCompanyData();
-  const visibleCompanies = getVisibleCompanies();
-
-  return `
-    <div class="market-intelligence-page" id="marketIntelligencePageRoot">
-      <!-- Page Heading -->
-      <header class="mi-page-heading">
-        <div>
-          <span class="mi-eyebrow">
-            <i data-lucide="chart-no-axes-combined"></i> INDIVIDUAL INTELLIGENCE
-          </span>
-          <h1>Market Intelligence</h1>
-          <p>Understand how companies, technologies, investment and hiring signals are changing across the market.</p>
-        </div>
-        <div class="mi-demo-badge">
-          <span class="mi-live-dot"></span>
-          <span>Simulated market signals</span>
-        </div>
-      </header>
-
-      <!-- 50/50 Workspace Grid (Market Collection & Live Market Trend) -->
-      <div class="mi-workspace-grid">
-        <!-- Section 1: Market Collection -->
-        <section class="mi-card">
-          <div class="mi-card-header">
-            <div>
-              <h2>Your Market Collection</h2>
-              <p>Choose a company or market signal to investigate.</p>
-            </div>
-            <button type="button" class="mi-btn-subtle" id="btnOpenAddCompanyModalHeader">
-              <i data-lucide="plus"></i> Add
-            </button>
-          </div>
-
-          <!-- Collection Tabs: My Companies / Favorite Companies / All Companies -->
-          <div class="mi-collection-tabs">
-            <button type="button" class="mi-collection-tab ${ui.collection === 'My Companies' ? 'is-active' : ''}" data-collection-tab="My Companies">
-              <span>My Companies</span>
-            </button>
-            <button type="button" class="mi-collection-tab ${ui.collection === 'Favorite Companies' ? 'is-active' : ''}" data-collection-tab="Favorite Companies">
-              <span>Favorite Companies</span>
-            </button>
-            <button type="button" class="mi-collection-tab ${ui.collection === 'All Companies' ? 'is-active' : ''}" data-collection-tab="All Companies">
-              <span>All Companies</span>
-            </button>
-          </div>
-
-          <!-- Search & Filter Controls -->
-          <div class="mi-collection-controls">
-            <div class="mi-search-wrap">
-              <i data-lucide="search"></i>
-              <input type="text" class="mi-search-input" id="miCompanySearchInput" placeholder="Filter companies, sectors..." value="${esc(ui.searchQuery)}" />
-            </div>
-          </div>
-
-          <!-- Company Rows List -->
-          <div class="mi-company-list">
-            ${renderCompanyRows(visibleCompanies, model)}
-          </div>
-        </section>
-
-        <!-- Section 2: Live Market Trend -->
-        <section class="mi-card">
-          <div class="mi-card-header">
-            <div>
-              <h2>Live Market Trend</h2>
-              <p>Multi-signal coordinated momentum tracking across market, technology, hiring & capital.</p>
-            </div>
-            <span class="mi-trend-pill is-up">
-              ${model.change > 0 ? '+' : ''}${model.change}%
-            </span>
-          </div>
-
-          <!-- Selected Company Details Header -->
-          <div class="mi-trend-header-details">
-            <div class="mi-trend-hero-company">
-              <div class="mi-company-monogram" style="${model.brandColor ? `background: linear-gradient(135deg, ${model.brandColor}, #42075D)` : ''}">
-                ${esc(model.logoInitials)}
-              </div>
-              <div class="mi-trend-hero-meta">
-                <h3>${esc(model.name)}</h3>
-                <span>${esc(model.sector)} · ${esc(ui.location)}</span>
-              </div>
-            </div>
-
-            <div class="mi-trend-hero-metric">
-              <div class="mi-trend-hero-val">${model.marketMomentum}/100</div>
-              <div class="mi-trend-hero-label">Momentum Score</div>
-            </div>
-          </div>
-
-          <!-- Multi-Signal Interactive Animated SVG Graph -->
-          ${renderMultiSignalChart(model)}
-
-          <!-- Company Signals List -->
-          ${renderCompanySignalsList(model)}
-        </section>
-      </div>
-
-      <!-- Section 3: Market Intelligence Console -->
-      ${renderConsole(model)}
-
-      <!-- Section 4: Intelligence Result -->
-      ${renderResultSection(model)}
-
-      <!-- Modal Overlays -->
-      ${ui.addModalOpen ? renderAddCompanyModal() : ''}
-      ${ui.evidenceModalData ? renderEvidenceModal(ui.evidenceModalData) : ''}
-    </div>
-  `;
+  const response = marketApiResponse;
+  const state = ['ready', 'partial', 'building', 'stale', 'insufficient_data', 'incomplete_history', 'unavailable', 'error'].includes(response?.data_state)
+    ? response.data_state : (marketApiLoading ? 'building' : 'insufficient_data');
+  const rows = (response?.current_demand || []).filter(row => row && row.data_origin === 'real'
+    && row.history_type === 'platform_collected' && Number.isFinite(row.value));
+  const selectedRange = ({ '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' })[ui.timeRange] || '30d';
+  const catalogLocations = marketCatalog?.locations || [];
+  const companies = marketCatalog?.companies_with_job_evidence || [];
+  const technologies = marketCatalog?.technologies || [];
+  const coverageRange = marketCatalog?.job_coverage || {};
+  const query = marketCatalogQuery.trim().toLocaleLowerCase();
+  const visibleTechnologies = technologies.filter(item => String(item.name || '').toLocaleLowerCase().includes(query)).sort((a, b) => {
+    if (marketCatalogSort === 'latest') return Number(b.latest?.value ?? -Infinity) - Number(a.latest?.value ?? -Infinity) || a.name.localeCompare(b.name);
+    if (marketCatalogSort === 'change') return Number(b.trend?.change ?? -Infinity) - Number(a.trend?.change ?? -Infinity) || a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name);
+  });
+  const companySources = [...new Set(companies.flatMap(item => item.sources || []).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  let visibleCompanies = companies.filter(item => String(item.name || '').toLocaleLowerCase().includes(query)
+    && (marketCatalogSource === 'all' || (item.sources || []).includes(marketCatalogSource))).sort((a, b) => marketCatalogSort === 'latest'
+    ? String(b.latest_posted_at || '').localeCompare(String(a.latest_posted_at || '')) || b.posting_count_in_sample - a.posting_count_in_sample || a.name.localeCompare(b.name)
+    : a.name.localeCompare(b.name));
+  const companyPage = paginateCatalog(visibleCompanies, marketCompanyPage);
+  marketCompanyPage = companyPage.page;
+  const filteredCompanyTotal = companyPage.total;
+  visibleCompanies = companyPage.items;
+  return `<div class="market-intelligence-page mi-api-page" id="marketIntelligencePageRoot">
+    <header class="mi-page-heading"><div><span class="mi-eyebrow">INDIVIDUAL INTELLIGENCE</span><h1>Market Intelligence</h1>
+      <p>Real provider-backed job demand from stored observations. Company, investment and multi-signal panels are unavailable until supported by real API data.</p></div>
+      <span class="mi-data-state" data-state="${state}">${state.replaceAll('_', ' ')}</span></header>
+    <section class="mi-card mi-api-filters" aria-label="Market filters">
+      <label>Location <select id="miApiLocation"><option value="">All supported locations</option>${catalogLocations.map(location => `<option value="${esc(location)}" ${ui.location === location ? 'selected' : ''}>${esc(location)}</option>`).join('')}</select></label>
+      <label>Time range <select id="miApiRange">${(marketCatalog?.available_ranges || []).map(range => `<option value="${range}" ${selectedRange === range ? 'selected' : ''}>${range === '30d' ? '30 Days' : range === '3m' ? '3 Months' : 'Max available (' + range + ')'}</option>`).join('') || '<option value="" disabled selected>Unavailable for this source</option>'}</select></label>
+      <label>Skill entity <select id="miApiSkill"><option value="">All observed skills</option>${technologies.map(item => `<option value="${esc(item.name)}" ${response?.filters?.skill === item.name ? 'selected' : ''}>${esc(item.name)} · ${item.trend_available ? 'trend ready' : 'observation only'}</option>`).join('')}</select></label>
+      <button id="miApiApply" type="button">Apply filters</button>
+      <span class="mi-catalog-context">${companies.length} employers represented in stored posting records · posting counts cover this bounded catalog query only</span>
+    </section>
+    <nav class="mi-api-tabs" aria-label="Market intelligence sections">
+      <button type="button" aria-current="page">Overview</button>
+      <button type="button" disabled title="No real API series available">Market Change</button>
+      <button type="button" disabled title="No real API series available">Technology</button>
+      <button type="button" disabled title="No real API series available">Hiring</button>
+      <button type="button" disabled title="No real API series available">Investment</button>
+      <button type="button" disabled title="No real API evidence endpoint">Evidence</button>
+      <button type="button" disabled title="AI explanations are outside the verified data trace">AI Insight</button>
+    </nav>
+    ${marketApiLoading ? '<p role="status">Loading real market data?</p>' : ''}
+    ${marketApiError ? `<p role="alert">${esc(marketApiError)}</p>` : ''}
+    ${renderIntelligenceEvidencePanel(marketApiResponse, {
+      title: 'Market intelligence evidence',
+      loading: marketApiLoading,
+      error: marketApiError
+    })}
+    ${marketCatalogStatus === 'loading' ? '<p role="status">Loading supported market entities…</p>' : marketCatalogStatus === 'error' ? `<p role="alert">${esc(marketCatalogError)} <button type="button" id="miCatalogRetry">Retry</button></p>` : ''}
+    ${marketFavoriteError ? `<p role="alert" class="mi-catalog-error">${esc(marketFavoriteError)}</p>` : ''}
+    ${marketCatalogStatus === 'loaded' ? `<section class="mi-card mi-catalog-overview"><header><span class="mi-eyebrow">REAL ENTITY CATALOG</span><h2>Technology observations and employer evidence</h2><p>Employer counts describe only stored job records in the bounded catalog query. No company-level market telemetry is available; no company market-share or company-level trend is inferred from postings.</p></header><div class="mi-catalog-controls"><label>Search catalog<input type="search" id="miCatalogSearch" value="${esc(marketCatalogQuery)}" placeholder="Find a technology or employer" /></label><label>Sort by<select id="miCatalogSort"><option value="name" ${marketCatalogSort === 'name' ? 'selected' : ''}>Name</option><option value="latest" ${marketCatalogSort === 'latest' ? 'selected' : ''}>Latest observation / posting date</option><option value="change" ${marketCatalogSort === 'change' ? 'selected' : ''}>Comparable signal change</option></select></label></div><div class="mi-catalog-columns"><div><h3>Observed technology signals <small>${technologies.length}</small></h3>${visibleTechnologies.length ? `<ul>${visibleTechnologies.map(item => `<li><div class="mi-catalog-row-heading"><strong>${esc(item.name)}</strong><button type="button" class="mi-catalog-star ${(marketCatalog.favorite_entity_ids || []).includes(item.skill_id) ? 'is-favourite' : ''}" data-toggle-market-favourite data-entity-id="${esc(item.skill_id)}" aria-pressed="${(marketCatalog.favorite_entity_ids || []).includes(item.skill_id)}" aria-label="${(marketCatalog.favorite_entity_ids || []).includes(item.skill_id) ? 'Remove' : 'Add'} ${esc(item.name)} ${(marketCatalog.favorite_entity_ids || []).includes(item.skill_id) ? 'from' : 'to'} favourites">${(marketCatalog.favorite_entity_ids || []).includes(item.skill_id) ? '★' : '☆'}</button></div><span>${item.signals.map(signal => `${esc(signal.signal_label || signal.signal_type)} · ${esc(signal.source)} · ${esc(signal.value)} ${esc(signal.unit)} · ${esc(formatObservationPeriod(signal.period))}`).join('<br>')}${item.trend_available ? `<br>Trend: ${esc(item.trend.direction)}${item.trend.change_pct == null ? '' : ` · ${esc(item.trend.change_pct)}% relative change`}` : `<br>Trend unavailable: ${esc(item.trend_unavailable_reason || 'insufficient completed history')}`}</span></li>`).join('')}</ul>` : '<p>No matching technology observation records are available.</p>'}</div><div><h3>Employers in stored postings <small>${companyPage.total}</small></h3><div class="mi-company-catalog-controls"><label>Posting source<select id="miCatalogSource"><option value="all">All sources</option>${companySources.map(source => `<option value="${esc(source)}" ${marketCatalogSource === source ? 'selected' : ''}>${esc(source)}</option>`).join('')}</select></label><span>${companyPage.total} matching employers</span></div>${visibleCompanies.length ? `<ul>${visibleCompanies.map(item => `<li><div class="mi-catalog-row-heading"><strong>${esc(item.name)}</strong><button type="button" class="mi-catalog-star ${(marketCatalog.favorite_entity_ids || []).includes(item.entity_id) ? 'is-favourite' : ''}" data-toggle-market-favourite data-entity-id="${esc(item.entity_id)}" aria-pressed="${(marketCatalog.favorite_entity_ids || []).includes(item.entity_id)}" aria-label="${(marketCatalog.favorite_entity_ids || []).includes(item.entity_id) ? 'Remove' : 'Add'} ${esc(item.name)} ${(marketCatalog.favorite_entity_ids || []).includes(item.entity_id) ? 'from' : 'to'} favourites">${(marketCatalog.favorite_entity_ids || []).includes(item.entity_id) ? '★' : '☆'}</button></div><span>${esc(item.posting_count_in_sample)} stored posting record(s) · ${esc((item.sources || []).join(', ') || item.evidence_type)}${item.latest_posted_at ? ` · latest posting ${esc(formatObservationPeriod(item.latest_posted_at.slice(0, 7)))} (${esc(item.latest_posted_at)})` : ' · posting date unavailable'}${item.locations?.length ? ` · ${esc(item.locations.join(', '))}` : ''} · Company trend unavailable</span>${item.evidence_links?.length ? `<div class="mi-catalog-evidence-links">Evidence: ${item.evidence_links.map((url, index) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Posting ${index + 1}</a>`).join(' · ')}</div>` : ''}</li>`).join('')}</ul>` : '<p>No matching employer names were available in the stored job catalog.</p>'}<div class="mi-catalog-pagination" aria-label="Employer catalog pagination"><span>${companyPage.start}–${companyPage.end} of ${companyPage.total}</span><div><button type="button" id="miCatalogPrevious" ${companyPage.page <= 1 ? 'disabled' : ''}>Previous</button><span>Page ${companyPage.page} of ${companyPage.pageCount}</span><button type="button" id="miCatalogNext" ${companyPage.page >= companyPage.pageCount ? 'disabled' : ''}>Next</button></div></div>${marketCatalog.registered_company ? `<h4>Your registered company</h4><div class="mi-catalog-row-heading"><strong>${esc(marketCatalog.registered_company.name)}</strong><button type="button" class="mi-catalog-star ${(marketCatalog.favorite_entity_ids || []).includes(marketCatalog.registered_company.entity_id) ? 'is-favourite' : ''}" data-toggle-market-favourite data-entity-id="${esc(marketCatalog.registered_company.entity_id)}" aria-pressed="${(marketCatalog.favorite_entity_ids || []).includes(marketCatalog.registered_company.entity_id)}" aria-label="Toggle favourite for your registered company">${(marketCatalog.favorite_entity_ids || []).includes(marketCatalog.registered_company.entity_id) ? '★' : '☆'}</button></div><small>Registration metadata only · no market telemetry</small>` : ''}<small>Bounded query coverage: ${esc(coverageRange.records_read ?? 0)} / ${esc(coverageRange.sample_limit ?? 5000)} records${coverageRange.sample_may_be_incomplete ? ' · catalog may have additional records' : ' · query completed'} · ${esc(coverageRange.first_posted_date_in_sample || 'unavailable')} to ${esc(coverageRange.latest_posted_date_in_sample || 'unavailable')}</small></div></div></section>` : ''}
+    ${!marketApiLoading && !marketApiError && rows.length === 0 ? `<section class="mi-card" role="status"><h2>${state.replaceAll('_', ' ')}</h2><p>No eligible real job-demand snapshot is available for these filters. No trend is inferred from missing periods.</p></section>` : ''}
+    ${rows.length ? `<section class="mi-card"><h2>Source-specific demand snapshots</h2><div class="mi-demand-list">${rows.map(row => `<article class="mi-demand-row"><h3>${esc(row.skill)}</h3><p>${esc(row.source)} ? ${esc(row.period)} ? ${esc(row.data_state)}</p><strong>Current provider sample: ${esc(row.coverage?.source_job_count ?? 'unknown')} observed job${Number(row.coverage?.source_job_count) === 1 ? '' : 's'}</strong><p>Coverage: ${esc(row.coverage?.observation_count ?? 'unknown')} skill observations across ${esc(row.coverage?.period_count ?? 'unknown')} periods. ${row.data_state === 'insufficient_data' ? 'Insufficient data for trend; trend confidence unavailable.' : 'This snapshot is not a trend.'}</p><p>Collected: ${Number.isFinite(Date.parse(row.evidence?.collected_at || '')) ? esc(new Date(row.evidence.collected_at).toLocaleString()) : 'unknown'}</p><p>Evidence: ${(row.evidence?.fetch_run_ids || []).map(esc).join(', ')} ? calculation ${(row.calculation_record_id && esc(row.calculation_record_id)) || 'not persisted'}</p></article>`).join('')}</div></section>` : ''}
+    <p class="mi-api-note">Each demand result is scoped to one provider series and retains its source, period and provenance.</p>
+  </div>`;
 }
 
-// ============================================================================
 // EVENT BINDINGS & LIFECYCLE
 // ============================================================================
 
 function bindEvents() {
   const root = document.getElementById('marketIntelligencePageRoot');
   if (!root) return;
+  if (root.classList.contains('mi-api-page')) {
+    root.querySelector('#miCatalogRetry')?.addEventListener('click', async () => {
+      marketCatalogStatus = 'loading';
+      marketCatalogError = '';
+      rerender();
+      try {
+        const [market, skills] = await Promise.all([loadMarketCatalog(), loadSkillCatalog()]);
+        marketCatalog = market;
+        skillCatalog = skills;
+        const technologyIds = new Set((market.technologies || []).map(item => item.skill_id));
+        marketCompanyFavouriteIds = (market.favorite_entity_ids || []).filter(id => !technologyIds.has(id));
+        skillFavouriteIds = (skills.favorite_skill_ids || []).slice();
+        syncMarketFavouritePresentation();
+        marketCatalogStatus = 'loaded';
+      } catch (error) {
+        marketCatalogStatus = 'error';
+        marketCatalogError = error.message || 'The market catalog could not be loaded.';
+      }
+      rerender();
+    });
+    root.querySelectorAll('[data-toggle-market-favourite]').forEach(button => button.addEventListener('click', async () => {
+      if (marketFavoriteSaving) return;
+      const entityId = button.dataset.entityId;
+      const technology = (marketCatalog?.technologies || []).find(item => item.skill_id === entityId);
+      const current = technology ? skillFavouriteIds : marketCompanyFavouriteIds;
+      const previous = [...current];
+      const next = current.includes(entityId) ? current.filter(id => id !== entityId) : [...current, entityId];
+      if (technology) skillFavouriteIds = next;
+      else marketCompanyFavouriteIds = next;
+      syncMarketFavouritePresentation();
+      marketFavoriteSaving = true;
+      marketFavoriteError = '';
+      rerender();
+      try {
+        if (technology) {
+          const result = await saveFavouriteSkillIds(next);
+          skillFavouriteIds = [...new Set(result.skill_ids || [])];
+          if (skillCatalog) skillCatalog.favorite_skill_ids = skillFavouriteIds;
+          window.dispatchEvent(new CustomEvent('talentscope:favourites-updated', {
+            detail: { domain: 'skill', skill_ids: skillFavouriteIds }
+          }));
+        } else {
+          const result = await saveMarketFavourites(next);
+          marketCompanyFavouriteIds = result.entity_ids || [];
+          window.dispatchEvent(new CustomEvent('talentscope:favourites-updated', { detail: { domain: 'market' } }));
+        }
+        syncMarketFavouritePresentation();
+        marketFavoriteError = '';
+      } catch (error) {
+        if (technology) skillFavouriteIds = previous;
+        else marketCompanyFavouriteIds = previous;
+        syncMarketFavouritePresentation();
+        marketFavoriteError = error.message || 'The favourite could not be saved.';
+      }
+      marketFavoriteSaving = false;
+      rerender();
+    }));
+    root.querySelector('#miCatalogSearch')?.addEventListener('input', event => {
+      marketCatalogQuery = event.currentTarget.value;
+      marketCompanyPage = 1;
+      const start = event.currentTarget.selectionStart;
+      const end = event.currentTarget.selectionEnd;
+      rerender();
+      const input = document.querySelector('#miCatalogSearch');
+      input?.focus();
+      input?.setSelectionRange(start, end);
+    });
+    root.querySelector('#miCatalogSort')?.addEventListener('change', event => { marketCatalogSort = event.currentTarget.value; marketCompanyPage = 1; rerender(); });
+    root.querySelector('#miCatalogSource')?.addEventListener('change', event => { marketCatalogSource = event.currentTarget.value; marketCompanyPage = 1; rerender(); });
+    root.querySelector('#miCatalogPrevious')?.addEventListener('click', () => { marketCompanyPage = Math.max(1, marketCompanyPage - 1); rerender(); });
+    root.querySelector('#miCatalogNext')?.addEventListener('click', () => { marketCompanyPage += 1; rerender(); });
+    root.querySelector('#miApiApply')?.addEventListener('click', () => {
+      const range = root.querySelector('#miApiRange')?.value || '30d';
+      ui.location = root.querySelector('#miApiLocation')?.value || 'Global';
+      ui.timeRange = ({ '7d': '7 Days', '30d': '30 Days', '3m': '3 Months', '6m': '6 Months' })[range] || '30 Days';
+      refreshMarketApi({ location: ui.location === 'Global' ? undefined : ui.location, range, skill: root.querySelector('#miApiSkill')?.value.trim() || undefined });
+    });
+    return;
+  }
 
   // Collection tabs
   root.querySelectorAll('[data-collection-tab]').forEach(btn => {
@@ -1569,6 +1639,61 @@ function tickSimulation() {
 // EXPORT ENTRY POINT
 // ============================================================================
 
+async function refreshMarketApi(filters = {}) {
+  const version = ++marketRequestVersion;
+  marketApiLoading = true;
+  marketApiError = null;
+  marketApiResponse = null;
+  rerender();
+  try {
+    const effectiveLocation = filters.location || (ui.location === 'Global' ? undefined : ui.location);
+    const effectiveRange = filters.range || ({ '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' })[ui.timeRange] || '30d';
+    const res = await queryMarketIntelligence({
+      portalType: 'individual',
+      location: effectiveLocation,
+      timeRange: effectiveRange,
+      selectedSkills: filters.skill ? [filters.skill] : []
+    });
+
+    const mappedDemand = (res.current_signals || []).map(s => ({
+      skill: s.entity_name,
+      source: s.source,
+      period: s.period,
+      data_state: s.quality_state === 'valid' ? 'insufficient_data' : s.quality_state,
+      value: s.value,
+      data_origin: s.data_origin,
+      history_type: s.history_type,
+      coverage: {
+        source_job_count: s.coverage?.source_job_count ?? s.metadata?.source_job_count ?? null,
+        observation_count: s.observation_count ?? null,
+        period_count: s.coverage?.period_count ?? null
+      },
+      evidence: {
+        collected_at: s.metadata?.collected_at || '',
+        fetch_run_ids: s.fetch_run_id ? [s.fetch_run_id] : []
+      },
+      calculation_record_id: s.metadata?.calculation_record_id || null
+    }));
+
+    marketApiResponse = {
+      ...res,
+      current_demand: mappedDemand,
+      filters: {
+        location: filters.location || ui.location,
+        skill: filters.skill || ''
+      }
+    };
+  } catch (err) {
+    marketApiResponse = null;
+    marketApiError = err.message || 'Market intelligence could not be loaded. Check your sign-in and connection, then retry.';
+  } finally {
+    if (version === marketRequestVersion) {
+      marketApiLoading = false;
+      rerender();
+    }
+  }
+}
+
 export function renderDedicatedMarketPage() {
   if (simTimer) clearInterval(simTimer);
   const main = document.getElementById('mainContent');
@@ -1576,5 +1701,19 @@ export function renderDedicatedMarketPage() {
   main.innerHTML = renderMarketIntelligenceHTML();
   window.lucide?.createIcons();
   bindEvents();
-  simTimer = window.setInterval(tickSimulation, 4200);
+  Promise.all([loadMarketCatalog(), loadSkillCatalog()]).then(([market, skills]) => {
+    marketCatalog = market;
+    skillCatalog = skills;
+    const technologyIds = new Set((market.technologies || []).map(item => item.skill_id));
+    marketCompanyFavouriteIds = (market.favorite_entity_ids || []).filter(id => !technologyIds.has(id));
+    skillFavouriteIds = (skills.favorite_skill_ids || []).slice();
+    syncMarketFavouritePresentation();
+    marketCatalogStatus = 'loaded';
+    if (document.getElementById('marketIntelligencePageRoot')) rerender();
+  }).catch(error => {
+    marketCatalogStatus = 'error';
+    marketCatalogError = error.message || 'Market catalog could not be loaded.';
+    if (document.getElementById('marketIntelligencePageRoot')) rerender();
+  });
+  refreshMarketApi({ location: ui.location === 'Global' ? undefined : ui.location, range: ({ '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' })[ui.timeRange] || '30d' });
 }

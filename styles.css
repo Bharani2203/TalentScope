@@ -6,6 +6,7 @@
 @import url('./src/styles/components.css');
 @import url('./src/styles/responsive.css');
 @import url('./src/styles/step3-modals.css');
+@import url('./src/styles/intelligence-evidence.css');
 
 /* Page-Specific Styles */
 @import url('./src/pages/individual/home/home.css');

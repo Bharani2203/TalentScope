@@ -41,7 +41,7 @@ export function renderEmployeeHome() {
         ${esc(metrics.primaryContext.summary)}
       </p>
       <div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--emp-border-subtle); padding-top: 14px;">
-        <span class="emp-badge emp-badge-success"><i data-lucide="check-circle-2"></i> ${metrics.primaryContext.evidenceCount} Verified Signals</span>
+        <span class="emp-badge emp-badge-success"><i data-lucide="info"></i> Illustrative signal examples</span>
         <a href="#${metrics.primaryContext.route}" class="emp-btn-secondary emp-btn-sm">
           <span>${esc(metrics.primaryContext.actionLabel)}</span>
           <i data-lucide="arrow-right"></i>
@@ -161,7 +161,7 @@ export function renderEmployeeHome() {
     {
       title: 'Standardization on Open Weights Foundation Models',
       change: '+45.2%',
-      timeframe: 'Last 90 Days',
+      timeframe: 'Last 3 Months',
       summary: 'Enterprise adoption shifting toward self-hosted open foundation models with strict telemetry auditing.',
       whyItMatters: 'Positions your skills in quantization and evaluation benchmarks as high-value capabilities.',
       indicator: 'positive'
@@ -170,6 +170,7 @@ export function renderEmployeeHome() {
 
   return `
     <div class="employee-page">
+      <aside role="note" class="emp-card" style="margin-bottom:14px;border-color:#D6C79A;background:#FFF9E8;color:#574817">Employee portal preview: profile, skill, market and connection-mode examples on this page are illustrative local data. Backend membership status is authoritative in Company connection; the preview toggle does not change membership.</aside>
       <!-- DUAL-STATE BANNER & MODE TOGGLE -->
       <div class="emp-state-banner">
         <div class="emp-state-info">

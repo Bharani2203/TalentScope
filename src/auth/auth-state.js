@@ -1,20 +1,132 @@
 // ============================================================================
 // TALENTSCOPE.AI — AUTHENTICATION & SESSION STATE MANAGEMENT
 // Supports: Individual, Employee (Connected / Independent), Company Admin
-// Handles: Persistent local sessions, demo seeds, onboarding progress sync
+// Handles: Firebase-backed sessions and local onboarding drafts
 // ============================================================================
+
+import { auth, onAuthStateChanged, signOut } from './firebase-client.js';
+import { syncFirebaseUser } from './auth-api.js';
+import { coalesceProfileSync } from './profile-sync-coordinator.js';
+import { authTraceNow, logAuthTrace, recordAuthEvent, setAuthDiagnosticState } from './auth-trace.js';
 
 const STORAGE_KEY_USERS = 'talentscope_users_v2';
 const STORAGE_KEY_SESSION = 'talentscope_session_v2';
 const STORAGE_KEY_ONBOARDING_DRAFT = 'talentscope_onboarding_draft_v2';
 const STORAGE_KEY_LATEST_REPORT = 'talentscope_latest_report_v2';
 
+function removeLegacyPasswords() {
+  try {
+    const users = JSON.parse(localStorage.getItem(STORAGE_KEY_USERS) || '[]');
+    if (Array.isArray(users)) {
+      for (const user of users) delete user.password;
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+    }
+    const session = JSON.parse(localStorage.getItem(STORAGE_KEY_SESSION) || 'null');
+    if (session?.user) {
+      delete session.user.password;
+      localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(session));
+    }
+  } catch {}
+}
+removeLegacyPasswords();
+
+function clientProfile(profile) {
+  return {
+    ...profile,
+    id: profile.uid,
+    name: profile.display_name || profile.email || 'TalentScope user',
+    userType: profile.user_type || null,
+    employeeType: profile.employee_type || null,
+    companyName: profile.company_name || null,
+    onboardingComplete: profile.onboarding_completed === true
+  };
+}
+
+let signupFlowPending = false;
+let profileSyncErrorKind = null;
+const profileSyncs = new Map();
+
+export function getProfileSyncErrorKind() {
+  return profileSyncErrorKind;
+}
+
+export function setSignupFlowPending(pending) {
+  signupFlowPending = Boolean(pending);
+}
+
+export async function syncCurrentFirebaseUser(firebaseUser, profile = {}) {
+  if (!firebaseUser?.uid) throw new Error('A Firebase user is required to synchronize the profile.');
+  const startedAt = authTraceNow();
+  const { promise, coalesced } = coalesceProfileSync(profileSyncs, firebaseUser.uid, profile, async () => {
+    const synced = await syncFirebaseUser(firebaseUser, profile);
+    profileSyncErrorKind = null;
+    const user = clientProfile(synced);
+    if (user.uid !== firebaseUser.uid) throw new Error('The profile identity did not match the signed-in Firebase user.');
+    setCurrentUser(user);
+    return user;
+  });
+  if (coalesced) logAuthTrace('profile_sync_coalesced', { result: 'joined_inflight_request' });
+  const user = await promise;
+  logAuthTrace('profile_ready', { duration_ms: authTraceNow() - startedAt, result: 'success' });
+  return user;
+}
+
+export function initializeAuthState() {
+  const authStateStartedAt = authTraceNow();
+  onAuthStateChanged(auth, async firebaseUser => {
+    logAuthTrace('firebase_auth_state', {
+      duration_ms: authTraceNow() - authStateStartedAt,
+      result: firebaseUser ? 'signed_in' : 'signed_out'
+    });
+    if (!firebaseUser) {
+      recordAuthEvent('AUTH_STATE_CHANGED', { result: 'signed_out', firebase_user: false });
+      recordAuthEvent('FIREBASE_USER_MISSING');
+      setAuthDiagnosticState({ firebase_user: false, email_verified: false, provider_ids: [], profile_sync: 'NOT_STARTED', profile: 'UNKNOWN', onboarding: 'UNKNOWN' });
+      setCurrentUser(null);
+      window.dispatchEvent(new Event('talentscope-auth-state-changed'));
+      return;
+    }
+    const providerIds = Array.isArray(firebaseUser.providerData)
+      ? firebaseUser.providerData.map(provider => provider?.providerId).filter(Boolean)
+      : [];
+    recordAuthEvent('AUTH_STATE_CHANGED', { result: 'signed_in', firebase_user: true, uid_present: Boolean(firebaseUser.uid), email_verified: Boolean(firebaseUser.emailVerified), provider_ids: providerIds });
+    recordAuthEvent('FIREBASE_USER_AVAILABLE', { firebase_user: true, uid_present: Boolean(firebaseUser.uid), email_verified: Boolean(firebaseUser.emailVerified), provider_ids: providerIds });
+    setAuthDiagnosticState({ firebase_user: true, email_verified: Boolean(firebaseUser.emailVerified), provider_ids: providerIds });
+    if (signupFlowPending) {
+      return;
+    }
+    const restoreStartedAt = authTraceNow();
+    try {
+      await syncCurrentFirebaseUser(firebaseUser);
+      recordAuthEvent('PROFILE_STATE_READY', { profile: 'FOUND' });
+      logAuthTrace('session_restore_to_profile_ready', {
+        duration_ms: authTraceNow() - restoreStartedAt,
+        result: 'success'
+      });
+    } catch (error) {
+      profileSyncErrorKind = error?.kind || 'PROFILE_SYNC_FAILED';
+      logAuthTrace('session_restore_to_profile_ready', {
+        duration_ms: authTraceNow() - restoreStartedAt,
+        result: error?.kind || 'PROFILE_SYNC_FAILED'
+      });
+      const existingUser = getCurrentUser();
+      if (!existingUser || existingUser.uid !== firebaseUser.uid) {
+        setCurrentUser(null);
+      }
+      setAuthDiagnosticState({ profile_sync: 'FAILED', profile: 'FAILED' });
+      window.dispatchEvent(new CustomEvent('talentscope-auth-profile-sync-error', {
+        detail: { kind: error?.kind || 'PROFILE_SYNC_FAILED' }
+      }));
+    }
+    window.dispatchEvent(new Event('talentscope-auth-state-changed'));
+  });
+}
+
 // Standard Pre-Seeded Accounts for Testing & Instant Login
 const DEFAULT_SEEDED_USERS = [
   {
     id: 'user_alex',
     email: 'alex@example.com',
-    password: 'password123',
     name: 'Alex Mercer',
     userType: 'individual',
     employeeType: null,
@@ -42,7 +154,6 @@ const DEFAULT_SEEDED_USERS = [
   {
     id: 'user_sarah',
     email: 'sarah@techcorp.com',
-    password: 'password123',
     name: 'Sarah Jenkins',
     userType: 'employee',
     employeeType: 'company-connected',
@@ -69,7 +180,6 @@ const DEFAULT_SEEDED_USERS = [
   {
     id: 'user_david',
     email: 'david@dev.io',
-    password: 'password123',
     name: 'David Chen',
     userType: 'employee',
     employeeType: 'independent',
@@ -96,7 +206,6 @@ const DEFAULT_SEEDED_USERS = [
   {
     id: 'user_elena',
     email: 'admin@novatech.com',
-    password: 'password123',
     name: 'Elena Rostova',
     userType: 'company',
     employeeType: null,
@@ -120,133 +229,61 @@ const DEFAULT_SEEDED_USERS = [
   }
 ];
 
-// Initialize users storage with seeds if missing
-function initStorage() {
-  if (!localStorage.getItem(STORAGE_KEY_USERS)) {
-    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_SEEDED_USERS));
-  }
-}
-initStorage();
-
 export function getAllUsers() {
-  initStorage();
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY_USERS)) || DEFAULT_SEEDED_USERS;
-  } catch (e) {
-    return DEFAULT_SEEDED_USERS;
+    const users = JSON.parse(localStorage.getItem(STORAGE_KEY_USERS) || '[]');
+    return Array.isArray(users) ? users : [];
+  } catch {
+    return [];
   }
 }
 
 export function saveUser(user) {
-  const users = getAllUsers();
-  const idx = users.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
-  if (idx >= 0) {
-    users[idx] = { ...users[idx], ...user };
-  } else {
-    users.push(user);
-  }
-  localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+  const currentUser = getCurrentUser();
+  if (!currentUser || (user.uid && user.uid !== currentUser.uid)) return;
+  setCurrentUser({ ...currentUser, ...user, uid: currentUser.uid, id: currentUser.uid });
 }
 
 export function getCurrentUser() {
   try {
     const session = localStorage.getItem(STORAGE_KEY_SESSION);
     if (!session) return null;
-    const { userId } = JSON.parse(session);
-    const users = getAllUsers();
-    return users.find(u => u.id === userId || u.email.toLowerCase() === userId.toLowerCase()) || null;
-  } catch (e) {
+    const parsed = JSON.parse(session);
+    return parsed?.authSource === 'firebase' && parsed.user?.uid === parsed.userId
+      ? parsed.user
+      : null;
+  } catch {
     return null;
   }
 }
 
 export function setCurrentUser(user) {
-  if (!user) {
+  if (!user?.uid) {
     localStorage.removeItem(STORAGE_KEY_SESSION);
     return;
   }
+  const {
+    password,
+    idToken,
+    accessToken,
+    otp,
+    verificationCode,
+    ...safeUser
+  } = user;
   localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify({
-    userId: user.id || user.email,
-    user: user,
+    authSource: 'firebase',
+    userId: user.uid,
+    user: safeUser,
     timestamp: new Date().toISOString()
   }));
 }
 
-export function authenticateUser(email, password) {
-  const cleanEmail = String(email || '').trim().toLowerCase();
-  const cleanPass = String(password || '').trim();
-
-  if (!cleanEmail) {
-    return { success: false, error: 'Please enter your email.' };
+export async function logoutUser() {
+  try {
+    await signOut(auth);
+  } finally {
+    setCurrentUser(null);
   }
-  if (!cleanPass) {
-    return { success: false, error: 'Please enter your password.' };
-  }
-  if (cleanPass.length < 8) {
-    return { success: false, error: 'Password must contain at least 8 characters.' };
-  }
-
-  const users = getAllUsers();
-  const matched = users.find(u => u.email.toLowerCase() === cleanEmail);
-
-  if (!matched || matched.password !== cleanPass) {
-    return {
-      success: false,
-      error: "Your email or password doesn't look right."
-    };
-  }
-
-  setCurrentUser(matched);
-  return {
-    success: true,
-    user: matched,
-    redirectTo: determineUserRedirect(matched)
-  };
-}
-
-export function registerUser({ email, password, userType = 'individual', employeeType = null, companyName = null }) {
-  const cleanEmail = String(email || '').trim().toLowerCase();
-  const cleanPass = String(password || '').trim();
-
-  if (!cleanEmail) {
-    return { success: false, error: 'Please enter a valid email address.' };
-  }
-  if (!cleanPass || cleanPass.length < 8) {
-    return { success: false, error: 'Password must contain at least 8 characters.' };
-  }
-
-  const users = getAllUsers();
-  const existing = users.find(u => u.email.toLowerCase() === cleanEmail);
-  if (existing) {
-    return { success: false, error: 'An account with this email already exists. Try signing in instead.' };
-  }
-
-  const newUser = {
-    id: 'user_' + Date.now(),
-    email: cleanEmail,
-    password: cleanPass,
-    name: cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-    userType,
-    employeeType,
-    companyName,
-    companyId: companyName ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '-') : null,
-    avatar: 'assets/avatar.png',
-    onboardingComplete: false,
-    createdAt: new Date().toISOString()
-  };
-
-  saveUser(newUser);
-  setCurrentUser(newUser);
-
-  return {
-    success: true,
-    user: newUser,
-    redirectTo: '#/onboarding'
-  };
-}
-
-export function logoutUser() {
-  localStorage.removeItem(STORAGE_KEY_SESSION);
   clearOnboardingDraft();
 }
 
@@ -260,9 +297,9 @@ export function determineUserRedirect(user) {
 
   // Completed onboarding -> redirect to user's assigned portal
   if (user.userType === 'company') {
-    return '#/company/overview';
+    return '#/company/home';
   } else if (user.userType === 'employee') {
-    return '#/employee/overview';
+    return '#/employee/home';
   } else {
     return '#/individual/home';
   }

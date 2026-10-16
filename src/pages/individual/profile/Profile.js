@@ -129,7 +129,7 @@ function drawProfile() {
             <div class="profile-meta-block">
               <div class="profile-name-row">
                 <h1 class="profile-name">${data.name}</h1>
-                <span class="profile-badge-pro"><i data-lucide="shield-check"></i> Verified Expert</span>
+                <span class="profile-badge-pro"><i data-lucide="user-round-check"></i> Profile Preview</span>
               </div>
               <p class="profile-headline">${data.headline}</p>
               <div class="profile-pills-row">
@@ -216,8 +216,8 @@ function renderTabContent(data) {
             <div class="profile-card-title-group">
               <span class="profile-card-title-icon"><i data-lucide="layers-3"></i></span>
               <div>
-                <h3 class="profile-card-title">Verified Skills & Market Benchmarks</h3>
-                <p class="profile-card-subtitle">Real-time capabilities assessed against active industry standards</p>
+                <h3 class="profile-card-title">Declared Skills & Illustrative Benchmarks</h3>
+                <p class="profile-card-subtitle">Illustrative profile values; live external assessment data is not connected</p>
               </div>
             </div>
             <a href="#/individual/skills" class="btn-profile-secondary" style="font-size: 12px; padding: 6px 12px;">
@@ -285,7 +285,7 @@ function renderTabContent(data) {
               <span class="profile-card-title-icon"><i data-lucide="history"></i></span>
               <div>
                 <h3 class="profile-card-title">Work Experience & Production Impact</h3>
-                <p class="profile-card-subtitle">Verified career milestones and technical contributions</p>
+                <p class="profile-card-subtitle">Illustrative career milestones and technical contribution examples</p>
               </div>
             </div>
           </div>
@@ -346,7 +346,7 @@ function renderTabContent(data) {
             <div class="profile-card-title-group">
               <span class="profile-card-title-icon"><i data-lucide="award"></i></span>
               <div>
-                <h3 class="profile-card-title">Verified Badges & Industry Credentials</h3>
+                <h3 class="profile-card-title">Badge & Industry Credential Examples</h3>
                 <p class="profile-card-subtitle">Cryptographically verified proof of competence</p>
               </div>
             </div>
@@ -494,7 +494,7 @@ function renderTabContent(data) {
           <a href="#/individual/career" class="target-stat-tile" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
             <div>
               <div style="font-weight: 700; font-size: 13px; color: #1a1126;">Job Intelligence</div>
-              <small style="color: #796B88;">38 high-match open roles</small>
+              <small style="color: #796B88;">Role alignment & requisitions</small>
             </div>
             <i data-lucide="arrow-right" style="color: #B22DEF; width: 16px;"></i>
           </a>

@@ -79,7 +79,7 @@ export function renderEmployeeMyCompany() {
               <strong style="display: block; font-size: 13.5px; color: var(--emp-text-primary);">${esc(p.name)}</strong>
               <small style="color: var(--emp-text-secondary); font-size: 11.5px;">${esc(p.role)} · ${esc(p.level)}</small>
             </div>
-            <span class="emp-badge emp-badge--success">Full-Time Verified</span>
+            <span class="emp-badge emp-badge--success">Illustrative Employment Example</span>
           </div>
         </div>
       </section>
@@ -130,7 +130,7 @@ export function renderEmployeeMyCompany() {
         <div style="margin-bottom: 18px;">
           <span class="emp-eyebrow"><i data-lucide="activity"></i> ORGANIZATIONAL SIGNALS</span>
           <h2 class="emp-title">Internal Signals & Operational Movement</h2>
-          <p class="emp-subtitle">Verified developments across business units with direct relevance to your engineering organization.</p>
+          <p class="emp-subtitle">Illustrative company developments; connected organization data is unavailable.</p>
         </div>
 
         <div class="emp-signals-grid">
@@ -151,7 +151,7 @@ export function renderEmployeeMyCompany() {
                 ${sig.affectedSkills.map(sk => `<span class="emp-signal-tag emp-signal-tag--skill">${esc(sk)}</span>`).join('')}
               </div>
               <div style="font-size: 11.5px; color: var(--emp-text-muted); padding-top: 8px; border-top: 1px dashed var(--emp-border);">
-                Verified by: <strong>${esc(sig.evidence)}</strong>
+                Example source: <strong>${esc(sig.evidence)}</strong>
               </div>
             </div>
           `).join('')}

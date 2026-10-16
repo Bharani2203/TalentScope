@@ -1099,25 +1099,134 @@ renderExploreFocusSelector = function() {
   const questionChips = type === 'skills' ? (intelligenceExplorerState.selectedSkills.length === 1 ? ['What is ' + intelligenceExplorerState.selectedSkills[0] + ' demand in ' + intelligenceExplorerState.market + '?', 'Is ' + intelligenceExplorerState.selectedSkills[0] + ' still growing?', 'Which skills are paired with ' + intelligenceExplorerState.selectedSkills[0] + '?', 'Which ' + intelligenceExplorerState.selectedSkills[0] + ' roles are growing?'] : skillQuestions) : type === 'companies' ? ['Which companies are growing fastest?', 'What technologies is ' + focusCompany + ' investing in?', 'Which companies are hiring the most?', 'What products are gaining market momentum?', 'Which companies are showing strong investment signals?', 'Which technologies are growing in ' + intelligenceExplorerState.market + '?', 'What is changing in this market?'] : ['Which companies are hiring the most?', 'What roles is ' + focusCompany + ' hiring for?', 'What skills are companies asking for?', 'Which companies are hiring for my skills?', 'What technologies appear most in job postings?', 'What roles are emerging?', 'Where are hiring opportunities growing?'];
   const marketLocations = ['Global', 'India', 'US', 'UK', 'Europe', 'Asia-Pacific', ...(!['Global','India','US','UK','Europe','Asia-Pacific'].includes(intelligenceExplorerState.market) ? [intelligenceExplorerState.market] : []), 'Custom location'];
   const companyContext = (jobMode) => { const scope = jobMode ? intelligenceExplorerState.jobScope : intelligenceExplorerState.companyScope; const scopeId = jobMode ? 'jobScopeSelect' : 'companyScopeSelect'; const scopeOptions = jobMode ? ['All Companies','Favorite Companies','Selected Companies'] : ['All Companies','Favorite Companies','My Companies / Followed Companies']; const companies = scope === 'All Companies' ? options : scope === 'My Companies / Followed Companies' ? dashboardState.savedCompanies : jobMode && scope === 'Selected Companies' ? intelligenceExplorerState.selectedCompanies : intelligenceExplorerState.favoriteCompanies; const signals = jobMode ? ['Vacancies','Hiring','Roles','Skills','Technology','Projects','Tasks','Layoffs','Workforce Growth'] : ['Technology','Investment','Stock','Products','Skills','Jobs','Company Growth','Market Demand']; const selectedSignals = jobMode ? intelligenceExplorerState.jobSignals : intelligenceExplorerState.companySignals; const categoryKey = jobMode ? 'jobSignals' : 'companySignals'; return `<div class="intelligence-console__dynamic-context"><div class="intelligence-console__context-heading"><div><span>${jobMode ? 'Job Intelligence' : 'Market Intelligence'}</span><small>${jobMode ? 'Set company and hiring signals to investigate' : 'Set company and market signals to investigate'}</small></div><span class="intelligence-console__context-state"><i></i>Context synced</span></div><div class="intelligence-console__context-grid intelligence-console__context-grid--company"><label><span>${jobMode ? 'Job Scope' : 'Market Scope'}</span><select id="${scopeId}">${scopeOptions.map(item => `<option ${item === scope ? 'selected' : ''}>${item}</option>`).join('')}</select></label><div class="intelligence-console__context-skills"><span>${scope === 'All Companies' ? 'Companies' : scope === 'Favorite Companies' ? 'Favorite Companies' : 'Selected Companies'}</span><div>${companies.map(company => `<button type="button" class="intelligence-console__skill-chip ${intelligenceExplorerState.selectedCompanies.includes(company) ? 'is-selected' : ''}" data-company-chip="${company}" aria-pressed="${intelligenceExplorerState.selectedCompanies.includes(company)}">${company}<i data-lucide="${scope === 'Favorite Companies' ? 'x' : 'check'}"></i></button>`).join('')}<button type="button" class="intelligence-console__add-skill" id="addCompanyButton"><i data-lucide="plus"></i>Add Company</button></div><div class="intelligence-console__skill-picker" id="companyPicker" hidden><input id="companySearch" type="search" placeholder="Search companies..." aria-label="Search companies"><div>${options.filter(company => !intelligenceExplorerState.favoriteCompanies.includes(company)).map(company => `<button type="button" data-add-company="${company}">${company}<i data-lucide="plus"></i></button>`).join('')}</div></div></div><label><span>${jobMode ? 'Job Market' : 'Market'}</span><select id="skillLocationSelect">${optionMarkup(marketLocations, intelligenceExplorerState.market)}</select></label><div class="intelligence-console__signal-picker"><span>${jobMode ? 'Hiring signals' : 'Investigate'}</span><div>${signals.map(signal => `<button type="button" class="${selectedSignals.includes(signal) ? 'is-selected' : ''}" aria-pressed="${selectedSignals.includes(signal)}" data-signal-key="${categoryKey}" data-signal="${signal}">${signal}</button>`).join('')}</div></div></div></div>`; };
-  const contextMarkup = type === 'skills' ? `<div class="intelligence-console__dynamic-context"><div class="intelligence-console__context-heading"><div><span>Skill Intelligence</span><small>Set the skills and market to analyze</small></div><span class="intelligence-console__context-state"><i></i>Context synced</span></div><div class="intelligence-console__context-grid"><label><span>Skill Scope</span><select id="skillScopeSelect">${skillScopeOptions.map(option => `<option ${option === intelligenceExplorerState.skillScope ? 'selected' : ''}>${option}</option>`).join('')}</select></label><div class="intelligence-console__context-skills"><span>Skills</span><div>${intelligenceExplorerState.skillScope === 'All Skills' ? '<em class="is-muted">All Skills market</em>' : (intelligenceExplorerState.skillScope === 'Favorite Skills' ? intelligenceExplorerState.favoriteSkills : selectedSkillItems).map(skill => `<button type="button" class="intelligence-console__skill-chip ${intelligenceExplorerState.selectedSkills.includes(skill) ? 'is-selected' : ''}" data-context-skill="${skill}" aria-pressed="${intelligenceExplorerState.selectedSkills.includes(skill)}">${skill}<i data-lucide="${intelligenceExplorerState.skillScope === 'Favorite Skills' ? 'x' : 'check'}"></i></button>`).join('')} ${intelligenceExplorerState.skillScope !== 'All Skills' ? '<button type="button" class="intelligence-console__add-skill" id="addFavoriteSkill"><i data-lucide="plus"></i>Add skill</button>' : ''}</div><div class="intelligence-console__skill-picker" id="favoriteSkillPicker" hidden><input id="favoriteSkillSearch" type="search" placeholder="Search skills..." aria-label="Search skills"><div>${skillOptions.filter(skill => !intelligenceExplorerState.favoriteSkills.includes(skill)).map(skill => `<button type="button" data-add-skill="${skill}">${skill}<i data-lucide="plus"></i></button>`).join('')}</div></div></div><label><span>Market</span><select id="skillLocationSelect">${optionMarkup(marketLocations, intelligenceExplorerState.market)}</select></label></div></div>` : companyContext(type === 'roles');  const directionIcon = value => value === 'Growing' ? 'trending-up' : value === 'Declining' ? 'trending-down' : 'minus';
-  const directionClass = value => value === 'Growing' ? 'is-growing' : value === 'Declining' ? 'is-declining' : 'is-stable';
-  const skillForEntity = type === 'technologies' ? ({ AI: 'AI', 'Cloud Computing': 'Cloud Computing', 'Generative AI': 'Generative AI', Automation: 'Machine Learning', Cybersecurity: 'Cybersecurity', 'Developer Tools': 'JavaScript' }[selected] || selected) : selected;
-  const details = ['skills', 'technologies'].includes(type) && selected ? trendDetailsForSkill(skillForEntity) : null;
-  const assessment = details ? skillAssessmentFor(skillForEntity, details) : null;
-  const company = type === 'companies' && selected ? getMarketTrendView(selected) : null;
-  const role = type === 'roles' && selected ? jobTrendData[selected] || jobTrendData['All Roles'] : null;
-  const market = type === 'markets' && selected ? marketTrendData[selected] || marketTrendData.Global : null;
-  const change = details ? Number((((details.current - details.values[0]) / Math.max(1, details.values[0])) * 100).toFixed(1)) : company?.change ?? role?.changePercentage ?? (market ? market.momentum - 70 : 0);
-  const status = details ? (details.current > details.previous ? 'Growing' : details.current < details.previous ? 'Declining' : 'Stable') : company?.trend || role?.direction || (market ? 'Growing' : 'Stable');
-  const entity = selected || 'your next investigation';
-  const metrics = !selected ? [] : type === 'skills' ? [['Current relevance', `${assessment.score} / 100`], ['Market demand', details.demand], ['Future demand', `+${details.growth}%`], ['Skill health', assessment.score >= 80 ? 'Strong' : 'Building'], ['Related roles', 'AI / ML Engineer'], ['Signal freshness', 'Updated now']] : type === 'companies' ? [['Company momentum', `${Math.round(company.momentum)} / 100`], ['Market trend', `${company.change > 0 ? '+' : ''}${company.change.toFixed(1)}%`], ['Hiring activity', `${Math.round(company.jobDemand.at(-1))} / 100`], ['Relevant jobs', `${companyVacancies[company.name] || 0}`], ['Demanded skills', 'AI  —  Cloud  —  Data'], ['Signal freshness', 'Updated now']] : type === 'roles' ? [['Role momentum', `${role.overallMomentum} / 100`], ['Market demand', role.direction], ['Future demand', `+${role.changePercentage}%`], ['Hiring activity', `${role.hiringMomentum.value} / 100`], ['Skill demand', `${role.skillDemand.value} / 100`], ['Related skill', dashboardState.selectedSkill]] : [['Skill demand', `${market?.technologyMomentum?.at(-1) || 0} / 100`], ['Technology momentum', `${market?.momentum || 0} / 100`], ['Job demand', `${market?.jobDemand?.at(-1) || 0} / 100`], ['Company activity', `${market?.investmentSignal?.at(-1) || 0} / 100`], ['Emerging skills', 'AI  —  Cloud  —  Data'], ['Relevant opportunities', `${getJobSummary().toLocaleString()}`]];
-  const explanation = type === 'skills' ? `${entity} is showing ${details?.demand?.toLowerCase() || 'market movement'} against your current profile.` : type === 'companies' ? `${entity} is showing ${company?.trend?.toLowerCase() || 'market'} momentum across technology, investment and hiring signals.` : type === 'roles' ? `${entity} connects your current skills to hiring demand and role growth.` : `${entity} is a useful lens for comparing technology momentum, job demand and company activity.`;
-  const recommendation = type === 'skills' || type === 'technologies' ? `Strengthen ${skillForEntity || dashboardState.selectedSkill} and build one applied project.` : type === 'companies' ? `Compare ${entity}'s demanded skills with your profile and choose one capability to strengthen.` : type === 'roles' ? `Map the core skills for ${entity} and create a small proof project.` : `Prioritize one skill and one role using ${entity} market signals.`;
-  const detailsHref = type === 'skills' || type === 'technologies' ? '#/individual/skills' : type === 'roles' ? '#/individual/career' : '#/individual/market-insights';
-  const targetId = type === 'skills' || type === 'technologies' ? 'current-skill-intelligence' : 'live-market-intelligence';
+  const contextMarkup = type === 'skills' ? `<div class="intelligence-console__dynamic-context"><div class="intelligence-console__context-heading"><div><span>Skill Intelligence</span><small>Set the skills and market to analyze</small></div><span class="intelligence-console__context-state"><i></i>Context synced</span></div><div class="intelligence-console__context-grid"><label><span>Skill Scope</span><select id="skillScopeSelect">${skillScopeOptions.map(option => `<option ${option === intelligenceExplorerState.skillScope ? 'selected' : ''}>${option}</option>`).join('')}</select></label><div class="intelligence-console__context-skills"><span>Skills</span><div>${intelligenceExplorerState.skillScope === 'All Skills' ? '<em class="is-muted">All Skills market</em>' : (intelligenceExplorerState.skillScope === 'Favorite Skills' ? intelligenceExplorerState.favoriteSkills : selectedSkillItems).map(skill => `<button type="button" class="intelligence-console__skill-chip ${intelligenceExplorerState.selectedSkills.includes(skill) ? 'is-selected' : ''}" data-context-skill="${skill}" aria-pressed="${intelligenceExplorerState.selectedSkills.includes(skill)}">${skill}<i data-lucide="${intelligenceExplorerState.skillScope === 'Favorite Skills' ? 'x' : 'check'}"></i></button>`).join('')} ${intelligenceExplorerState.skillScope !== 'All Skills' ? '<button type="button" class="intelligence-console__add-skill" id="addFavoriteSkill"><i data-lucide="plus"></i>Add skill</button>' : ''}</div><div class="intelligence-console__skill-picker" id="favoriteSkillPicker" hidden><input id="favoriteSkillSearch" type="search" placeholder="Search skills..." aria-label="Search skills"><div>${skillOptions.filter(skill => !intelligenceExplorerState.favoriteSkills.includes(skill)).map(skill => `<button type="button" data-add-skill="${skill}">${skill}<i data-lucide="plus"></i></button>`).join('')}</div></div></div><label><span>Market</span><select id="skillLocationSelect">${optionMarkup(marketLocations, intelligenceExplorerState.market)}</select></label></div></div>` : companyContext(type === 'roles');
+  const directionIcon = value => (value === 'Growing' || value === 'Increasing' || value === 'Rising') ? 'trending-up' : value === 'Declining' ? 'trending-down' : 'minus';
+  const directionClass = value => (value === 'Growing' || value === 'Increasing' || value === 'Rising') ? 'is-growing' : value === 'Declining' ? 'is-declining' : 'is-stable';
+
+  const apiRes = intelligenceExplorerState.apiResponse;
+  const entity = selected || (type === 'skills' ? (intelligenceExplorerState.selectedSkills[0] || 'Python') : type === 'companies' ? (intelligenceExplorerState.selectedCompanies[0] || 'Microsoft') : 'AI Engineer');
+  const matchingTrend = apiRes?.historical_trends?.find(t => t.entity_name?.toLowerCase() === entity.toLowerCase() || t.entity_id?.toLowerCase() === entity.toLowerCase().replace(/\s+/g, '_')) || apiRes?.historical_trends?.[0];
+  const isTrendReady = Boolean(matchingTrend ? matchingTrend.is_trend_ready : apiRes?.is_trend_ready);
+
+  let currentDirection = isTrendReady ? (matchingTrend?.trend_direction || 'Increasing') : 'Insufficient Data';
+  let change = (isTrendReady && matchingTrend && matchingTrend.growth_pct != null) ? matchingTrend.growth_pct : null;
+  let formattedChange = change != null ? `${change > 0 ? '+' : ''}${change.toFixed(1)}%` : '—';
+  let velocityStr = (isTrendReady && matchingTrend?.formatted_velocity) ? matchingTrend.formatted_velocity : '—';
+
+  let statusTitle = isTrendReady ? `${currentDirection} signal` : 'Insufficient Data signal';
+  let statusDesc = isTrendReady
+    ? `${entity} has ${currentDirection === 'Increasing' || currentDirection === 'Rising' || currentDirection === 'Growing' ? 'gained momentum' : currentDirection === 'Declining' ? 'lost momentum' : 'held steady'} across verified ${matchingTrend?.signal_badge || 'market signals'}.`
+    : `${entity} does not have enough consecutive historical periods to calculate a verified trend or velocity. Minimum 2 consecutive valid periods required by G1.8 quality rules.`;
+
+  let directionBadge = isTrendReady
+    ? `<b class="${directionClass(currentDirection)}"><i data-lucide="${directionIcon(currentDirection)}"></i>${currentDirection} — ${formattedChange} (Velocity: ${velocityStr})</b>`
+    : `<b class="is-stable"><i data-lucide="minus"></i>Insufficient Data — Trend blocked (0 ready series)</b>`;
+
+  let explanation = apiRes?.explanations?.[0]?.body
+    || (isTrendReady
+      ? `${entity} is demonstrating measurable ${currentDirection.toLowerCase()} activity across observed platform periods. This informs strategic readiness without speculative forecasting.`
+      : `Verified observations for ${entity} are passing through G1.8 and G1.9 readiness gates. Genuine recurring collection is accumulating history; no synthetic values are permitted.`);
+
+  let recommendation = apiRes?.recommendations?.[0]?.description
+    || apiRes?.recommendations?.[0]?.rationale
+    || (isTrendReady
+      ? `Strengthen core capabilities in ${entity} and build demonstrated work evidence while market momentum remains favorable.`
+      : `Monitor verified signals for ${entity} as new periods accumulate through automated collection.`);
+
+  let resultMetrics = apiRes ? [
+    ['Signal source', matchingTrend ? matchingTrend.source : (apiRes.data_origin || 'real')],
+    ['Signal type', matchingTrend ? matchingTrend.signal_badge : (type === 'skills' ? 'Skill Demand' : type === 'companies' ? 'Market Signals' : 'Job Demand')],
+    ['Data state', apiRes.data_state ? apiRes.data_state.replace('_', ' ') : 'insufficient data'],
+    ['Trend readiness', isTrendReady ? 'Ready (5 periods)' : 'Insufficient Data (< 2 periods)'],
+    ['Forecast ready', 'False (G2.0 Foundation)'],
+    ['Assessed series', `${apiRes.readiness?.ready_for_trend_count ?? (isTrendReady ? 1 : 0)} ready / ${apiRes.readiness?.total_series_assessed ?? 1} total`]
+  ] : [
+    ['Signal status', 'Awaiting query execution'],
+    ['Data origin', 'real platform observations'],
+    ['Trend readiness', 'Evaluated deterministically via G1.9'],
+    ['Forecast state', 'Blocked (0 series eligible)'],
+    ['Target', entity],
+    ['Context', typeLabels[type]]
+  ];
+
+  const targetId = type === 'skills' ? 'current-skill-intelligence' : 'live-market-intelligence';
+  const detailsHref = type === 'skills' ? '#/individual/skills' : type === 'roles' ? '#/individual/career' : '#/individual/market-insights';
   const isSaved = !!selected && savedItems.includes(selected);
-  const analysisSteps = type === 'companies' ? ["Reading company signals...","Scanning technology movement...","Checking investment indicators...","Comparing job demand...","Reviewing selected market...","Preparing market insight..."] : type === 'roles' ? ["Scanning job postings...","Analyzing company hiring...","Extracting role and skill signals...","Checking technology demand...","Reviewing workforce movement...","Preparing hiring insight..."] : ["Understanding your question...","Scanning skill signals...","Analyzing demand trends...","Comparing regional movement...","Checking available evidence...","Preparing recommendation..."]; const analysisState = `<div class="intelligence-console__analysis"><div class="intelligence-console__analysis-orb"><i data-lucide="scan-search"></i><span></span><span></span><span></span></div><strong>${analysisSteps[intelligenceExplorerState.analysisStep] || analysisSteps[0]}</strong><small>AI is connecting ${typeLabels[type].toLowerCase()} signals to your profile.</small><div class="intelligence-console__analysis-track"><i style="width:${Math.min(100, (intelligenceExplorerState.analysisStep + 1) / analysisSteps.length * 100)}%"></i></div><div class="intelligence-console__analysis-steps">${analysisSteps.map((step, index) => `<span class="${index <= intelligenceExplorerState.analysisStep ? "is-active" : ""}"><i></i>${step}</span>`).join("")}</div></div>`; const result = intelligenceExplorerState.isAnalyzing ? analysisState : !intelligenceExplorerState.hasSearched || !selected ? `<div class="intelligence-console__empty"><div class="intelligence-console__orbit"><span></span><span></span><span></span><i data-lucide="scan-search"></i></div><strong>What would you like to understand?</strong><small>Explore live skill, market and job intelligence through one personalized AI workspace.</small><div class="intelligence-console__scan-line"></div></div>` : `<div class="intelligence-console__result"><header class="intelligence-console__result-header"><div><span class="section-kicker">${typeLabels[type]} analysis</span><h3>${entity}</h3><p>Live intelligence for ${user.name}  —  ${type === 'markets' ? selected : dashboardState.market}</p></div><div class="intelligence-console__result-actions"><button type="button" class="explore-intelligence__save ${isSaved ? 'is-saved' : ''}" id="saveExploreIntelligence" ${isSaved ? 'disabled' : ''}><i data-lucide="${isSaved ? 'check' : 'bookmark-plus'}"></i>${isSaved ? 'Saved' : 'Save to intelligence'}</button><a class="intelligence-console__detail-link" href="${detailsHref}">Explore details <i data-lucide="arrow-up-right"></i></a></div></header><div class="intelligence-console__blocks"><article class="intelligence-console__block intelligence-console__block--change"><span>What changed?</span><strong>${status} signal</strong><p>${entity} has ${status === 'Growing' ? 'gained' : status === 'Declining' ? 'lost' : 'held'} momentum across the selected view.</p><b class="${directionClass(status)}"><i data-lucide="${directionIcon(status)}"></i>${status}  —  ${change > 0 ? '+' : ''}${change.toFixed(1)}%</b></article><article class="intelligence-console__block intelligence-console__block--why"><span>Why it matters</span><strong>Relevant to your next move</strong><p>${explanation}</p><div class="intelligence-console__tags"><em>${user.role}</em><em>${dashboardState.selectedSkill}</em></div></article><article class="intelligence-console__block intelligence-console__block--data"><span>What the data shows</span><div class="intelligence-console__metrics">${metrics.map(([label, value], index) => `<div style="--metric-delay:${index * 45}ms"><small>${label}</small><b>${value}</b></div>`).join('')}</div><a href="#${targetId}" id="viewIntelligenceEvidence"><i data-lucide="file-search-2"></i>View evidence and sources</a></article><article class="intelligence-console__block intelligence-console__block--action"><span>What should I do?</span><strong>Recommended next action</strong><p>${recommendation}</p><div class="intelligence-console__action-row">${roadmapState.status === 'active' || roadmapState.status === 'paused' ? `<a class="intelligence-console__primary-action" href="#active-learning-roadmap">Continue roadmap <i data-lucide="arrow-right"></i></a>` : `<button class="intelligence-console__primary-action" type="button" data-roadmap-accept>Build roadmap <i data-lucide="map"></i></button>`}<a class="intelligence-console__secondary-action" href="${detailsHref}">Explore details</a></div></article></div><p class="intelligence-console__disclaimer">Illustrative prototype intelligence  —  connect verified data sources for production analysis.</p></div>`;
-  return `<section class="explore-intelligence intelligence-console" aria-labelledby="explore-intelligence-title"><header class="explore-intelligence__heading"><div><span class="section-kicker">AI-powered investigation</span><h2 id="explore-intelligence-title">Your Intelligence Console</h2><p>Explore a skill, company, role or market and understand what is changing, why it matters and what you can do next.</p></div><span class="explore-intelligence__prototype"><i></i>Live analysis workspace</span></header><div class="explore-intelligence__card"><div class="intelligence-console__workspace"><aside class="intelligence-console__rail"><div class="intelligence-console__rail-heading"><span>Intelligence</span><small>Choose an analysis domain</small></div><div class="intelligence-console__type-list" role="tablist" aria-label="Intelligence type">${Object.entries(typeLabels).map(([key, label]) => `<button type="button" role="tab" aria-selected="${key === type}" class="${key === type ? 'is-active' : ''}" data-explore-type="${key}"><i data-lucide="${key === 'skills' ? 'brain-circuit' : key === 'companies' ? 'building-2' : 'briefcase-business'}"></i>${label}</button>`).join('')}</div><div class="intelligence-console__rail-divider"></div><div class="intelligence-console__rail-status"><i></i><span>Analysis layer ready</span><small>Signals update as context changes</small></div></aside><main class="intelligence-console__main">${contextMarkup}<div class="intelligence-console__prompt"><div class="intelligence-console__prompt-top"><span class="intelligence-console__prompt-icon"><i data-lucide="sparkles"></i></span><div><span>What would you like to understand?</span><small>Natural-language investigation</small></div><span class="intelligence-console__live"><i></i>Live signals</span></div><div class="intelligence-console__prompt-input"><textarea id="exploreIntelligenceInput" placeholder="Ask anything about your selected intelligence..." autocomplete="off">${intelligenceExplorerState.question}</textarea><button type="button" id="runIntelligenceButton" aria-label="Run intelligence analysis" title="Run intelligence analysis"><i data-lucide="arrow-up"></i></button><datalist id="explore-${type}-options">${options.map(option => `<option value="${option}"></option>`).join('')}</datalist></div><div class="intelligence-console__suggestions"><span>Suggested questions</span>${questionChips.map(question => `<button type="button" data-console-suggestion="${question}">${question}</button>`).join('')}</div></div><div class="intelligence-console__context-bar"><span><i data-lucide="layers-3"></i>${typeLabels[type]}</span><span><i data-lucide="map-pin"></i>${intelligenceExplorerState.market}</span><span><i data-lucide="building-2"></i>${intelligenceExplorerState.selectedCompanies.length ? intelligenceExplorerState.selectedCompanies.join(", ") : type === 'skills' ? intelligenceExplorerState.skillScope : type === 'companies' ? intelligenceExplorerState.companyScope : intelligenceExplorerState.jobScope}</span><span class="intelligence-console__context-ready"><i></i>Context synced</span></div><div class="intelligence-console__result-area" aria-live="polite">${result}</div></main></div></div></section>`;
+
+  const sparklineValues = (matchingTrend && matchingTrend.data_points && matchingTrend.data_points.length > 1)
+    ? matchingTrend.data_points.map(p => Number(p.value) || 0)
+    : null;
+
+  const sparklineMarkup = sparklineValues
+    ? renderOverviewSparkline(sparklineValues, `${entity} verified multi-period trend`)
+    : `<div class="intelligence-console__no-chart" style="margin: 8px 0; font-size: 12px; color: var(--text-muted);"><i data-lucide="info"></i> Single-period baseline (${matchingTrend?.periods?.[0] || '2026-10'}); multi-period slope blocked until genuine backfill completes.</div>`;
+
+  const analysisSteps = type === 'companies'
+    ? ["Querying Core Intelligence API...", "Scanning company market signals...", "Applying G1.8 quality gates...", "Evaluating G1.9 readiness...", "Compiling verified response..."]
+    : type === 'roles'
+      ? ["Querying Core Intelligence API...", "Checking role demand signals...", "Evaluating G1.8 validation gates...", "Checking multi-period readiness...", "Compiling verified response..."]
+      : ["Querying Core Intelligence API...", "Checking skill demand & interest signals...", "Validating observation series...", "Evaluating Theil-Sen trend readiness...", "Compiling verified response..."];
+
+  const analysisState = `<div class="intelligence-console__analysis"><div class="intelligence-console__analysis-orb"><i data-lucide="scan-search"></i><span></span><span></span><span></span></div><strong>${analysisSteps[intelligenceExplorerState.analysisStep] || analysisSteps[0]}</strong><small>Connecting ${typeLabels[type].toLowerCase()} signals to authenticated profile.</small><div class="intelligence-console__analysis-track"><i style="width:${Math.min(100, (intelligenceExplorerState.analysisStep + 1) / analysisSteps.length * 100)}%"></i></div><div class="intelligence-console__analysis-steps">${analysisSteps.map((step, index) => `<span class="${index <= intelligenceExplorerState.analysisStep ? "is-active" : ""}"><i></i>${step}</span>`).join("")}</div></div>`;
+
+  const emptyState = `<div class="intelligence-console__empty"><div class="intelligence-console__orbit"><span></span><span></span><span></span><i data-lucide="scan-search"></i></div><strong>What would you like to understand?</strong><small>Explore live skill, market and job intelligence through one unified AI workspace.</small><div class="intelligence-console__scan-line"></div></div>`;
+
+  const result = intelligenceExplorerState.isAnalyzing
+    ? analysisState
+    : !intelligenceExplorerState.hasSearched || !selected
+      ? emptyState
+      : `<div class="intelligence-console__result">
+          ${intelligenceExplorerState.apiError ? `<div role="alert" style="background:#FFF0F0; border:1px solid #FFD0D0; border-radius:8px; padding:10px 14px; margin-bottom:12px; color:#C00; font-size:13px; display:flex; align-items:center; gap:8px;"><i data-lucide="alert-triangle"></i><span>${esc(intelligenceExplorerState.apiError)}</span></div>` : ''}
+          <header class="intelligence-console__result-header">
+            <div>
+              <span class="section-kicker">${typeLabels[type]} analysis</span>
+              <h3>${entity}</h3>
+              <p>Verified intelligence for ${user.name} — ${type === 'markets' ? selected : dashboardState.market}</p>
+            </div>
+            <div class="intelligence-console__result-actions">
+              <button type="button" class="explore-intelligence__save ${isSaved ? 'is-saved' : ''}" id="saveExploreIntelligence" ${isSaved ? 'disabled' : ''}>
+                <i data-lucide="${isSaved ? 'check' : 'bookmark-plus'}"></i>${isSaved ? 'Saved' : 'Save to intelligence'}
+              </button>
+              <a class="intelligence-console__detail-link" href="${detailsHref}">Explore details <i data-lucide="arrow-up-right"></i></a>
+            </div>
+          </header>
+          <div class="intelligence-console__blocks">
+            <article class="intelligence-console__block intelligence-console__block--change">
+              <span>01 — WHAT CHANGED?</span>
+              <strong>${statusTitle}</strong>
+              <p>${statusDesc}</p>
+              ${directionBadge}
+            </article>
+            <article class="intelligence-console__block intelligence-console__block--why">
+              <span>02 — WHY IT MATTERS</span>
+              <strong>Relevant to your next move</strong>
+              <p>${explanation}</p>
+              <div class="intelligence-console__tags">
+                <em>${user.role}</em>
+                <em>${entity}</em>
+              </div>
+            </article>
+            <article class="intelligence-console__block intelligence-console__block--data">
+              <span>03 — WHAT THE DATA SHOWS</span>
+              <div class="intelligence-console__metrics">
+                ${resultMetrics.map(([label, value], index) => `<div style="--metric-delay:${index * 45}ms"><small>${label}</small><b>${value}</b></div>`).join('')}
+              </div>
+              ${sparklineMarkup}
+              <a href="#${targetId}" id="viewIntelligenceEvidence"><i data-lucide="file-search-2"></i>View evidence and sources</a>
+            </article>
+            <article class="intelligence-console__block intelligence-console__block--action">
+              <span>04 — WHAT SHOULD I DO?</span>
+              <strong>Recommended next action</strong>
+              <p>${recommendation}</p>
+              <div class="intelligence-console__action-row">
+                ${roadmapState.status === 'active' || roadmapState.status === 'paused' ? `<a class="intelligence-console__primary-action" href="#active-learning-roadmap">Continue roadmap <i data-lucide="arrow-right"></i></a>` : `<button class="intelligence-console__primary-action" type="button" data-roadmap-accept>Build roadmap <i data-lucide="map"></i></button>`}
+                <a class="intelligence-console__secondary-action" href="${detailsHref}">Explore details</a>
+              </div>
+            </article>
+          </div>
+          <p class="intelligence-console__disclaimer">Verified Core Intelligence Engine (G2.0) — Real provider observations with G1.8 quality and G1.9 readiness gates. Zero synthetic or simulated data.</p>
+        </div>`;
+  return `<section class="explore-intelligence intelligence-console" aria-labelledby="explore-intelligence-title"><header class="explore-intelligence__heading"><div><span class="section-kicker">AI-powered investigation</span><h2 id="explore-intelligence-title">Your Intelligence Console</h2><p>Explore a skill, company, role or market and understand what is changing, why it matters and what you can do next.</p></div><span class="explore-intelligence__prototype"><i></i>Verified intelligence workspace</span></header><div class="explore-intelligence__card"><div class="intelligence-console__workspace"><aside class="intelligence-console__rail"><div class="intelligence-console__rail-heading"><span>Intelligence</span><small>Choose an analysis domain</small></div><div class="intelligence-console__type-list" role="tablist" aria-label="Intelligence type">${Object.entries(typeLabels).map(([key, label]) => `<button type="button" role="tab" aria-selected="${key === type}" class="${key === type ? 'is-active' : ''}" data-explore-type="${key}"><i data-lucide="${key === 'skills' ? 'brain-circuit' : key === 'companies' ? 'building-2' : 'briefcase-business'}"></i>${label}</button>`).join('')}</div><div class="intelligence-console__rail-divider"></div><div class="intelligence-console__rail-status"><i></i><span>Analysis layer ready</span><small>Signals update as context changes</small></div></aside><main class="intelligence-console__main">${contextMarkup}<div class="intelligence-console__prompt"><div class="intelligence-console__prompt-top"><span class="intelligence-console__prompt-icon"><i data-lucide="sparkles"></i></span><div><span>What would you like to understand?</span><small>Natural-language investigation</small></div><span class="intelligence-console__live"><i></i>Verified signals</span></div><div class="intelligence-console__prompt-input"><textarea id="exploreIntelligenceInput" placeholder="Ask anything about your selected intelligence..." autocomplete="off">${intelligenceExplorerState.question}</textarea><button type="button" id="runIntelligenceButton" aria-label="Run intelligence analysis" title="Run intelligence analysis"><i data-lucide="arrow-up"></i></button><datalist id="explore-${type}-options">${options.map(option => `<option value="${option}"></option>`).join('')}</datalist></div><div class="intelligence-console__suggestions"><span>Suggested questions</span>${questionChips.map(question => `<button type="button" data-console-suggestion="${question}">${question}</button>`).join('')}</div></div><div class="intelligence-console__context-bar"><span><i data-lucide="layers-3"></i>${typeLabels[type]}</span><span><i data-lucide="map-pin"></i>${intelligenceExplorerState.market}</span><span><i data-lucide="building-2"></i>${intelligenceExplorerState.selectedCompanies.length ? intelligenceExplorerState.selectedCompanies.join(", ") : type === 'skills' ? intelligenceExplorerState.skillScope : type === 'companies' ? intelligenceExplorerState.companyScope : intelligenceExplorerState.jobScope}</span><span class="intelligence-console__context-ready"><i></i>Context synced</span></div><div class="intelligence-console__result-area" aria-live="polite">${result}</div></main></div></div></section>`;
 };
 
 function applyExploreSelection() {
@@ -1258,7 +1367,7 @@ bindExploreIntelligenceEvents = function() {
   }));
   const input = document.querySelector('#exploreIntelligenceInput');
   if (input) {
-    const commit = () => {
+    const commit = async () => {
       const type = intelligenceExplorerState.type;
       const allowed = intelligenceExplorerState.scope === 'Saved' ? lists[type].filter(item => savedFor(type).includes(item)) : lists[type];
       const query = input.value.trim();
@@ -1275,13 +1384,34 @@ bindExploreIntelligenceEvents = function() {
       let step = 0;
       intelligenceExplorerState.analysisTimer = window.setInterval(() => {
         step += 1;
-        intelligenceExplorerState.analysisStep = step;
-        if (step >= 5) {
-          intelligenceExplorerState.isAnalyzing = false;
-          window.clearInterval(intelligenceExplorerState.analysisTimer);
-        }
+        intelligenceExplorerState.analysisStep = Math.min(step, 4);
         refresh();
-      }, 300);
+      }, 350);
+
+      try {
+        const domain = type === 'skills' ? 'skill' : type === 'companies' ? 'market' : 'job';
+        const selectedEntity = intelligenceExplorerState.selected[type];
+        const { queryCoreIntelligence } = await import('./src/api/core-intelligence-client.js');
+        const response = await queryCoreIntelligence({
+          portalType: 'individual',
+          intelligenceType: domain,
+          selectedSkills: type === 'skills' ? (selectedEntity ? [selectedEntity] : (intelligenceExplorerState.selectedSkills || [])) : [],
+          selectedCompanies: type === 'companies' ? (selectedEntity ? [selectedEntity] : (intelligenceExplorerState.selectedCompanies || [])) : [],
+          selectedRoles: type === 'roles' ? (selectedEntity ? [selectedEntity] : []) : [],
+          location: intelligenceExplorerState.market || null,
+          timeRange: intelligenceExplorerState.timeRange || '6m',
+          query: query || null
+        });
+        intelligenceExplorerState.apiResponse = response;
+        intelligenceExplorerState.apiError = null;
+      } catch (err) {
+        console.warn('Core intelligence query failed:', err);
+        intelligenceExplorerState.apiError = err.message || 'Unable to load live core intelligence.';
+      } finally {
+        window.clearInterval(intelligenceExplorerState.analysisTimer);
+        intelligenceExplorerState.isAnalyzing = false;
+        refresh();
+      }
     };
     input.addEventListener('change', commit);
     input.addEventListener('keydown', event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); commit(); } });

@@ -10,6 +10,8 @@ import {
 } from '../../../data/company/company-data.js';
 
 import { openCompanyModal } from '../components/CompanyModal.js';
+import { querySkillIntelligence } from '../../../api/core-intelligence-client.js';
+import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
 
 const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -17,9 +19,47 @@ const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
 
 let selectedCategoryFilter = 'all';
 let skillSearchQuery = '';
+let companySkillsIntelligence = null;
+let companySkillsLoading = false;
+let companySkillsError = null;
+
+let companySkillsRequestVersion = 0;
+
+export async function loadCompanySkillIntelligence(rerender) {
+  if (companySkillsIntelligence || companySkillsLoading) return;
+  const currentVersion = ++companySkillsRequestVersion;
+  companySkillsLoading = true;
+  companySkillsError = null;
+  const p = companyProfile;
+
+  try {
+    const res = await querySkillIntelligence({
+      portal_type: 'company',
+      company_id: p.id,
+      company_name: p.name,
+      industry: p.industry,
+      workforce_headcount: p.globalHeadcount,
+      skills: companyCriticalSkillGaps.map(s => s.name),
+      range: '6m'
+    });
+    if (currentVersion !== companySkillsRequestVersion) return;
+    companySkillsIntelligence = res;
+    companySkillsLoading = false;
+    if (typeof rerender === 'function') rerender();
+  } catch (err) {
+    if (currentVersion !== companySkillsRequestVersion) return;
+    console.warn('[Company SkillIntelligence] Failed to load intelligence:', err);
+    companySkillsLoading = false;
+    companySkillsError = err.message || 'Failed to load intelligence';
+    if (typeof rerender === 'function') rerender();
+  }
+}
 
 export function renderCompanySkillIntelligence() {
   const p = companyProfile;
+
+  const cmpAction = companySkillsIntelligence?.action_recommendations?.[0]
+    || companySkillsIntelligence?.raw?.action_recommendations?.[0];
 
   const filteredSkills = companyCriticalSkillGaps.filter(sk => {
     const matchesSearch = !skillSearchQuery ||
@@ -34,6 +74,58 @@ export function renderCompanySkillIntelligence() {
 
   return `
     <div class="company-page company-skills">
+      <aside role="note" class="cmp-card" style="margin-bottom:14px;border-color:#D6C79A;background:#FFF9E8;color:#574817">Illustrative company skills prototype. Coverage, health, gap and role-fit examples are sample values, not verified workforce records.</aside>
+      ${companySkillsIntelligence?.answer ? `
+        <div class="cmp-card" style="margin-bottom: 14px; padding: 14px 18px; background: #F8F9FD; border-left: 4px solid var(--cmp-primary, #874FFF); font-size: 13px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <div style="font-weight: 750; color: var(--cmp-primary, #874FFF); display: flex; align-items: center; gap: 6px;">
+              <i data-lucide="sparkles"></i>
+              <span>${esc(companySkillsIntelligence.answer.headline)}</span>
+            </div>
+            <span class="cmp-badge cmp-badge--primary" style="font-size: 10.5px;">${esc(companySkillsIntelligence.answer.contextual_focus || 'Enterprise Workforce Planning')}</span>
+          </div>
+          <p style="color: var(--cmp-text-secondary, #475467); margin: 0 0 8px 0; line-height: 1.45;">
+            ${esc(companySkillsIntelligence.answer.summary)}
+          </p>
+          ${companySkillsIntelligence.answer.key_insights?.length ? `
+            <ul style="margin: 0 0 8px 18px; padding: 0; font-size: 12px; color: var(--cmp-text-muted, #667085); line-height: 1.4;">
+              ${companySkillsIntelligence.answer.key_insights.map(ki => `<li>${esc(ki)}</li>`).join('')}
+            </ul>
+          ` : ''}
+          ${companySkillsIntelligence.answer.limitations?.length ? `
+            <div style="font-size: 11px; color: var(--cmp-text-muted, #667085); border-top: 1px dashed #D0D5DD; padding-top: 6px;">
+              <strong>Strategic Limitations:</strong> ${companySkillsIntelligence.answer.limitations.map(l => esc(l)).join(' ')}
+            </div>
+          ` : ''}
+          ${renderIntelligenceEvidencePanel(companySkillsIntelligence, {
+            title: 'Company skill evidence',
+            loading: companySkillsLoading,
+            error: companySkillsError
+          })}
+        </div>
+      ` : ''}
+      ${cmpAction ? `
+        <div class="cmp-card" style="margin-bottom: 14px; padding: 14px 18px; background: #FFFFFF; border: 1px solid var(--cmp-border, #E4E7EC); border-left: 4px solid var(--cmp-primary, #874FFF); font-size: 13px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 11px; font-weight: 800; color: var(--cmp-primary, #874FFF); text-transform: uppercase;">04 — WHAT WORKFORCE ACTION TO TAKE</span>
+            <span class="cmp-badge ${cmpAction.priority === 'high' ? 'cmp-badge--danger' : 'cmp-badge--neutral'}" style="font-size: 10px; font-weight: 700;">Priority: ${esc(cmpAction.priority)}</span>
+          </div>
+          <div style="font-size: 14px; font-weight: 750; color: var(--cmp-text-primary, #101828); margin-bottom: 4px;">
+            ${esc(cmpAction.title)}
+          </div>
+          <p style="font-size: 12.5px; color: var(--cmp-text-secondary, #475467); margin: 0 0 8px 0; line-height: 1.45;">
+            ${esc(cmpAction.recommended_action)}
+          </p>
+          <div style="font-size: 11.5px; color: var(--cmp-text-muted, #667085); line-height: 1.4; background: var(--cmp-very-light, #F9FAFB); padding: 8px 12px; border-radius: 6px; margin-bottom: 8px;">
+            <strong>Why this action:</strong> ${esc(cmpAction.why_it_matters)}
+          </div>
+          ${cmpAction.limitations?.length ? `
+            <div style="font-size: 11px; color: var(--cmp-text-muted, #667085);">
+              <strong>Workforce Limitation:</strong> ${esc(cmpAction.limitations[0])}
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
       <!-- 1. HERO -->
       <section class="cmp-hero">
         <div class="cmp-hero__content">
@@ -172,11 +264,23 @@ export function renderCompanySkillIntelligence() {
                 </tr>
               </thead>
               <tbody>
-                ${filteredSkills.map(sk => `
+                ${filteredSkills.map(sk => {
+                  const trendMatch = companySkillsIntelligence?.trends?.find(t =>
+                    (t.skill_name && t.skill_name.toLowerCase() === sk.name.toLowerCase()) ||
+                    (t.skill_id && t.skill_id.toLowerCase() === sk.name.toLowerCase().replace(/[^a-z0-9]/g, '_'))
+                  );
+                  return `
                   <tr>
                     <td>
                       <strong style="color: var(--cmp-text-primary); font-size: 13.5px; display: block;">${esc(sk.name)}</strong>
                       <small style="color: var(--cmp-text-muted);">${sk.headcountWithSkill} qualified / ${sk.headcountNeeded} needed</small>
+                      ${trendMatch ? `
+                        <div style="margin-top: 4px;">
+                          <span class="cmp-badge ${trendMatch.is_trend_ready ? 'cmp-badge--success' : 'cmp-badge--neutral'}" style="font-size: 10px;">
+                            ${trendMatch.is_trend_ready ? esc(trendMatch.trend_label) : 'Insufficient Data'} · ${esc(trendMatch.signal_badge)}
+                          </span>
+                        </div>
+                      ` : ''}
                     </td>
                     <td>
                       <span class="cmp-badge cmp-badge--neutral">${esc(sk.category)}</span>
@@ -212,7 +316,8 @@ export function renderCompanySkillIntelligence() {
                       </button>
                     </td>
                   </tr>
-                `).join('')}
+                `;
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -335,6 +440,10 @@ export function bindCompanySkillsEvents(rerender) {
       });
     });
   });
+
+  if (!companySkillsIntelligence && !companySkillsLoading) {
+    loadCompanySkillIntelligence(rerender);
+  }
 
   if (window.lucide && typeof window.lucide.createIcons === 'function') {
     window.lucide.createIcons();

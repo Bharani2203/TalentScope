@@ -12,71 +12,52 @@ import {
   internalRolesData
 } from '../../../data/employee/employee-data.js';
 
+import { getCurrentUser } from '../../../auth/auth-state.js';
+import { queryCoreIntelligenceAnswer } from '../../../api/core-intelligence-client.js';
+import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
+import { renderAnswerEvidencePanel } from '../../../components/common/IntelligenceComponents.js';
+
+let activeConversationId = null;
+
 let chatHistory = [
   {
     sender: 'assistant',
-    text: `Good morning. I am your **Workforce Intelligence Assistant**. I monitor your role evolution, skill health, career readiness, and community contributions. How can I assist you today?`
+    text: `Good morning. I am your **Workforce Intelligence Assistant**. I evaluate your role evolution, skill health, career readiness, and learning pathways against verified empirical platform intelligence. How can I assist you today?`
   }
 ];
 
 let isAnalyzing = false;
 let currentAnalysisStep = 0;
+let analysisGeneration = 0;
 
 const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[c]);
 
-function getSmartResponse(query) {
-  const q = query.toLowerCase();
-  const p = getEmployeeProfile();
-  const isCompany = isCompanyEmployee();
-
-  if (q.includes('company') || q.includes('change') || q.includes('blackwell') || q.includes('market')) {
-    if (isCompany) {
-      return `### Key Company Shifts at NVIDIA (APAC / Bangalore)
-1. **Blackwell Architecture Cluster Rollout (+32.4%)**: NVIDIA is scaling B200 compute pods for hyperscale enterprise inference workloads.
-2. **Bangalore Systems Engineering Expansion (+24.8%)**: 55 open requisitions in autonomous machines and edge platforms.
-3. **Sovereign AI Infrastructure (+41.0%)**: High demand for localized model fine-tuning and strict data residency compliance.
-4. **TensorRT-LLM Microservices (92% adoption)**: Standardized containerized inference across engineering pods.`;
-    } else {
-      return `### Key Market Technology Shifts
-1. **Decentralized High-Throughput Inference (+38.5%)**: High industry demand for engineers optimizing Triton, vLLM, and low-latency KV-caching.
-2. **GPU Kernel Optimization Demand (+29.0%)**: Specialized attention layers require custom CUDA and Triton kernels.
-3. **Open Weights Foundation Models (+45.2%)**: Accelerated adoption of self-hosted open models requiring local quantization.`;
-    }
-  }
-
-  if (q.includes('cuda') || q.includes('recommended') || q.includes('learn')) {
-    return `### Why CUDA Acceleration is Recommended for You
-- **Target Role Requirement**: CUDA optimization is required in **68%** of target ${p.targetRole} openings.
-- **Current Proficiency**: Your CUDA health score is currently **62/100**; target benchmark is **85/100**.
-- **Action Item**: Complete Module 9 of the *"CUDA Kernel Tuning for AI Platform Engineers"* track to master shared memory bank conflicts and WMMA tensor cores.`;
-  }
-
-  if (q.includes('role') || q.includes('changing') || q.includes('evolution') || q.includes('promotion')) {
-    return `### Role Evolution: ${p.role} → ${p.targetRole}
-Your role trajectory is **Stable → Evolving**. Automated workflows are shifting routine modeling tasks toward hardware-level optimization:
-- **Current Core**: Fine-tuning open weights LLMs, model evaluation benchmarks, and Triton packaging.
-- **Target Competencies**: Custom CUDA kernels, 128+ GPU node NCCL latency profiling, and FP4 quantization.`;
-  }
-
-  if (q.includes('internal') || q.includes('match') || q.includes('opportunity') || q.includes('job')) {
-    if (isCompany) {
-      return `### Top Internal Role Matches for You
-1. **Senior AI Platform Engineer (Autonomous Systems)**: **84% Match** — Matches Python, PyTorch, and TensorRT; requires closing CUDA and NCCL gap.
-2. **Generative AI Systems Lead (NeMo Cloud)**: **91% Match** — Direct fit with your RAG and inference experience.
-3. **ML Compiler & Optimization Specialist**: **76% Match** — Open requisition in Deep Learning Software.`;
-    } else {
-      return `### Top Industry Opportunities for You
-1. **Staff ML Infrastructure Engineer (AI Research Lab)**: **88% Match** — Large-scale distributed inference cluster management.
-2. **Technical Mentor & Code Reviewer (Fellowship Guild)**: **96% Match** — Selective technical mentoring in PyTorch and async systems.
-3. **Open Source Kernel Optimizer Grant**: **82% Match** — Funded research project for PyTorch compiler extensions.`;
-    }
-  }
-
-  return `### Workforce Intelligence Recommendation
-Based on your profile as an **${p.role}**, your strongest career accelerator is completing the **CUDA Kernel Tuning** and **NCCL Distributed Interconnect** modules. This directly unlocks qualification for **${p.targetRole}** while increasing your community mentoring value.`;
+function formatMarkdown(content) {
+  if (!content) return '';
+  return String(content)
+    .replace(/^### (.*$)/gim, '<h4 style="margin:8px 0 4px; font-size:13.5px; color:var(--emp-primary); font-weight:800;">$1</h4>')
+    .replace(/^## (.*$)/gim, '<h3 style="margin:10px 0 4px; font-size:14.5px; color:var(--emp-primary); font-weight:800;">$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^\s*-\s+(.*$)/gim, '<li style="margin-left:14px; list-style-type:disc;">$1</li>')
+    .replace(/^\s*(\d+)\.\s+(.*$)/gim, '<li style="margin-left:14px; list-style-type:decimal;">$2</li>')
+    .replace(/\n\n/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
 }
+
+const statusBadgeMap = {
+  completed: { label: 'Verified Grounded', bg: 'rgba(25,183,122,0.12)', color: '#059669', icon: 'check-circle-2' },
+  ready: { label: 'Verified Grounded', bg: 'rgba(25,183,122,0.12)', color: '#059669', icon: 'check-circle-2' },
+  partial: { label: 'Partial Coverage', bg: 'rgba(245,158,11,0.12)', color: '#D97706', icon: 'alert-circle' },
+  unavailable: { label: 'Capability Unavailable', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'ban' },
+  error: { label: 'Service Error', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'alert-triangle' },
+  requires_clarification: { label: 'Clarification Required', bg: 'rgba(245,158,11,0.12)', color: '#D97706', icon: 'help-circle' },
+  insufficient_data: { label: 'Insufficient Data', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'database' },
+  unsupported: { label: 'Unsupported in G2.6/G2.7', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'ban' },
+  blocked: { label: 'Access Restricted', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'lock' },
+  failed: { label: 'Query Failed', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'alert-triangle' }
+};
 
 export function renderEmployeeAIAssistant() {
   const p = getEmployeeProfile();
@@ -111,6 +92,10 @@ export function renderEmployeeAIAssistant() {
           </p>
         </div>
         <div class="emp-hero-actions">
+          <button type="button" class="emp-btn-ghost" id="empClearChatBtn" style="height: auto; padding: 6px 12px; font-size: 12px; border-radius: 8px; border: 1px solid var(--emp-border); display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="rotate-ccw" style="width: 13px; height: 13px;"></i>
+            <span>Clear Session</span>
+          </button>
           <div class="emp-stat-pill" style="background: var(--emp-light); border: 1px solid rgba(39, 53, 245, 0.2);">
             <strong style="color: var(--emp-primary);">Context Active</strong>
             <small style="color: var(--emp-text-muted);">${isCompany ? 'NVIDIA APAC L4' : 'Independent ML Lead'}</small>
@@ -125,16 +110,56 @@ export function renderEmployeeAIAssistant() {
         <div class="emp-card" style="display: flex; flex-direction: column; height: 580px; padding: 20px;">
           <!-- Messages Scroll View -->
           <div id="empChatMessages" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 8px;">
-            ${chatHistory.map(msg => `
+            ${chatHistory.map(msg => {
+              const statusCfg = msg.status ? statusBadgeMap[msg.status] : null;
+              return `
               <div style="display: flex; gap: 12px; align-items: flex-start; ${msg.sender === 'user' ? 'flex-direction: row-reverse;' : ''}">
                 <div style="width: 34px; height: 34px; border-radius: 10px; background: ${msg.sender === 'assistant' ? 'var(--emp-primary)' : 'var(--emp-deep-primary)'}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0;">
                   ${msg.sender === 'assistant' ? '<i data-lucide="sparkles" style="width: 16px; height: 16px;"></i>' : esc(p.initials)}
                 </div>
                 <div style="max-width: 82%; background: ${msg.sender === 'assistant' ? '#FFFFFF' : 'var(--emp-light)'}; border: 1px solid var(--emp-border); padding: 14px 18px; border-radius: 14px; font-size: 13.5px; line-height: 1.55; color: var(--emp-text-primary); box-shadow: var(--emp-shadow-sm);">
-                  ${msg.text.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/### (.*?)(<br\/>|$)/g, '<h4 style="margin: 0 0 6px; font-size: 14.5px; color: var(--emp-primary); font-weight: 800;">$1</h4>')}
+                  ${statusCfg ? `
+                    <div style="margin-bottom:8px;">
+                      <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; background:${statusCfg.bg}; color:${statusCfg.color}; padding:2px 8px; border-radius:6px;">
+                        <i data-lucide="${statusCfg.icon}" style="width:11px; height:11px;"></i>
+                        ${statusCfg.label}
+                      </span>
+                    </div>
+                  ` : ''}
+                  <div>${formatMarkdown(msg.text)}</div>
+                  ${msg.metric_results?.length ? renderIntelligenceEvidencePanel({
+                    status: msg.status,
+                    metric_results: msg.metric_results,
+                    limitations: msg.limitations
+                  }, { title: 'Structured answer metrics' }) : ''}
+
+                  ${renderAnswerEvidencePanel(msg.facts, msg.evidence)}
+
+                  ${msg.limitations && msg.limitations.length ? `
+                    <div style="margin-top:8px; padding:6px 10px; background:#FEF3C7; border:1px solid #FCD34D; border-radius:6px; font-size:11px; color:#92400E;">
+                      <strong>Limitations:</strong> ${msg.limitations.map(l => esc(l)).join('; ')}
+                    </div>
+                  ` : ''}
+
+                  ${msg.followUps && msg.followUps.length ? `
+                    <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                      ${msg.followUps.map(fu => `
+                        <button type="button" class="emp-btn-ghost" data-quick-prompt="${esc(fu)}" style="height:auto; padding:4px 8px; font-size:11px; border-radius:6px;">
+                          <i data-lucide="corner-down-right" style="width:10px; height:10px;"></i>
+                          <span>${esc(fu)}</span>
+                        </button>
+                      `).join('')}
+                    </div>
+                  ` : ''}
+                  ${msg.retryQuery && msg.status === 'failed' ? `
+                    <button type="button" class="emp-btn-ghost emp-chat-retry-btn" data-retry-question="${esc(msg.retryQuery)}" style="margin-top:8px;">
+                      Retry this question
+                    </button>
+                  ` : ''}
                 </div>
               </div>
-            `).join('')}
+            `;
+            }).join('')}
 
             ${isAnalyzing ? `
               <div style="display: flex; gap: 12px; align-items: flex-start;">
@@ -214,36 +239,125 @@ export function renderEmployeeAIAssistant() {
   `;
 }
 
-function runAnalysisAndRespond(query, rerenderFn) {
+async function runAnalysisAndRespond(query, rerenderFn) {
+  if (isAnalyzing || !query) return;
   isAnalyzing = true;
+  const generation = ++analysisGeneration;
   currentAnalysisStep = 1;
   rerenderFn();
 
-  const stepInterval = setInterval(() => {
-    currentAnalysisStep += 1;
-    if (currentAnalysisStep <= 4) {
-      rerenderFn();
-    } else {
-      clearInterval(stepInterval);
-      setTimeout(() => {
-        isAnalyzing = false;
-        currentAnalysisStep = 0;
-        const resp = getSmartResponse(query);
-        chatHistory.push({ sender: 'assistant', text: resp });
-        rerenderFn();
+  const user = getCurrentUser();
+  const targetRole = user?.target_role
+    || user?.targetRole
+    || user?.target_roles?.[0]
+    || user?.targetRoles?.[0]
+    || null;
+  const profileSkills = user?.skills || user?.selected_skills;
+  const selectedSkills = Array.isArray(profileSkills) ? profileSkills.filter(Boolean) : [];
+  const location = typeof user?.location === 'string'
+    ? user.location
+    : user?.location?.city || user?.location?.region || null;
 
-        const box = document.querySelector('#empChatMessages');
-        if (box) {
-          box.scrollTop = box.scrollHeight;
-        }
-      }, 350);
+  try {
+    currentAnalysisStep = 2;
+    rerenderFn();
+
+    const res = await queryCoreIntelligenceAnswer({
+      message: query,
+      portalType: 'employee',
+      targetRole,
+      selectedSkills,
+      location,
+      conversationId: activeConversationId || null
+    });
+
+    if (generation !== analysisGeneration) return;
+    if (res.conversation_id) {
+      activeConversationId = res.conversation_id;
     }
-  }, 220);
+
+    isAnalyzing = false;
+    currentAnalysisStep = 0;
+    chatHistory.push({
+      sender: 'assistant',
+      status: res.status || res.execution_status,
+      conversation_id: res.conversation_id || activeConversationId,
+      text: res.answer,
+      facts: res.facts,
+      metric_results: res.metric_results,
+      evidence: res.evidence,
+      limitations: res.limitations,
+      reasonCodes: res.reason_codes,
+      followUps: res.follow_up_questions
+    });
+  } catch (err) {
+    if (generation !== analysisGeneration) return;
+    console.warn('Employee AI query failed:', err);
+    isAnalyzing = false;
+    currentAnalysisStep = 0;
+    let errMsg = err.message || 'Error communicating with intelligence engine.';
+    let errStatus = 'failed';
+    let reasonCodes = ['SERVICE_ERROR'];
+
+    if (err.name === 'CoreIntelligenceAuthError' || err.status === 401 || err.status === 403) {
+      errMsg = 'Authentication Required: Please sign in with your enterprise credentials to query employee workforce intelligence.';
+      errStatus = 'blocked';
+      reasonCodes = ['UNAUTHORIZED_PORTAL_ACCESS'];
+    } else if (err.name === 'CoreIntelligenceNetworkError') {
+      errMsg = 'The intelligence service is temporarily unavailable. Please try again shortly.';
+      errStatus = 'failed';
+      reasonCodes = ['NETWORK_ERROR'];
+    }
+
+    chatHistory.push({
+      sender: 'assistant',
+      status: errStatus,
+      text: errMsg,
+      facts: [],
+      evidence: [],
+      limitations: [errMsg],
+      reasonCodes: reasonCodes,
+      followUps: [],
+      retryQuery: errStatus === 'failed' ? query : null
+    });
+  }
+
+  if (generation !== analysisGeneration) return;
+  rerenderFn();
+  const box = document.querySelector('#empChatMessages');
+  if (box) {
+    box.scrollTop = box.scrollHeight;
+  }
 }
 
 export function bindEmployeeAIAssistantEvents(rerenderFn) {
   const form = document.querySelector('#empChatForm');
   const input = document.querySelector('#empChatInput');
+  const clearBtn = document.querySelector('#empClearChatBtn');
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      analysisGeneration += 1;
+      isAnalyzing = false;
+      currentAnalysisStep = 0;
+      if (activeConversationId) {
+        queryCoreIntelligenceAnswer({
+          message: 'clear context',
+          portalType: 'employee',
+          conversationId: activeConversationId,
+          clearContext: true
+        }).catch(() => {});
+      }
+      activeConversationId = null;
+      chatHistory = [
+        {
+          sender: 'assistant',
+          text: 'Session reset. Workforce Intelligence Copilot ready. How can I assist your career and skill growth today?'
+        }
+      ];
+      rerenderFn();
+    });
+  }
 
   const box = document.querySelector('#empChatMessages');
   if (box) {
@@ -270,6 +384,12 @@ export function bindEmployeeAIAssistantEvents(rerenderFn) {
       const prompt = btn.dataset.quickPrompt;
       chatHistory.push({ sender: 'user', text: prompt });
       runAnalysisAndRespond(prompt, rerenderFn);
+    });
+  });
+  document.querySelectorAll('.emp-chat-retry-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      runAnalysisAndRespond(btn.dataset.retryQuestion, rerenderFn);
     });
   });
 }

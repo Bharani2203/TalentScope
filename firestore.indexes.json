@@ -1,0 +1,81 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "jobs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "country_code",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fetched_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "skill_market_signals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "skill_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observed_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "skill_market_signals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "skill",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observed_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "skill_market_signals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "series_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observed_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "skill_market_signals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "signal_type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observed_at",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "chunks",
+      "fieldPath": "payload_bytes",
+      "indexes": []
+    }
+  ]
+}

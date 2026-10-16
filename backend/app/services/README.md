@@ -1,0 +1,1 @@
+Place backend business logic here. API routes should validate inputs and delegate persistence and domain operations to service modules.
