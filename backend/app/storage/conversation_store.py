@@ -260,8 +260,12 @@ class ConversationStore:
                             return False, f"Access denied: Conversation {conversation_id} belongs to a different user."
                         if data.get("portal_type") == "company" and data.get("company_id") and data.get("company_id") != company_id:
                             return False, f"Access denied: Conversation {conversation_id} belongs to a different company organization."
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Firestore conversation ownership lookup failed (%s); denying access.",
+                    type(exc).__name__,
+                )
+                return False, "Conversation access could not be verified. Please retry."
             return True, None
 
         if state.user_id != user_id:

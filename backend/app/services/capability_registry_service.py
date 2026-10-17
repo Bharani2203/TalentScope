@@ -183,6 +183,45 @@ CAPABILITY_CATALOG: dict[str, CapabilityRecord] = {
         ],
         provenance_requirements=["calculation_version", "consecutive_valid_periods", "quality_report"],
     ),
+    "skill_health_analysis": CapabilityRecord(
+        capability_id="skill_health_analysis",
+        name="Skill Health Relative Momentum Analysis",
+        description="Evaluates relative-momentum category and deterministic 0-100 score from consecutive normalized share series.",
+        supported_intent="analyze_skill_health",
+        supported_entity_types=["skill", "technology"],
+        required_inputs=["entity_name", "normalized_observations"],
+        required_signals=["demand", "adoption", "interest"],
+        required_sources=["jsearch", "adzuna", "github", "wikipedia", "stackexchange"],
+        min_readiness_periods=4,
+        global_status="available",
+        reason_code="CAPABILITY_IMPLEMENTED",
+        handler="app.analytics.skill_health.evaluate_skill_health",
+        limitations=[
+            "Requires >= 4 strictly consecutive completed monthly periods with valid positive denominators.",
+            "Relative-momentum indicator; not a proof of absolute hiring volume or future success.",
+        ],
+        provenance_requirements=["calculation_version", "score_formula", "component_table"],
+    ),
+    "skill_half_life_analysis": CapabilityRecord(
+        capability_id="skill_half_life_analysis",
+        name="Skill Half-Life Analysis",
+        description="Estimates empirical half-life decay rate from consecutive completed normalized share observations.",
+        supported_intent="estimate_skill_half_life",
+        supported_entity_types=["skill", "technology"],
+        required_inputs=["entity_name"],
+        required_signals=["demand", "interest", "adoption"],
+        required_sources=["jsearch", "adzuna", "github_innovation_graph"],
+        min_readiness_periods=36,
+        global_status="available",
+        reason_code="CAPABILITY_IMPLEMENTED",
+        handler="app.analytics.skill_half_life.calculate_skill_half_life",
+        limitations=[
+            "Empirical decay estimate under an exponential decay model (ln(2) / |b|); not an obsolescence guarantee.",
+            "Requires >= 36 strictly consecutive completed monthly periods with valid positive denominators.",
+            "Non-declining, stable, or growing series return not applicable.",
+        ],
+        provenance_requirements=["calculation_version", "theil_sen_slope", "kendall_tau", "observation_ids"],
+    ),
     "evidence_provenance_retrieval": CapabilityRecord(
         capability_id="evidence_provenance_retrieval",
         name="Traceable Evidence and Provenance Retrieval",
@@ -258,38 +297,77 @@ CAPABILITY_CATALOG: dict[str, CapabilityRecord] = {
     "company_intelligence": CapabilityRecord(
         capability_id="company_intelligence",
         name="Company Workforce and Market Intelligence",
-        description="Aggregates internal workforce inventory, team skills, and company-specific market demand observations.",
+        description="Aggregates tenant-scoped connected employee membership and self-reported workforce skill records.",
         supported_intent="analyze_company_workforce",
         supported_entity_types=["company"],
         required_inputs=["company_id"],
-        required_signals=["demand", "context"],
-        required_sources=["company_relationships", "market_observations"],
+        required_signals=["context"],
+        required_sources=["company_relationships", "employee_onboarding_profiles"],
         min_readiness_periods=None,
         global_status="partial",
-        reason_code="INTERNAL_WORKFORCE_ONLY",
-        handler="app.services.core_intelligence_service.CoreIntelligenceService._synthesize_market_domain",
+        reason_code="AUTHENTICATED_WORKFORCE_RECORDS_REQUIRED",
+        handler="app.services.execution_orchestrator_service.ExecutionOrchestratorService._handle_company_intelligence",
         limitations=[
-            "Internal company membership and workforce skills supported; external firmographics, venture capital, and SEC filings are unavailable.",
+            "Company aggregates require a verified company owner/admin and connected employee records.",
+            "Employee skill domains and company priority domains are self-reported; no verified proficiency or approved role requirements are available.",
         ],
         provenance_requirements=["company_id", "invitation_or_membership_record"],
     ),
     "skill_forecasting_half_life": CapabilityRecord(
         capability_id="skill_forecasting_half_life",
-        name="Skill Half-Life and Future Demand Forecasting",
-        description="Projects multi-quarter skill demand trajectories and obsolescence half-life models.",
+        name="Skill Demand Forecasting",
+        description="Forecasts future monthly skill demand trajectories using a seasonal-naive baseline evaluated on chronological holdouts.",
         supported_intent="forecast_future_demand",
         supported_entity_types=["skill", "technology"],
         required_inputs=["entity_name", "consecutive_historical_series"],
-        required_signals=["demand", "adoption"],
-        required_sources=["future_forecasting_engine"],
-        min_readiness_periods=6,
-        global_status="building",
-        reason_code="MILESTONE_G3_PLANNED",
+        required_signals=["demand"],
+        required_sources=["jsearch", "adzuna"],
+        min_readiness_periods=24,
+        global_status="available",
+        reason_code="CAPABILITY_IMPLEMENTED",
+        handler="app.analytics.forecasting.forecast_signal_series",
+        limitations=[
+            "Requires at least 24 valid consecutive monthly observations; gaps or truncated history block forecasting.",
+            "Forecast horizon is capped at min(6, history_length // 3) months.",
+            "Uses a seasonal-naive model (12-month seasonal carry-forward) evaluated against a simple naive baseline.",
+            "Prediction intervals are omitted until horizon-specific holdout coverage is sufficient.",
+            "Future predictions are non-guaranteed estimates and must not be treated as deterministic hiring outcomes.",
+        ],
+        provenance_requirements=[
+            "calculation_version",
+            "selected_method",
+            "backtest_scores",
+            "first_history_period",
+            "latest_history_period",
+        ],
+    ),
+    "ai_task_exposure": CapabilityRecord(
+        capability_id="ai_task_exposure",
+        name="AI Task Exposure and Disruption Intelligence",
+        description="Evaluates source-rated task-level AI exposure only when an approved dataset, methodology, and canonical task mappings are available.",
+        supported_intent="analyze_ai_task_exposure",
+        supported_entity_types=["occupation", "role", "skill", "technology"],
+        required_inputs=["entity_name"],
+        required_signals=["task_exposure"],
+        required_sources=["licensed_ai_exposure_reference", "onet_reference"],
+        min_readiness_periods=None,
+        global_status="blocked",
+        reason_code="NO_LICENSED_EXPOSURE_DATASET",
         handler=None,
         limitations=[
-            "Forecasting engine is explicitly inactive in G2.6; synthetic projections and future predictions are forbidden.",
+            "No approved task-exposure dataset, documented exposure methodology, or task-to-occupation/skill mapping is configured.",
+            "Task exposure, technical automation potential, job displacement, and workforce impact are separate concepts.",
+            "A task-exposure assessment must never be interpreted as a job-loss or headcount-reduction estimate.",
         ],
-        provenance_requirements=["forecast_model_version", "confidence_interval"],
+        provenance_requirements=[
+            "approved_dataset_identity",
+            "license_and_permitted_use",
+            "source_methodology",
+            "dataset_version",
+            "canonical_task_occupation_mapping",
+            "evidence_date",
+            "evidence_source_id",
+        ],
     ),
     "workforce_what_if_simulation": CapabilityRecord(
         capability_id="workforce_what_if_simulation",
@@ -305,9 +383,20 @@ CAPABILITY_CATALOG: dict[str, CapabilityRecord] = {
         reason_code="FUTURE_ENTERPRISE_PLANNED",
         handler=None,
         limitations=[
-            "Simulation engine is not implemented; scenario projection capabilities are in design.",
+            "No approved simulation engine or reproducible calculation method is implemented.",
+            "No verified workforce baseline, validated employee-to-role assignments, or trustworthy proficiency records are available as simulation inputs.",
+            "No approved future role-skill requirements or documented upskilling, reskilling, redeployment, or hiring assumptions are configured.",
+            "Costs, training success rates, productivity gains, hiring outcomes, savings, and staffing projections must not be inferred.",
         ],
-        provenance_requirements=["simulation_run_id", "model_assumptions"],
+        provenance_requirements=[
+            "simulation_run_id",
+            "verified_workforce_baseline",
+            "validated_employee_role_assignments",
+            "trustworthy_skill_proficiency",
+            "approved_future_skill_requirements",
+            "documented_action_assumptions",
+            "reproducible_calculation_method",
+        ],
     ),
 }
 
@@ -320,12 +409,15 @@ CAPABILITY_DOMAINS: dict[str, list[str]] = {
     "market_snapshot": ["market"],
     "historical_signal_retrieval": ["skill", "market"],
     "trend_velocity_analysis": ["skill", "market"],
+    "skill_health_analysis": ["skill", "market"],
+    "skill_half_life_analysis": ["skill", "market"],
     "evidence_provenance_retrieval": ["skill", "market"],
     "skill_gap_role_fit": ["skill", "job"],
     "action_recommendations": ["skill", "market", "job"],
     "job_posting_search": ["job"],
-    "company_intelligence": ["market"],
-    "skill_forecasting_half_life": ["skill"],
+    "company_intelligence": ["skill", "market"],
+    "skill_forecasting_half_life": ["skill", "market"],
+    "ai_task_exposure": ["market", "skill", "job"],
     "workforce_what_if_simulation": ["market"],
 }
 
@@ -441,6 +533,14 @@ class CapabilityRegistryService:
             return self._eval_related_occupations(cap, req)
         elif cap.capability_id == "trend_velocity_analysis":
             return self._eval_trend_velocity(cap, req)
+        elif cap.capability_id == "skill_health_analysis":
+            return self._eval_skill_health(cap, req)
+        elif cap.capability_id == "skill_half_life_analysis":
+            return self._eval_skill_half_life(cap, req)
+        elif cap.capability_id == "skill_forecasting_half_life":
+            return self._eval_forecasting(cap, req)
+        elif cap.capability_id == "ai_task_exposure":
+            return self._eval_ai_task_exposure(cap, req)
         elif cap.capability_id in {"market_snapshot", "historical_signal_retrieval"}:
             return self._eval_market_observations(cap, req)
         elif cap.capability_id == "evidence_provenance_retrieval":
@@ -814,6 +914,396 @@ class CapabilityRegistryService:
                 readiness_state=primary.readiness_state,
             )
 
+    def _eval_skill_health(
+        self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
+    ) -> CapabilityEvaluationResult:
+        obs = req.observations
+        if not obs and self._observation_store is not None and req.entity_name:
+            try:
+                norm = normalize_skill(req.entity_name)
+                obs = self._observation_store.get_observations_by_skills([norm])
+            except Exception:
+                obs = []
+
+        if not obs:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["NO_OBSERVATIONS_FOR_SERIES"],
+                explanation="Skill Health calculation requires empirical market observations. Zero observations found.",
+                missing_requirements=[">=4 consecutive monthly observation periods with valid denominators"],
+                limitations=cap.limitations,
+            )
+
+        has_real = any(getattr(o, "data_origin", None) == "real" for o in obs)
+        if not has_real:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["OBSERVATION_PROVENANCE_UNAVAILABLE"],
+                explanation="Empirical observation provenance is unavailable or contains demo/synthetic records.",
+                missing_requirements=["Real empirical observation records with verifiable provenance"],
+                limitations=cap.limitations,
+            )
+
+        from app.analytics.signal_aggregation import aggregate_market_signals
+        from app.analytics.skill_health import evaluate_skill_health
+
+        signals = aggregate_market_signals(obs)
+        if not signals:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["SERIES_EVALUATION_EMPTY"],
+                explanation="Observations could not be partitioned into comparable monthly series.",
+                missing_requirements=["Consistent provider panel with valid periods"],
+                limitations=cap.limitations,
+            )
+
+        norm_name = req.entity_name or ""
+        canon_id = canonical_skill_id(norm_name) if norm_name else None
+        health_result = evaluate_skill_health(
+            signals,
+            canonical_skill_id=canon_id,
+            canonical_name=norm_name,
+        )
+
+        if health_result.score_status == "ambiguous_series":
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="available",
+                can_execute=True,
+                reason_codes=["AMBIGUOUS_HEALTH_SERIES"],
+                explanation=health_result.explanation,
+                limitations=health_result.limitations,
+                provenance_references=["provider_series:multiple"],
+            )
+
+        if health_result.status in {"ready", "partial"}:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="available",
+                can_execute=True,
+                reason_codes=["READY_FOR_HEALTH"],
+                explanation=health_result.explanation,
+                limitations=health_result.limitations,
+                provenance_references=[f"provider:{row.provider}" for row in health_result.component_table if row.is_eligible_share],
+            )
+
+        # Insufficient data / unavailable
+        reasons = [row.reason for row in health_result.component_table if row.reason]
+        if any("Raw count series without source-specific denominator" in r for r in reasons) and not any(row.is_eligible_share for row in health_result.component_table):
+            reason_code = "MISSING_SERIES_DENOMINATOR"
+            explanation = "Skill Health relative-momentum evaluation requires normalized shares with explicit denominators; only raw counts were found."
+            missing = ["Source-specific denominator to calculate normalized share series"]
+        elif any("Non-consecutive" in r for r in reasons):
+            reason_code = "INSUFFICIENT_HEALTH_HISTORY"
+            explanation = "Observations have non-consecutive periods. At least 4 strictly consecutive monthly periods are required."
+            missing = [">=4 strictly consecutive monthly periods"]
+        else:
+            reason_code = "INSUFFICIENT_HEALTH_HISTORY"
+            explanation = health_result.explanation or "Insufficient consecutive monthly observations to evaluate Skill Health."
+            missing = [">=4 consecutive monthly observation periods with valid denominators"]
+
+        return CapabilityEvaluationResult(
+            capability_id=cap.capability_id,
+            name=cap.name,
+            global_status=cap.global_status,
+            runtime_status="insufficient_data",
+            can_execute=False,
+            reason_codes=[reason_code],
+            explanation=explanation,
+            missing_requirements=missing,
+            limitations=health_result.limitations or cap.limitations,
+        )
+
+    def _eval_skill_half_life(
+        self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
+    ) -> CapabilityEvaluationResult:
+        target = (req.entity_name or "").strip()
+        if not target:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["MISSING_REQUIRED_INPUT"],
+                explanation="Skill Half-Life evaluation requires a skill or technology name.",
+                missing_requirements=["entity_name"],
+                limitations=cap.limitations,
+            )
+
+        obs = req.observations
+        if not obs and self._observation_store is not None and req.entity_name:
+            try:
+                norm = normalize_skill(req.entity_name)
+                obs = self._observation_store.get_observations_by_skills([norm])
+            except Exception:
+                obs = []
+
+        if not obs:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["NO_OBSERVATIONS_FOR_SERIES"],
+                explanation=f"Skill Half-Life calculation requires empirical market observations for '{target}'. Zero observations found.",
+                missing_requirements=[">=36 consecutive monthly observation periods with valid denominators"],
+                limitations=cap.limitations,
+            )
+
+        has_real = any(getattr(o, "data_origin", None) == "real" for o in obs)
+        if not has_real:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["OBSERVATION_PROVENANCE_UNAVAILABLE"],
+                explanation="Empirical observation provenance is unavailable or contains demo/synthetic records.",
+                missing_requirements=["Real empirical observation records with verifiable provenance"],
+                limitations=cap.limitations,
+            )
+
+        from app.analytics.signal_aggregation import aggregate_market_signals
+        from app.analytics.skill_half_life import calculate_skill_half_life
+
+        signals = aggregate_market_signals(obs)
+        if not signals:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["SERIES_EVALUATION_EMPTY"],
+                explanation="Observations could not be partitioned into comparable monthly series.",
+                missing_requirements=["Consistent provider panel with valid periods"],
+                limitations=cap.limitations,
+            )
+
+        norm_name = req.entity_name or ""
+        canon_id = canonical_skill_id(norm_name) if norm_name else None
+        hl_result = calculate_skill_half_life(
+            signals,
+            canonical_skill_id=canon_id,
+            canonical_name=norm_name,
+        )
+
+        if hl_result.status in {"ready", "not_applicable"}:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="available",
+                can_execute=True,
+                reason_codes=["READY_FOR_HALF_LIFE" if hl_result.status == "ready" else "HALF_LIFE_NOT_APPLICABLE"],
+                explanation=hl_result.explanation,
+                limitations=hl_result.limitations or cap.limitations,
+                provenance_references=[f"provider:{hl_result.provider}"],
+            )
+
+        # Insufficient data / unavailable
+        reason = hl_result.reason or "Insufficient consecutive monthly observations to evaluate Skill Half-Life."
+        if "without a source-specific denominator" in reason or "raw count" in reason.lower():
+            reason_code = "MISSING_SERIES_DENOMINATOR"
+            explanation = "Skill Half-Life evaluation requires normalized shares with explicit denominators; only raw counts were found."
+            missing = ["Source-specific denominator to calculate normalized share series"]
+        elif "missing monthly periods" in reason.lower() or "requires >= 36" in reason.lower() or "consecutive" in reason.lower():
+            reason_code = "INSUFFICIENT_HALF_LIFE_HISTORY"
+            explanation = hl_result.explanation or reason
+            missing = [">=36 strictly consecutive monthly periods with valid denominators"]
+        else:
+            reason_code = "INSUFFICIENT_HALF_LIFE_HISTORY"
+            explanation = hl_result.explanation or reason
+            missing = [">=36 consecutive monthly observation periods with valid denominators"]
+
+        return CapabilityEvaluationResult(
+            capability_id=cap.capability_id,
+            name=cap.name,
+            global_status=cap.global_status,
+            runtime_status="insufficient_data",
+            can_execute=False,
+            reason_codes=[reason_code],
+            explanation=explanation,
+            missing_requirements=missing,
+            limitations=hl_result.limitations or cap.limitations,
+        )
+
+    def _eval_forecasting(
+        self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
+    ) -> CapabilityEvaluationResult:
+        target = (req.entity_name or "").strip()
+        if not target:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["MISSING_REQUIRED_INPUT"],
+                explanation="Skill Demand Forecasting requires a skill or technology name.",
+                missing_requirements=["entity_name"],
+                limitations=cap.limitations,
+            )
+
+        obs = req.observations
+        if not obs and self._observation_store is not None and req.entity_name:
+            try:
+                norm = normalize_skill(req.entity_name)
+                obs = self._observation_store.get_observations_by_skills([norm])
+            except Exception:
+                obs = []
+
+        if not obs:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["NO_OBSERVATIONS_FOR_SERIES"],
+                explanation=f"Skill Demand Forecasting requires empirical market observations for '{target}'. Zero observations found.",
+                missing_requirements=[">=24 consecutive monthly observation periods with valid denominators"],
+                limitations=cap.limitations,
+            )
+
+        has_real = any(getattr(o, "data_origin", None) == "real" for o in obs)
+        if not has_real:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["OBSERVATION_PROVENANCE_UNAVAILABLE"],
+                explanation="Empirical observation provenance is unavailable or contains demo/synthetic records.",
+                missing_requirements=["Real empirical observation records with verifiable provenance"],
+                limitations=cap.limitations,
+            )
+
+        from app.analytics.signal_aggregation import aggregate_market_signals
+        from app.analytics.forecasting import forecast_signal_series
+
+        signals = aggregate_market_signals(obs)
+        if not signals:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["SERIES_EVALUATION_EMPTY"],
+                explanation="Observations could not be partitioned into comparable monthly series.",
+                missing_requirements=["Consistent provider panel with valid periods"],
+                limitations=cap.limitations,
+            )
+
+        norm_name = req.entity_name or ""
+        canon_id = canonical_skill_id(norm_name) if norm_name else None
+        fc_result = forecast_signal_series(
+            signals,
+            canonical_skill_id=canon_id,
+            canonical_name=norm_name,
+        )
+
+        if fc_result.status == "ready":
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="available",
+                can_execute=True,
+                reason_codes=["READY_FOR_FORECASTING"],
+                explanation=fc_result.explanation,
+                limitations=fc_result.limitations or cap.limitations,
+                provenance_references=[f"provider:{fc_result.provider}"],
+            )
+
+        reason = fc_result.reason or "Insufficient consecutive monthly observations to evaluate Skill Demand Forecasting."
+        if "without a source-specific denominator" in reason or "raw count" in reason.lower() or "requires a value, positive denominator" in reason.lower():
+            reason_code = "MISSING_SERIES_DENOMINATOR"
+            explanation = "Skill Demand Forecasting evaluation requires normalized shares with explicit denominators; only raw counts were found."
+            missing = ["Source-specific denominator to calculate normalized share series"]
+        elif "incompatible" in reason.lower() or "partitions" in reason.lower():
+            reason_code = "AMBIGUOUS_SOURCE_SERIES"
+            explanation = fc_result.explanation or reason
+            missing = ["Select one comparable source-specific demand series before forecasting."]
+        elif "missing period gaps" in reason.lower() or "requires >= 24" in reason.lower() or "consecutive" in reason.lower():
+            reason_code = "INSUFFICIENT_FORECAST_HISTORY"
+            explanation = fc_result.explanation or reason
+            missing = [">=24 strictly consecutive monthly periods with valid denominators"]
+        else:
+            reason_code = "INSUFFICIENT_FORECAST_HISTORY"
+            explanation = fc_result.explanation or reason
+            missing = [">=24 consecutive monthly observation periods with valid denominators"]
+
+        return CapabilityEvaluationResult(
+            capability_id=cap.capability_id,
+            name=cap.name,
+            global_status=cap.global_status,
+            runtime_status="insufficient_data",
+            can_execute=False,
+            reason_codes=[reason_code],
+            explanation=explanation,
+            missing_requirements=missing,
+            limitations=fc_result.limitations or cap.limitations,
+        )
+
+    def _eval_ai_task_exposure(
+        self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
+    ) -> CapabilityEvaluationResult:
+        target = (req.entity_name or "").strip()
+        if not target:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["MISSING_REQUIRED_INPUT"],
+                explanation="AI Task Exposure evaluation requires a target occupation, role, or skill name.",
+                missing_requirements=["entity_name"],
+                limitations=cap.limitations,
+            )
+
+        return CapabilityEvaluationResult(
+            capability_id=cap.capability_id,
+            name=cap.name,
+            global_status="blocked",
+            runtime_status="blocked",
+            can_execute=False,
+            reason_codes=["NO_LICENSED_EXPOSURE_DATASET"],
+            explanation=(
+                "AI task-exposure analysis is unavailable: no approved dataset identity, "
+                "documented source methodology, and verified task mappings are configured. "
+                "Request-supplied records and provenance are not trusted as a data source."
+            ),
+            missing_requirements=[
+                "Approved task-exposure dataset and license verification",
+                "Documented source methodology and version",
+                "Verified task-to-occupation and task-to-skill mappings",
+            ],
+            limitations=cap.limitations,
+        )
+
     def _eval_market_observations(
         self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
     ) -> CapabilityEvaluationResult:
@@ -941,6 +1431,35 @@ class CapabilityRegistryService:
     def _eval_action_recommendations(
         self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
     ) -> CapabilityEvaluationResult:
+        if req.portal_type != "individual":
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["INDIVIDUAL_LEARNING_PROFILE_REQUIRED"],
+                explanation=(
+                    "This conversational recommendation path is limited to an individual's "
+                    "own learning context; no employee or company profile is inferred."
+                ),
+                limitations=cap.limitations,
+            )
+        if not (req.target_role or req.entity_name):
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["MISSING_TARGET_ROLE"],
+                explanation=(
+                    "A target role is needed to compare the individual's recorded skills "
+                    "with the available occupational reference mapping."
+                ),
+                missing_requirements=["target_role"],
+                limitations=cap.limitations,
+            )
         return CapabilityEvaluationResult(
             capability_id=cap.capability_id,
             name=cap.name,
@@ -998,16 +1517,19 @@ class CapabilityRegistryService:
         self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
     ) -> CapabilityEvaluationResult:
         cid = req.context_override.get("company_id") or (req.entity_name if req.entity_type == "company" else None)
-        if not cid and req.portal_type != "company":
+        if req.portal_type != "company":
             return CapabilityEvaluationResult(
                 capability_id=cap.capability_id,
                 name=cap.name,
                 global_status=cap.global_status,
                 runtime_status="insufficient_data",
                 can_execute=False,
-                reason_codes=["MISSING_COMPANY_CONTEXT"],
-                explanation="Company intelligence requires a company context or company_id.",
-                missing_requirements=["company_id_or_company_portal"],
+                reason_codes=["COMPANY_ADMIN_PORTAL_REQUIRED"],
+                explanation=(
+                    "Company-wide workforce analytics are restricted to an authenticated "
+                    "company owner/admin request; employee access to this aggregate is not enabled."
+                ),
+                missing_requirements=["authenticated_company_owner_portal"],
                 limitations=cap.limitations,
             )
 
@@ -1017,8 +1539,11 @@ class CapabilityRegistryService:
             global_status=cap.global_status,
             runtime_status="partial",
             can_execute=True,
-            reason_codes=["INTERNAL_WORKFORCE_READY"],
+            reason_codes=["VERIFIED_COMPANY_MEMBERSHIP_AND_WORKFORCE_RECORDS_REQUIRED"],
             explanation=f"Internal workforce intelligence ready for company '{cid or 'active_org'}'.",
             limitations=cap.limitations,
-            provenance_references=["source:company_relationships"],
+            provenance_references=[
+                "source:company_relationships",
+                "source:employee_onboarding_profiles",
+            ],
         )

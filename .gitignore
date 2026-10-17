@@ -4,6 +4,7 @@
 **/*service-account*.json
 **/*firebase-adminsdk*.json
 **/secrets/
+.g0_auth_profile/
 node_modules/
 .venv/
 **/.pytest_cache/

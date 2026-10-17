@@ -32,6 +32,8 @@ from app.services.market_data.stack_exchange_historical_provider import (
 )
 from app.services.market_data_scheduler import MarketDataScheduler
 
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
+
 
 class MemoryFetchRunStore:
     def __init__(self):
@@ -543,7 +545,8 @@ def test_s_no_synthetic_values():
     aggregated = aggregate_market_signals(signals)
     assert aggregated[0].raw_value == 1.0
     # No random or synthesized values
-    assert aggregated[0].data_origin == "real"
+    assert aggregated[0].data_origin == "unavailable"
+    assert aggregated[0].history_type == "unavailable"
 
 
 # T. no duplicate observations

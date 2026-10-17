@@ -520,11 +520,14 @@ def get_collection_status(
 
     provider_quality: dict[str, str] = {}
     provider_readiness: dict[str, str] = {}
+    observation_history_incomplete = False
+    observation_read_failed = False
     try:
         obs_store = observation_store if observation_store is not None else FirestoreObservationStore()
         cutoff = datetime.now(timezone.utc) - timedelta(days=365)
         all_obs = obs_store.get_observations(cutoff=cutoff)
-        if all_obs:
+        observation_history_incomplete = bool(getattr(all_obs, "truncated", False))
+        if all_obs and not observation_history_incomplete:
             from app.analytics.series_validation import validate_series_observations, summarize_quality
             from app.analytics.analytical_readiness import assess_analytical_readiness, summarize_readiness
 
@@ -541,8 +544,9 @@ def get_collection_status(
                     if p_r_reports:
                         p_r_sum = summarize_readiness(p_r_reports)
                         provider_readiness[p_name] = p_r_sum.overall_readiness_state
-    except Exception:
-        pass
+    except Exception as exc:
+        observation_read_failed = True
+        logger.error("collection_status_observation_read_failed (%s)", type(exc).__name__)
 
     statuses: list[ProviderCollectionStatus] = []
     configured_names = [p.name.casefold() for p in configured_market_providers(settings)]
@@ -560,8 +564,16 @@ def get_collection_status(
     for provider_name in providers_to_check:
         run = provider_runs.get(provider_name)
         cap = get_provider_capability(provider_name)
-        q_stat = provider_quality.get(provider_name)
-        r_stat = provider_readiness.get(provider_name)
+        q_stat = (
+            "unavailable" if observation_read_failed
+            else "incomplete" if observation_history_incomplete
+            else provider_quality.get(provider_name)
+        )
+        r_stat = (
+            "unavailable" if observation_read_failed
+            else "incomplete" if observation_history_incomplete
+            else provider_readiness.get(provider_name)
+        )
         if run:
             completed_at = run.get("completed_at") or run.get("started_at")
             if completed_at:

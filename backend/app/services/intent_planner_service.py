@@ -55,10 +55,14 @@ from app.storage.conversation_store import ConversationStore
 # INTENT REGEX PATTERNS (DETERMINISTIC CLASSIFICATION)
 # =============================================================================
 
-# 1. Forecasting & future projections (strictly blocked in G2.6)
+# 1. Forecasting & future projections
 FORECAST_PATTERNS = [
     re.compile(r"\b(will|shall)\b.*\b(grow|increase|rise|decline|drop|demand|change|trend)\b.*\b(next year|in future|in \d{4}|future)\b", re.IGNORECASE),
-    re.compile(r"\b(forecast|predict|prediction|projection|half-life|future demand|future outlook)\b", re.IGNORECASE),
+    re.compile(r"\b(forecasts?|predict(?:ion)?s?|projections?|future demand|future outlook)\b", re.IGNORECASE),
+    re.compile(r"\b(?:what|how|where)\s+might\s+.*(?:demand|hiring|market)\s+(?:look\s+like|be)\b", re.IGNORECASE),
+    re.compile(r"\bhow\s+reliable\s+is\s+(?:this|the)\s+forecast\b", re.IGNORECASE),
+    re.compile(r"\bnext\s+(?:one|two|three|four|five|six|12|24|\d+)\s+months?\b.*\b(?:demand|forecast|trajectory)\b", re.IGNORECASE),
+    re.compile(r"\bdemand\b.*\bnext\s+(?:one|two|three|four|five|six|12|24|\d+)\s+months?\b", re.IGNORECASE),
 ]
 
 # 2. Workforce what-if simulation (planned for future enterprise)
@@ -72,6 +76,7 @@ SIMULATION_PATTERNS = [
 
 # 3. Entity comparison
 COMPARISON_PATTERNS = [
+    re.compile(r"\bcompare\b.*?\bacross\s+([A-Za-z0-9\.\+#\s]+?)\s+(?:and|with|to|vs|versus)\s+([A-Za-z0-9\.\+#\s]+)", re.IGNORECASE),
     re.compile(r"\bcompare\b\s+([A-Za-z0-9\.\+#]+)\s+(?:and|with|to|vs|versus)\s+([A-Za-z0-9\.\+#]+)", re.IGNORECASE),
     re.compile(r"\b([A-Za-z0-9\.\+#]+)\s+(?:vs|versus)\s+([A-Za-z0-9\.\+#]+)\b", re.IGNORECASE),
     re.compile(r"\bdifference between\s+([A-Za-z0-9\.\+#]+)\s+and\s+([A-Za-z0-9\.\+#]+)", re.IGNORECASE),
@@ -103,6 +108,14 @@ OCC_RELATED_PATTERNS = [
 # 6b. Role-specific learning guidance
 SKILL_LEARNING_PATTERNS = [
     re.compile(r"\b(?:which|what)\s+skills?\s+(?:should|could|can)\s+i\s+(?:learn|develop|focus on)\b", re.IGNORECASE),
+    re.compile(r"\bwhich\s+skill\s+should\s+i\s+learn\s+next\b", re.IGNORECASE),
+    re.compile(r"\b(?:learning|study)\s+roadmap\b", re.IGNORECASE),
+    re.compile(r"\broadmap\b.*\b(?:learn|study|skill)\b", re.IGNORECASE),
+    re.compile(r"\bhow\s+can\s+i\s+(?:improve|strengthen|develop)\b.*\bskills?\b", re.IGNORECASE),
+    re.compile(r"\bwhich\s+skills?\s+should\s+i\s+prioriti[sz]e\b", re.IGNORECASE),
+    re.compile(r"\bprioriti[sz]e\b.*\bskills?\b", re.IGNORECASE),
+    re.compile(r"\bcreate\b.*\blearning\s+roadmap\b", re.IGNORECASE),
+    re.compile(r"\broadmap\b.*\bbased\s+on\s+my\s+current\s+skills\b", re.IGNORECASE),
 ]
 
 # 7. Occupation lookup
@@ -118,6 +131,7 @@ EVIDENCE_PATTERNS = [
     re.compile(r"\b(evidence|provenance|source|sources|citation|citations|audit trail|where did this come from|sources used)\b", re.IGNORECASE),
     re.compile(r"\b(is this (?:data )?real|real or estimated|real or fake|is it real|how was this calculated|methodology)\b", re.IGNORECASE),
     re.compile(r"\b(what are the limitations|limitations?|analytical limitations?)\b", re.IGNORECASE),
+    re.compile(r"\bwhy\s+(?:are|did)\s+you\s+recommend(?:ing)?\b", re.IGNORECASE),
 ]
 
 # 9. Skill gap & role alignment
@@ -135,12 +149,48 @@ ACTION_PATTERNS = [
 # 11. Company workforce
 COMPANY_PATTERNS = [
     re.compile(r"\b(company workforce|our workforce|team skills|department skills|workforce inventory)\b", re.IGNORECASE),
+    re.compile(r"\b(?:our\s+company(?:'s)?|the\s+company(?:'s)?|my\s+company(?:'s)?)\s+(?:current\s+)?skill coverage\b", re.IGNORECASE),
+    re.compile(r"\bskills?\s+(?:are\s+)?(?:missing\s+from|missing\s+(?:across|in)|represented\s+(?:across|in))\s+(?:our|the)\s+workforce\b", re.IGNORECASE),
+    re.compile(r"\b(?:summari[sz]e|show|list)\b.*\bskills?\b.*\b(?:our|the)\s+employees\b", re.IGNORECASE),
+    re.compile(r"\bworkforce skills?\b.*\b(?:investigat\w*|review|coverage)\b", re.IGNORECASE),
+]
+
+# 11b. Skill Health relative momentum & score
+HEALTH_PATTERNS = [
+    re.compile(r"\b(?:skill\s+)?health\b", re.IGNORECASE),
+    re.compile(r"\bhealth\s+(?:score|category|status|metric)\b", re.IGNORECASE),
+    re.compile(r"\brelative\s+momentum\b", re.IGNORECASE),
+]
+
+# 11c. Skill Half-Life decay rate & estimate
+HALF_LIFE_PATTERNS = [
+    re.compile(r"\b(?:skill\s+)?half[- ]life\b", re.IGNORECASE),
+    re.compile(r"\bdecay\s+rate\b", re.IGNORECASE),
+    re.compile(r"\bexponential\s+decay\b", re.IGNORECASE),
+]
+
+# 11d. AI Task Exposure and Disruption
+AI_TASK_EXPOSURE_PATTERNS = [
+    re.compile(r"\b(?:ai\s+)?task\s+exposure\b", re.IGNORECASE),
+    re.compile(r"\bexposure\s+to\s+ai\b", re.IGNORECASE),
+    re.compile(r"\btasks?\s+in\s+.*?\s+(?:are|is)?\s*exposed\s+to\s+ai\b", re.IGNORECASE),
+    re.compile(r"\bwhich\s+tasks\b.*\b(?:exposed|affected|automated|augmented)\b", re.IGNORECASE),
+    re.compile(r"\btask[- ]level\s+(?:exposure|disruption|overlap)\b", re.IGNORECASE),
+    re.compile(r"\b(?:ai\s+)?disruption\s+(?:intelligence|analysis|evaluation)\b", re.IGNORECASE),
+    re.compile(r"\bwhich\s+skills\s+are\s+associated\s+with\s+the\s+(?:affected|exposed)\s+tasks\b", re.IGNORECASE),
+    re.compile(r"\bassociated\s+skills?\s+for\s+(?:affected|exposed)\s+tasks\b", re.IGNORECASE),
+    re.compile(r"\baugmentation\s+vs(?:\.|\s+)?\s*automation\b", re.IGNORECASE),
+    re.compile(r"\bautomation\s+potential\b", re.IGNORECASE),
 ]
 
 # 12. Trend & velocity
 TREND_PATTERNS = [
     re.compile(r"\b(trend|velocity|growing|increasing|declining|decreasing|rising|falling|momentum|market direction|growth rate)\b", re.IGNORECASE),
-    re.compile(r"\bis\s+([A-Za-z0-9\.\+#]+)\s+(?:growing|popular|in demand|rising|declining)\b", re.IGNORECASE),
+    re.compile(r"\bis\s+([A-Za-z0-9\.\+#]+)\s+(?:growing|popular|in demand|rising|declining|increasing|decreasing|changing)\b", re.IGNORECASE),
+    re.compile(r"\bis\s+([A-Za-z0-9\.\+#]+)\s+(?:increasing\s+or\s+decreasing|growing\s+or\s+declining|rising\s+or\s+falling)\b", re.IGNORECASE),
+    re.compile(r"\b(?:demand\s+changing|changing\s+demand|demand\s+shifts?|shifts?\s+in\s+demand|demand\s+movement)\b", re.IGNORECASE),
+    re.compile(r"\bwhy\s+(?:is\s+)?.*\b(?:demand\s+changing|changing|moving|shifting)\b", re.IGNORECASE),
+    re.compile(r"\bwhat\s+(?:demand\s+)?trend\b", re.IGNORECASE),
 ]
 
 ALL_SKILL_TREND_PATTERNS = [
@@ -400,6 +450,7 @@ class IntentPlannerService:
 
         # Check occupation patterns for explicit role mentions from query message
         for pat in [
+            re.compile(r"\btasks?\s+in\s+([a-zA-Z\s]+?)(?:\s+(?:are|is)?\s*exposed|\s+exposed|\s+affected|\s+to ai|\s+by ai|\s*$)", re.IGNORECASE),
             re.compile(r"\b(?:skills|tools|software|technologies|tech stack)\s+(?:does|do|for|needed for)\s+(?:a|an)?\s*(.*?)\s*(?:need|use|require)\b", re.IGNORECASE),
             re.compile(r"\b(?:skills|tools|software|technologies|tech stack)\s+(?:for|required for|needed by)\s+(?:a|an)?\s*(.*?)$", re.IGNORECASE),
             re.compile(r"^(.*?)\s+(?:tools|software tools|tech stack|technologies)\b", re.IGNORECASE),
@@ -480,10 +531,11 @@ class IntentPlannerService:
         unique_tokens: list[tuple[str, bool]] = []
         seen = set()
         for tok, is_prim in tokens_to_resolve:
-            clean = tok.strip().casefold()
+            tok = tok.strip(" \t\n\r?.!,;:")
+            clean = tok.casefold()
             if clean and clean not in seen:
                 seen.add(clean)
-                unique_tokens.append((tok.strip(), is_prim))
+                unique_tokens.append((tok, is_prim))
 
         # Resolve each token via EntityRegistryService
         resolved_items: list[ResolvedEntityItem] = []
@@ -537,26 +589,38 @@ class IntentPlannerService:
         entities: list[ResolvedEntityItem],
     ) -> tuple[IntentCategory, float, str, list[str], bool]:
         """Classify user intent deterministically and map to registered capabilities."""
-        # 1. Forecasting / Future projections (check first to prevent accidental execution)
-        for pat in FORECAST_PATTERNS:
-            if pat.search(message):
-                return (
-                    "forecast_future_demand",
-                    0.95,
-                    "Request asks for forward-looking demand forecasting or half-life projections.",
-                    ["skill_forecasting_half_life"],
-                    False,
-                )
+        # 1. Forecasting / Future projections
+        is_comp = any(pat.search(message) for pat in COMPARISON_PATTERNS)
+        is_ev = any(pat.search(message) for pat in EVIDENCE_PATTERNS)
+        if is_ev and not is_comp:
+            return (
+                "retrieve_evidence",
+                0.90,
+                "Request asks for verifiable evidence, provenance citations, or archives.",
+                ["evidence_provenance_retrieval"],
+                False,
+            )
 
-        # Role-specific learning questions should use the existing occupation
-        # crosswalk, rather than generic action recommendations.
+        if not is_comp:
+            for pat in FORECAST_PATTERNS:
+                if pat.search(message):
+                    return (
+                        "forecast_future_demand",
+                        0.95,
+                        "Request asks for forward-looking skill demand forecasting.",
+                        ["skill_forecasting_half_life"],
+                        False,
+                    )
+
+        # Role-specific learning questions use the authenticated profile-aware
+        # recommendation capability, not only a role taxonomy lookup.
         for pat in SKILL_LEARNING_PATTERNS:
             if pat.search(message):
                 return (
-                    "crosswalk_occupation_software",
-                    0.88,
-                    "Request asks which software skills are associated with the active occupation.",
-                    ["occupation_software_skills"],
+                    "synthesize_actions",
+                    0.90,
+                    "Request asks for an individual learning suggestion or roadmap.",
+                    ["action_recommendations"],
                     False,
                 )
 
@@ -571,6 +635,18 @@ class IntentPlannerService:
                     False,
                 )
 
+        # 2b. AI Task Exposure and Disruption
+        if not is_comp:
+            for pat in AI_TASK_EXPOSURE_PATTERNS:
+                if pat.search(message):
+                    return (
+                        "analyze_ai_task_exposure",
+                        0.95,
+                        "Request asks for AI task exposure, automation potential, or disruption analysis.",
+                        ["ai_task_exposure"],
+                        False,
+                    )
+
         if any(pat.search(message) for pat in ALL_SKILL_TREND_PATTERNS):
             return (
                 "rank_skill_trends",
@@ -583,11 +659,25 @@ class IntentPlannerService:
         # 3. Entity comparison
         for pat in COMPARISON_PATTERNS:
             if pat.search(message):
+                is_task_exposure_comparison = any(
+                    pattern.search(message) for pattern in AI_TASK_EXPOSURE_PATTERNS
+                )
+                selected = (
+                    ["ai_task_exposure"]
+                    if is_task_exposure_comparison
+                    else ["trend_velocity_analysis", "market_snapshot", "skill_technology_reference"]
+                )
+                if any(p.search(message) for p in HEALTH_PATTERNS):
+                    selected = ["skill_health_analysis", *selected]
+                if any(p.search(message) for p in HALF_LIFE_PATTERNS):
+                    selected = ["skill_half_life_analysis", *selected]
+                if any(p.search(message) for p in FORECAST_PATTERNS):
+                    selected = ["skill_forecasting_half_life", *selected]
                 return (
                     "compare_entities",
                     0.90,
                     f"Request compares {len(entities)} entity mentions.",
-                    ["trend_velocity_analysis", "market_snapshot", "skill_technology_reference"],
+                    selected,
                     True,
                 )
 
@@ -602,7 +692,18 @@ class IntentPlannerService:
                     False,
                 )
 
-        # 5. Occupation software / tools crosswalk
+        # 6. Related occupations / mobility
+        for pat in OCC_RELATED_PATTERNS:
+            if pat.search(message):
+                return (
+                    "crosswalk_related_occupations",
+                    0.90,
+                    "Request asks for career mobility pathways and related occupations.",
+                    ["related_occupations"],
+                    False,
+                )
+
+        # 6b. Occupation software / tools crosswalk
         for pat in OCC_SOFTWARE_PATTERNS:
             if pat.search(message):
                 return (
@@ -613,14 +714,15 @@ class IntentPlannerService:
                     False,
                 )
 
-        # 6. Related occupations / mobility
-        for pat in OCC_RELATED_PATTERNS:
+        # Workforce-record queries must not be confused with an individual's
+        # skill-gap analysis merely because they use "missing skills" wording.
+        for pat in COMPANY_PATTERNS:
             if pat.search(message):
                 return (
-                    "crosswalk_related_occupations",
-                    0.90,
-                    "Request asks for career mobility pathways and related occupations.",
-                    ["related_occupations"],
+                    "analyze_company_workforce",
+                    0.85,
+                    "Request asks for company-scoped workforce skill record coverage.",
+                    ["company_intelligence"],
                     False,
                 )
 
@@ -668,14 +770,25 @@ class IntentPlannerService:
                     False,
                 )
 
-        # 11. Company workforce intelligence
-        for pat in COMPANY_PATTERNS:
+        # 11b. Skill Health relative momentum
+        for pat in HEALTH_PATTERNS:
             if pat.search(message):
                 return (
-                    "analyze_company_workforce",
-                    0.85,
-                    "Request asks for internal company workforce or team skill intelligence.",
-                    ["company_intelligence"],
+                    "analyze_skill_health",
+                    0.90,
+                    "Request asks for Skill Health relative momentum or health score.",
+                    ["skill_health_analysis"],
+                    False,
+                )
+
+        # 11c. Skill Half-Life decay analysis
+        for pat in HALF_LIFE_PATTERNS:
+            if pat.search(message):
+                return (
+                    "estimate_skill_half_life",
+                    0.90,
+                    "Request asks for empirical Skill Half-Life decay analysis.",
+                    ["skill_half_life_analysis"],
                     False,
                 )
 
@@ -788,13 +901,46 @@ class IntentPlannerService:
         elif entities:
             primary_name = entities[0].raw_token
 
+        explicit_time_range = (
+            "time_range" in request.model_fields_set
+            or any(
+                request.filters.get(key) not in (None, "")
+                for key in ("time_range", "requested_time_window")
+            )
+        )
+        effective_time_range = (
+            "36m"
+            if (
+                "skill_half_life_analysis" in selected_caps
+                and not explicit_time_range
+                and request.time_range == "30d"
+            )
+            else (
+                "24m"
+                if (
+                    "skill_forecasting_half_life" in selected_caps
+                    and not explicit_time_range
+                    and request.time_range == "30d"
+                )
+                else (
+                    "6m"
+                    if (
+                        ("trend_velocity_analysis" in selected_caps or "skill_health_analysis" in selected_caps)
+                        and not explicit_time_range
+                        and request.time_range == "30d"
+                    )
+                    else request.time_range
+                )
+            )
+        )
+
         context_summary: dict[str, Any] = {
             "portal_type": portal_type,
             "domain": request.domain,
             "user_id": auth_user.uid if auth_user else None,
             "company_id": request.company_id or (getattr(auth_user, "claims", {}).get("company_id") if hasattr(auth_user, "claims") and isinstance(getattr(auth_user, "claims"), dict) else getattr(auth_user, "company_id", None)),
             "location": request.location or "Global",
-            "time_range": request.time_range,
+            "time_range": effective_time_range,
             "target_role": request.target_role,
             "selected_skills": request.selected_skills,
             "selected_roles": request.selected_roles,
@@ -807,8 +953,8 @@ class IntentPlannerService:
         missing_context: list[str] = []
         clarification_questions: list[str] = []
 
-        # 0. Unsupported capabilities (forecasting, simulation) never require user clarification
-        if selected_caps in (["skill_forecasting_half_life"], ["workforce_what_if_simulation"]):
+        # 0. Unsupported capabilities (simulation) never require user clarification
+        if selected_caps in (["workforce_what_if_simulation"],):
             return context_summary, [], []
 
         # 0b. Unclear intent prompts for general clarification
@@ -863,7 +1009,7 @@ class IntentPlannerService:
                                 (entity for entity in entities if entity.resolution_status == "not_found"),
                                 None,
                             )
-                            if cap_id == "trend_velocity_analysis" and unmatched_entity:
+                            if cap_id in ("trend_velocity_analysis", "skill_health_analysis") and unmatched_entity:
                                 clarification_questions.append(
                                     f"I couldn't match '{unmatched_entity.raw_token}' to a supported skill. "
                                     "Please try its canonical skill name or a supported alternative."
@@ -923,11 +1069,13 @@ class IntentPlannerService:
                 entity_name=primary_ent_name,
                 entity_type=primary_ent_type,
                 portal_type=portal_type,  # type: ignore[arg-type]
-                time_range=request.time_range,
+                time_range=context_summary.get("time_range") or request.time_range,
                 location=request.location,
                 target_role=request.target_role,
                 selected_skills=request.selected_skills,
                 observations=request.observations,
+                task_exposure_records=request.task_exposure_records,
+                dataset_provenance=request.dataset_provenance,
                 context_override=request.context_override,
             )
             eval_resp = self._capability_service.evaluate(eval_req)
@@ -951,7 +1099,7 @@ class IntentPlannerService:
         entities: list[ResolvedEntityItem],
     ) -> PlanStatus:
         """Determine plan status based on intent, clarification needs, and readiness results."""
-        if intent in {"forecast_future_demand", "simulate_workforce_scenarios"}:
+        if intent in {"simulate_workforce_scenarios"}:
             return "unsupported"
 
         if intent == "unsupported_or_unclear":

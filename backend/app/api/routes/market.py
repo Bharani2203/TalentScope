@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_current_admin_user, get_current_user
@@ -38,14 +40,14 @@ def search_market_jobs(
 
 
 @router.post("/admin/collect", response_model=MarketCollectionResponse)
-async def trigger_market_collection(
+def trigger_market_collection(
     request: MarketCollectionRequest | None = None,
     current_user: AuthenticatedUser = Depends(get_current_admin_user),
 ) -> MarketCollectionResponse:
     """Trigger a market collection run for an authenticated Firebase admin."""
     location = request.location if request else None
     country = request.country.lower() if request and request.country else None
-    return await collect_market_data(location=location, country=country)
+    return asyncio.run(collect_market_data(location=location, country=country))
 
 
 @router.get("/status", response_model=MarketCollectionStatusResponse)

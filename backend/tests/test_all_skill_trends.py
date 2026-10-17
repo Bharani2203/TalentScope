@@ -298,6 +298,162 @@ def test_focused_ui_ux_trend_resolves_alias_routes_to_capability_and_returns_mea
     assert response.evidence
 
 
+def test_focused_trend_uses_six_month_window_only_when_no_range_was_selected():
+    store = InMemoryObservationStore(observations_for("Python", [10, 14, 19, 25]))
+    service = ExecutionOrchestratorService(observation_store=store)
+    request = CoreIntelligenceAnswerRequest(
+        message="Python trend",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+    )
+
+    response = service.answer(request)
+
+    assert CoreIntelligenceAnswerRequest(message="What is the default?").time_range == "30d"
+    assert response.execution_status == "completed"
+    assert response.applied_filters["time_range"] == "6m"
+    assert response.facts[0].details["periods_count"] == 4
+    assert store.last_query is not None
+    assert 170 <= (datetime.now(timezone.utc) - store.last_query["cutoff"]).days <= 190
+
+
+def test_focused_trend_preserves_an_explicit_short_time_range():
+    store = InMemoryObservationStore(observations_for("Python", [10, 14, 19, 25]))
+    service = ExecutionOrchestratorService(observation_store=store)
+    request = CoreIntelligenceAnswerRequest(
+        message="Python trend",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+        time_range="30d",
+        filters={"requested_time_window": "30d"},
+    )
+
+    response = service.answer(request)
+
+    assert response.execution_status == "insufficient_data"
+    assert response.applied_filters["time_range"] == "30d"
+    assert store.last_query is not None
+    assert 25 <= (datetime.now(timezone.utc) - store.last_query["cutoff"]).days <= 35
+
+
+def test_focused_trend_rejects_missing_provenance_and_backfill_history():
+    missing_origin = observations_for("Python", [10, 14, 19, 25])
+    for observation in missing_origin:
+        observation.data_origin = None
+    missing_response = answer(
+        InMemoryObservationStore(missing_origin),
+        "Python trend",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+    )
+    backfill_response = answer(
+        InMemoryObservationStore(
+            observations_for("Python", [10, 14, 19, 25], history_type="backfill")
+        ),
+        "Python trend",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+    )
+
+    assert missing_response.status == "insufficient_data"
+    assert missing_response.reason_codes == ["OBSERVATION_PROVENANCE_UNAVAILABLE"]
+    assert not any(fact.fact_type == "trend_analysis" for fact in missing_response.facts)
+    assert "cannot support a measured trend" in missing_response.answer
+    assert backfill_response.status == "insufficient_data"
+    assert backfill_response.reason_codes == ["INELIGIBLE_HISTORY_TYPE"]
+    assert not any(fact.fact_type == "trend_analysis" for fact in backfill_response.facts)
+
+
+def test_focused_trend_rejects_stale_collection_evidence():
+    stale_created_at = datetime.now(timezone.utc) - timedelta(days=4)
+    response = answer(
+        InMemoryObservationStore(
+            observations_for("Python", [10, 14, 19, 25], created_at=stale_created_at)
+        ),
+        "Python trend",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+    )
+
+    assert response.status == "insufficient_data"
+    assert response.reason_codes == ["STALE_TREND_EVIDENCE"]
+    assert not any(fact.fact_type == "trend_analysis" for fact in response.facts)
+    assert any(item.freshness_state == "stale" for item in response.evidence)
+    assert "stale collection evidence" in response.answer
+
+
+def test_focused_github_adoption_is_never_presented_as_job_demand():
+    observations = observations_for(
+        "Python",
+        [10, 14, 19, 25],
+        source="github",
+        signal_type="adoption",
+    )
+    response = answer(
+        InMemoryObservationStore(observations),
+        "Python trend",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+    )
+
+    assert response.status == "ready"
+    assert "developer adoption/activity trend" in response.answer
+    assert "not employer hiring demand" in response.answer
+    assert "job-posting demand trend" not in response.answer
+    trend_fact = next(fact for fact in response.facts if fact.fact_type == "trend_analysis")
+    assert trend_fact.details["signal_type"] == "adoption"
+    assert response.evidence[0].measured_signal_type == "adoption"
+
+
+def test_focused_trend_preserves_observation_and_fetch_run_provenance(monkeypatch):
+    observations = observations_for("Python", [10, 14, 19, 25])
+    for observation in observations:
+        observation.source_url = f"https://provider.example/{observation.id}"
+    service = ExecutionOrchestratorService(
+        observation_store=InMemoryObservationStore(observations)
+    )
+    monkeypatch.setattr(service.llm_service, "is_available", lambda: False)
+    response = service.answer(CoreIntelligenceAnswerRequest(
+        message="Python trend",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+        time_range="max",
+    ))
+
+    trend_fact = next(fact for fact in response.facts if fact.fact_type == "trend_analysis")
+    trend_evidence = next(item for item in response.evidence if item.measured_signal_type == "demand")
+    assert trend_fact.canonical_entity_id == "python"
+    assert len(trend_fact.details["observation_ids"]) == 4
+    assert len(trend_fact.details["fetch_run_ids"]) == 4
+    assert len(trend_evidence.supporting_observation_ids) == 4
+    assert len(trend_evidence.supporting_fetch_run_ids) == 4
+    assert len(trend_evidence.supporting_source_urls) == 4
+
+
+def test_gemini_cannot_change_trend_facts_or_direction(monkeypatch):
+    service = ExecutionOrchestratorService(
+        observation_store=InMemoryObservationStore(observations_for("Python", [10, 14, 19, 25]))
+    )
+    monkeypatch.setattr(service.llm_service, "is_available", lambda: True)
+    monkeypatch.setattr(
+        service.llm_service,
+        "generate_grounded_explanation",
+        lambda **_kwargs: "The Python trend is declining.",
+    )
+    response = service.answer(CoreIntelligenceAnswerRequest(
+        message="Python trend",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+        time_range="max",
+    ))
+
+    trend_fact = next(fact for fact in response.facts if fact.fact_type == "trend_analysis")
+    assert trend_fact.metric_value == "Increasing"
+    assert response.answer_origin == "deterministic"
+    assert "Increasing" in response.answer
+    assert "declining" not in response.answer.lower()
+
+
 def test_focused_trend_unknown_skill_requests_canonical_name_clarification():
     response = answer(
         InMemoryObservationStore([]),

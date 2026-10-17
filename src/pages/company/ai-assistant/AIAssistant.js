@@ -7,6 +7,7 @@
 import { companyProfile } from '../../../data/company/company-data.js';
 import { getCurrentUser } from '../../../auth/auth-state.js';
 import { queryCoreIntelligenceAnswer } from '../../../api/core-intelligence-client.js';
+import { cleanConversationAnswer, renderConversationAnswer, renderConversationNextAction } from '../../../components/common/ConversationAnswer.js';
 import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
 import { renderAnswerEvidencePanel } from '../../../components/common/IntelligenceComponents.js';
 
@@ -16,7 +17,7 @@ const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
 
 function formatMarkdown(content) {
   if (!content) return '';
-  return String(content)
+  return esc(content)
     .replace(/^### (.*$)/gim, '<h4 style="margin:10px 0 4px; font-size:14px; color:var(--cmp-primary); font-weight:800;">$1</h4>')
     .replace(/^## (.*$)/gim, '<h3 style="margin:12px 0 6px; font-size:15px; color:var(--cmp-primary); font-weight:800;">$1</h3>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -25,19 +26,6 @@ function formatMarkdown(content) {
     .replace(/\n\n/g, '<br/><br/>')
     .replace(/\n/g, '<br/>');
 }
-
-const statusBadgeMap = {
-  completed: { label: 'Verified Grounded', bg: 'rgba(25,183,122,0.12)', color: '#059669', icon: 'check-circle-2' },
-  ready: { label: 'Verified Grounded', bg: 'rgba(25,183,122,0.12)', color: '#059669', icon: 'check-circle-2' },
-  partial: { label: 'Partial Coverage', bg: 'rgba(245,158,11,0.12)', color: '#D97706', icon: 'alert-circle' },
-  unavailable: { label: 'Capability Unavailable', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'ban' },
-  error: { label: 'Service Error', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'alert-triangle' },
-  requires_clarification: { label: 'Clarification Required', bg: 'rgba(245,158,11,0.12)', color: '#D97706', icon: 'help-circle' },
-  insufficient_data: { label: 'Insufficient Data', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'database' },
-  unsupported: { label: 'Unsupported in G2.6/G2.7', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'ban' },
-  blocked: { label: 'Access Restricted', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'lock' },
-  failed: { label: 'Query Failed', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'alert-triangle' }
-};
 
 const exampleQuestions = [
   { label: 'Workforce Changes', query: 'What changed in our workforce?' },
@@ -130,14 +118,14 @@ export function renderCompanyAIAssistant() {
 
           <!-- Messages Area -->
           <div id="cmpCopilotChatArea" style="flex: 1; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; max-height: 480px;">
-            ${copilotMessages.map(msg => renderCopilotMessage(msg)).join('')}
+            ${copilotMessages.map((msg, index) => renderCopilotMessage({ ...msg, index })).join('')}
           </div>
 
           <!-- Thinking Indicator -->
           <div id="cmpCopilotThinkingIndicator" style="display: none; padding: 10px 18px; background: var(--cmp-light-primary); border-top: 1px solid var(--cmp-border-accent); font-size: 12px; color: var(--cmp-deep-primary);">
             <div style="display: flex; align-items: center; gap: 8px;">
               <div class="cmp-spinner" style="width: 14px; height: 14px; border: 2px solid var(--cmp-border); border-top-color: var(--cmp-primary); border-radius: 50%; animation: cmpSpin 0.7s linear infinite;"></div>
-              <span id="cmpThinkingText">Grounding inquiry against Workday and DLI benchmarks...</span>
+              <span id="cmpThinkingText">Checking evidence available to your organization...</span>
             </div>
           </div>
 
@@ -177,7 +165,6 @@ function renderCopilotMessage(msg) {
 
   // Structured response (Section 21: ANSWER, WHY, EVIDENCE, AFFECTED TEAMS, RECOMMENDED ACTION)
   const s = msg.structured;
-  const statusCfg = msg.status ? statusBadgeMap[msg.status] : null;
 
   return `
     <div style="display: flex; gap: 10px; align-items: flex-start;">
@@ -185,31 +172,33 @@ function renderCopilotMessage(msg) {
         <i data-lucide="sparkles" style="width: 16px; height: 16px;"></i>
       </div>
       <div style="max-width: 85%; background: var(--cmp-very-light); border: 1px solid var(--cmp-border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
-        ${statusCfg ? `
-          <div>
-            <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; background:${statusCfg.bg}; color:${statusCfg.color}; padding:2px 8px; border-radius:6px;">
-              <i data-lucide="${statusCfg.icon}" style="width:11px; height:11px;"></i>
-              ${statusCfg.label}
-            </span>
-          </div>
-        ` : ''}
-
         <!-- Answer -->
         <div style="font-size: 13.5px; color: var(--cmp-text-primary); line-height: 1.55;">
-          ${formatMarkdown(s.answer)}
+          ${renderConversationAnswer({
+            status: msg.status,
+            execution_status: msg.execution_status,
+            answer_origin: msg.answer_origin
+          }, formatMarkdown, { answer: s.answer, explanation: s.why })}
         </div>
-        ${s.metric_results?.length ? renderIntelligenceEvidencePanel({
+        ${s.metric_results?.length || s.limitations?.length ? renderIntelligenceEvidencePanel({
           status: msg.status,
+          execution_status: msg.execution_status,
           metric_results: s.metric_results,
           limitations: s.limitations
-        }, { title: 'Structured answer metrics' }) : ''}
+        }, { title: 'Evidence snapshot', compact: true }) : ''}
 
-        ${renderAnswerEvidencePanel(s.facts, s.evidence)}
+        ${renderAnswerEvidencePanel(s.facts, s.evidence, {
+          status: msg.status,
+          executionStatus: msg.execution_status
+        })}
 
-        ${s.why ? `
-          <div style="background: #FFFFFF; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--cmp-border-subtle); font-size: 12.5px;">
-            <strong style="color: var(--cmp-text-muted); text-transform: uppercase; font-size: 10.5px; display: block; margin-bottom: 2px;">Why It Matters:</strong>
-            <span style="color: var(--cmp-text-secondary);">${esc(s.why)}</span>
+        ${renderConversationNextAction(s.action, formatMarkdown)}
+
+        ${msg.status ? `
+          <div style="display:flex; align-items:center; gap:6px; margin-top:8px;" aria-label="Answer actions">
+            <button type="button" class="cmp-btn-ghost" data-copy-assistant-answer="${msg.index}" style="height:auto; padding:4px 8px; font-size:11px;">Copy answer</button>
+            <button type="button" class="cmp-btn-ghost ${msg.feedback === 'up' ? 'is-active' : ''}" data-assistant-feedback="up" data-message-index="${msg.index}" aria-label="Good response" aria-pressed="${msg.feedback === 'up'}" style="height:auto; padding:4px 8px; font-size:11px;">Helpful</button>
+            <button type="button" class="cmp-btn-ghost ${msg.feedback === 'down' ? 'is-active' : ''}" data-assistant-feedback="down" data-message-index="${msg.index}" aria-label="Needs improvement" aria-pressed="${msg.feedback === 'down'}" style="height:auto; padding:4px 8px; font-size:11px;">Not helpful</button>
           </div>
         ` : ''}
 
@@ -219,18 +208,6 @@ function renderCopilotMessage(msg) {
             <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px;">
               ${s.affectedTeams.map(t => `<span class="cmp-badge cmp-badge--neutral" style="font-size: 11px;">${esc(t)}</span>`).join('')}
             </div>
-          </div>
-        ` : ''}
-
-        ${s.action ? `
-          <div style="background: var(--cmp-light-primary); border-left: 3px solid var(--cmp-primary); padding: 8px 12px; border-radius: 0 8px 8px 0; font-size: 12.5px; color: var(--cmp-deep-primary);">
-            <strong>Recommended Action:</strong> ${esc(s.action)}
-          </div>
-        ` : ''}
-
-        ${s.limitations && s.limitations.length ? `
-          <div style="padding: 6px 10px; background:#FEF3C7; border: 1px solid #FCD34D; border-radius:6px; font-size:11px; color:#92400E;">
-            <strong>Limitations:</strong> ${s.limitations.map(l => esc(l)).join('; ')}
           </div>
         ` : ''}
 
@@ -265,6 +242,33 @@ export function bindCompanyAIAssistantEvents(rerender) {
   });
   document.querySelectorAll('.cmp-copilot-retry-btn').forEach(btn => {
     btn.addEventListener('click', () => handleCopilotInquiry(btn.dataset.query, rerender, false));
+  });
+  document.querySelectorAll('[data-copy-assistant-answer]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const message = copilotMessages[Number(btn.dataset.copyAssistantAnswer)];
+      if (!message) return;
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
+        await navigator.clipboard.writeText(cleanConversationAnswer(message.structured?.answer || ''));
+        btn.textContent = 'Copied';
+        btn.setAttribute('aria-label', 'Answer copied');
+      } catch {
+        btn.textContent = 'Copy unavailable';
+        btn.setAttribute('aria-label', 'Clipboard access is unavailable');
+      }
+    });
+  });
+  document.querySelectorAll('[data-assistant-feedback]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const message = copilotMessages[Number(btn.dataset.messageIndex)];
+      if (!message) return;
+      message.feedback = btn.dataset.assistantFeedback;
+      btn.parentElement?.querySelectorAll('[data-assistant-feedback]').forEach(feedbackButton => {
+        const selected = feedbackButton === btn;
+        feedbackButton.classList.toggle('is-active', selected);
+        feedbackButton.setAttribute('aria-pressed', String(selected));
+      });
+    });
   });
 
   // Form submit
@@ -345,11 +349,13 @@ async function handleCopilotInquiry(query, rerender, appendUser = true) {
     copilotMessages.push({
       sender: 'assistant',
       status: res.status || res.execution_status,
+      execution_status: res.execution_status,
+      answer_origin: res.answer_origin,
       conversation_id: res.conversation_id || activeConversationId,
       reasonCodes: res.reason_codes,
       structured: {
         answer: res.answer,
-        why: res.limitations.length ? res.limitations.join('; ') : '',
+        why: '',
         facts: res.facts,
         metric_results: res.metric_results,
         evidence: res.evidence,

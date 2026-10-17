@@ -21,6 +21,7 @@ from app.services.market_data.stack_exchange_historical_provider import (
     _month_periods,
 )
 from app.storage.firestore_observation_store import FirestoreObservationStore
+from app.storage.mock_firestore_hub import get_demo_firestore_client
 from app.storage.observation_identity import stable_observation_id
 
 
@@ -293,7 +294,7 @@ def test_q_no_null_to_zero_conversion():
     assert obs.denominator is None
 
 
-# R. No synthetic production observations
+# R. No synthetic observations are inserted into collected provider data
 def test_r_no_synthetic_production_observations():
     periods = _month_periods("2026-05", "2026-07")
     assert periods == ["2026-05", "2026-06", "2026-07"]
@@ -318,15 +319,31 @@ def test_s_history_taxonomy_backward_compatible():
     assert obs_backfilled.history_type == "backfilled"
 
 
-# T. Current production observations remain readable
-def test_t_current_production_observations_remain_readable():
-    store = FirestoreObservationStore()
-    observations = store.get_observations(cutoff=datetime(2020, 1, 1, tzinfo=timezone.utc))
-    assert len(observations) >= 90
+# T. Explicit demo observations remain readable
+def test_t_explicit_demo_observations_remain_readable():
+    store = FirestoreObservationStore(get_demo_firestore_client())
+    observations = store.get_observations(cutoff=datetime(2000, 1, 1, tzinfo=timezone.utc))
+    assert len(observations) == 100
+    assert all(observation.data_origin == "demo" for observation in observations)
 
 
 # U. Collection status accurately reflects provider results
-def test_u_collection_status_reflects_provider_results():
+def test_u_collection_status_reflects_explicit_demo_provider_results(monkeypatch):
+    from app.services import market_collection_service
+    from app.storage.fetch_run_store import FirestoreFetchRunStore
+    from app.storage.firestore_observation_store import FirestoreObservationStore
+
+    demo_client = get_demo_firestore_client()
+    monkeypatch.setattr(
+        market_collection_service,
+        "FirestoreFetchRunStore",
+        lambda: FirestoreFetchRunStore(demo_client),
+    )
+    monkeypatch.setattr(
+        market_collection_service,
+        "FirestoreObservationStore",
+        lambda: FirestoreObservationStore(demo_client),
+    )
     client = TestClient(app)
 
     async def mock_user():

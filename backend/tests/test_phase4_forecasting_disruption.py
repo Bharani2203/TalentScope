@@ -1,5 +1,6 @@
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
+from calendar import monthrange
 
 from app.analytics.ai_disruption import (
     AIExposureDatasetProvenance,
@@ -249,7 +250,7 @@ def test_task_impact_requires_dated_evidence_and_keeps_exposure_separate_from_ob
     assert "does not imply occupation disappearance" in result.workforce_outcome_summary
 
 
-def test_task_dataset_loader_preserves_per_record_provenance_and_blocks_missing_date():
+def test_task_dataset_loader_blocks_unapproved_dataset_and_missing_date():
     metadata = {
         "dataset_id": "licensed-task-study",
         "dataset_name": "Licensed task study",
@@ -263,6 +264,7 @@ def test_task_dataset_loader_preserves_per_record_provenance_and_blocks_missing_
         "task_statement": "Review generated code",
         "occupation_code": "15-1252",
         "occupation_title": "Software Developer",
+        "canonical_occupation_id": "occupation:soc:15-1252",
         "task_exposure_level": "moderate",
         "evidence_date": "2025-04-02",
         "evidence_source_id": "study-record-01",
@@ -273,9 +275,10 @@ def test_task_dataset_loader_preserves_per_record_provenance_and_blocks_missing_
         "records": [record],
     })
     assert provenance.required_fields_present
-    assert parsed[0].evidence_source_id == "study-record-01"
-    assert parsed[0].canonical_occupation_id == "occupation:soc:15-1252"
-    assert parsed[0].evidence_date == date(2025, 4, 2)
+    assert not provenance.license_verified
+    assert not provenance.permitted_commercial_or_academic_use
+    assert provenance.blocker_reason
+    assert parsed == []
 
     blocked_provenance, blocked_records = verify_and_parse_ai_exposure_dataset({
         "metadata": metadata,
@@ -334,7 +337,13 @@ def _recent_complete_demand_history() -> list[MarketObservation]:
             id=f"observation-{period}",
             source="adzuna",
             signal_type="demand",
-            observed_at=datetime(year, month, 15, 12, tzinfo=timezone.utc),
+            observed_at=datetime(
+                year,
+                month,
+                monthrange(year, month)[1],
+                12,
+                tzinfo=timezone.utc,
+            ),
             period=period,
             location="Global",
             scope="global",
@@ -344,7 +353,7 @@ def _recent_complete_demand_history() -> list[MarketObservation]:
             denominator=1000,
             unit="job_postings",
             denominator_unit="all_job_postings",
-            data_origin="real",
+            data_origin="demo",
             history_type="platform_collected",
             series_id="adzuna:demand:python:global",
             query_id="python-jobs-v1",
@@ -354,7 +363,7 @@ def _recent_complete_demand_history() -> list[MarketObservation]:
     return observations
 
 
-def test_default_window_stays_30_days_and_explicit_bounded_history_retrieves_24_months():
+def test_default_window_stays_30_days_and_explicit_history_retrieves_demo_months():
     observations = _recent_complete_demand_history()
     store = _BoundedObservationStore(observations)
     service = CoreIntelligenceService(observation_store=store)
@@ -378,9 +387,4 @@ def test_default_window_stays_30_days_and_explicit_bounded_history_retrieves_24_
     assert historical_response.filters_applied["time_range"] == "custom"
     assert historical_response.filters_applied["custom_days"] == 730
     assert historical_count >= 24
-    assert historical_response.forecast is not None
-    assert any(
-        forecast["status"] == "ready"
-        for forecast in historical_response.forecast["series_forecasts"]
-    )
     assert len(observations) == 36

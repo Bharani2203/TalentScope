@@ -329,9 +329,9 @@ def test_calculation_idempotency():
     assert [r.model_dump() for r in res1] == [r.model_dump() for r in res2]
 
 
-# 17. current real production dataset -> remains insufficient_data because only one period exists
-def test_current_production_single_period_signals_return_insufficient_data():
-    real_adzuna = make_signal(
+# 17. A one-period demo fixture remains insufficient_data.
+def test_single_period_demo_signals_return_insufficient_data():
+    demo_adzuna = make_signal(
         source="adzuna",
         canonical_skill_id="c_sharp",
         canonical_name="C#",
@@ -341,8 +341,9 @@ def test_current_production_single_period_signals_return_insufficient_data():
         denominator=None,
         metric="raw_count",
         data_state="insufficient_data",
+        data_origin="demo",
     )
-    real_jsearch = make_signal(
+    demo_jsearch = make_signal(
         source="jsearch",
         canonical_skill_id="cloud_computing",
         canonical_name="Cloud Computing",
@@ -352,8 +353,9 @@ def test_current_production_single_period_signals_return_insufficient_data():
         denominator=10.0,
         metric="normalized_share",
         data_state="ready",
+        data_origin="demo",
     )
-    real_github = make_signal(
+    demo_github = make_signal(
         source="github",
         signal_type="adoption",
         canonical_skill_id="python",
@@ -364,8 +366,9 @@ def test_current_production_single_period_signals_return_insufficient_data():
         denominator=None,
         metric="adoption_snapshot",
         data_state="ready",
+        data_origin="demo",
     )
-    results = calculate_trend_and_velocity([real_adzuna, real_jsearch, real_github])
+    results = calculate_trend_and_velocity([demo_adzuna, demo_jsearch, demo_github])
     assert len(results) == 3
     for r in results:
         assert r.trend == "Insufficient Data"

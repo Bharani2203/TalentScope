@@ -201,11 +201,17 @@ def evaluate_ai_task_disruption(
         )
 
     records = list(licensed_exposure_records or [])
-    if entity_type == "occupation" and canonical_id:
-        occupation_code = canonical_id.removeprefix("occupation:soc:")
-        records = [record for record in records if record.occupation_code == occupation_code]
-    elif entity_type == "skill" and canonical_id:
-        records = [record for record in records if canonical_id in record.canonical_skill_ids]
+    if entity_type == "occupation":
+        if canonical_id:
+            occupation_code = canonical_id.removeprefix("occupation:soc:")
+            records = [record for record in records if record.occupation_code == occupation_code]
+        else:
+            records = [record for record in records if record.occupation_title.casefold() == entity_name.casefold()]
+    elif entity_type == "skill":
+        if canonical_id:
+            records = [record for record in records if canonical_id in record.canonical_skill_ids]
+        else:
+            records = [record for record in records if entity_name.casefold() in [s.casefold() for s in record.canonical_skill_ids]]
     records = [
         record for record in records
         if record.evidence_date is not None

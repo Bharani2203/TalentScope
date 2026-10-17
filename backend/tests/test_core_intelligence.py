@@ -112,9 +112,19 @@ def _make_obs(
     )
 
 
+def _recent_completed_months(count: int) -> list[str]:
+    now = datetime.now(timezone.utc)
+    current_month_index = now.year * 12 + now.month - 1
+    periods = []
+    for offset in range(count, 0, -1):
+        year, month_index = divmod(current_month_index - offset, 12)
+        periods.append(f"{year:04d}-{month_index + 1:02d}")
+    return periods
+
+
 def _make_stackexchange_5periods(skill: str = "Python", skill_id: str = "python") -> list[MarketObservation]:
-    """5 consecutive valid periods (2026-05 through 2026-09) -> trend ready, forecast blocked."""
-    periods = ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
+    """Build five recent completed periods for trend-ready, forecast-blocked tests."""
+    periods = _recent_completed_months(5)
     values = [100.0, 110.0, 120.0, 130.0, 140.0]
     return [
         _make_obs(
@@ -335,10 +345,17 @@ def test_g_filter_propagation():
 
 def test_h_data_state_propagation():
     """Verify honest propagation of data_status and data_state."""
-    # 1. Available state
+    # The request default remains the same as an explicit 30-day window.
     store_ok = MockObservationStore(_make_stackexchange_5periods())
     svc_ok = CoreIntelligenceService(observation_store=store_ok)
-    resp_ok = svc_ok.get_intelligence(CoreIntelligenceRequest())
+    default_request = CoreIntelligenceRequest()
+    resp_default = svc_ok.get_intelligence(default_request)
+    resp_30d = svc_ok.get_intelligence(CoreIntelligenceRequest(time_range="30d"))
+    assert default_request.time_range == "30d"
+    assert resp_default.data_status == resp_30d.data_status
+
+    # An explicit wide window can include the historical fixture.
+    resp_ok = svc_ok.get_intelligence(CoreIntelligenceRequest(time_range="6m"))
     assert resp_ok.data_status == "available"
     assert resp_ok.data_state == "ready"
 
@@ -348,6 +365,18 @@ def test_h_data_state_propagation():
     resp_empty = svc_empty.get_intelligence(CoreIntelligenceRequest())
     assert resp_empty.data_status == "insufficient_data"
     assert resp_empty.data_state == "insufficient_data"
+
+
+def test_missing_observation_provenance_is_reported_as_unavailable():
+    observation = _make_obs().model_copy(update={"data_origin": None, "history_type": None})
+    service = CoreIntelligenceService(observation_store=MockObservationStore([observation]))
+
+    response = service.get_intelligence(
+        CoreIntelligenceRequest(time_range="6m", selected_skills=["Python"])
+    )
+
+    assert response.data_origin == "unavailable"
+    assert response.history_type == "unavailable"
 
 
 # -------------------------------------------------------------------------
@@ -367,7 +396,7 @@ def test_i_provenance_propagation():
     assert ev["sources_used"] == ["stackexchange"]
     assert ev["signal_families"] == ["interest"]
     assert "raw-1" in ev["raw_archive_references"]
-    assert ev["periods"] == ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
+    assert ev["periods"] == _recent_completed_months(5)
 
 
 # -------------------------------------------------------------------------

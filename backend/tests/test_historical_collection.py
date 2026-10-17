@@ -26,6 +26,7 @@ from app.services.market_data.stack_exchange_historical_provider import (
     _month_periods,
 )
 from app.storage.firestore_observation_store import FirestoreObservationStore
+from app.storage.mock_firestore_hub import get_demo_firestore_client
 from app.storage.observation_identity import stable_observation_id
 
 
@@ -333,11 +334,12 @@ def test_t_no_duplicate_observations():
     assert id1 == id2
 
 
-# U. Existing production records remain readable
-def test_u_production_records_remain_readable():
-    store = FirestoreObservationStore()
-    observations = store.get_observations(cutoff=datetime(2020, 1, 1, tzinfo=timezone.utc))
-    assert len(observations) >= 90
+# U. Explicit demo records remain readable
+def test_u_demo_records_remain_readable():
+    store = FirestoreObservationStore(get_demo_firestore_client())
+    observations = store.get_observations(cutoff=datetime(2000, 1, 1, tzinfo=timezone.utc))
+    assert len(observations) == 100
+    assert all(observation.data_origin == "demo" for observation in observations)
     sources = {o.source for o in observations}
     assert "adzuna" in sources
     assert "jsearch" in sources

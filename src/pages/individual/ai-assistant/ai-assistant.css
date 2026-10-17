@@ -1551,7 +1551,7 @@ body:has(.ai-ref-workspace-page) .sidebar { display: flex !important; }
   display: flex;
   flex-direction: column;
   flex: 1;
-  max-width: 960px;
+  max-width: 1200px;
   width: 100%;
   margin: 0 auto;
   padding: 12px 20px 32px;

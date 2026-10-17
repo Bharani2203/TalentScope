@@ -23,6 +23,8 @@ from app.services.execution_orchestrator_service import ExecutionOrchestratorSer
 from app.services.intent_planner_service import IntentPlannerService
 from app.services.llm_explanation_service import LLMExplanationService
 
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
+
 
 def mock_auth_user() -> AuthenticatedUser:
     return AuthenticatedUser(
@@ -61,7 +63,8 @@ def test_compare_entities_resolves_and_synthesizes_both_entities():
     assert any("Java" in q for q in resp.follow_up_questions)
 
 
-def test_skill_gap_respects_explicit_query_target_role():
+@pytest.mark.integration
+def test_skill_gap_respects_explicit_query_target_role(local_reference_database):
     """Verify that skill gap analysis evaluates against explicit target role."""
     service = ExecutionOrchestratorService()
     req = CoreIntelligenceAnswerRequest(
@@ -107,7 +110,8 @@ def test_job_search_zero_stored_postings_provides_onet_baseline_alternative():
     assert len(resp.follow_up_questions) > 0
 
 
-def test_follow_up_questions_generated_across_intents():
+@pytest.mark.integration
+def test_follow_up_questions_generated_across_intents(local_reference_database):
     """Verify that execution orchestrator generates relevant follow-up questions across diverse intents."""
     service = ExecutionOrchestratorService()
 

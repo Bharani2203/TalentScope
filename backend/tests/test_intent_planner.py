@@ -100,8 +100,8 @@ def test_supported_intents_map_to_valid_registered_capabilities():
         ),
         (
             "Which skills should I learn for this role?",
-            "crosswalk_occupation_software",
-            "occupation_software_skills",
+            "synthesize_actions",
+            "action_recommendations",
             {"target_role": "Software Developer"},
         ),
         (
@@ -144,26 +144,30 @@ def test_representative_conversational_questions_route_to_existing_capabilities(
 # 3. FORECASTING & SIMULATION STRICT GATING
 # =============================================================================
 
-def test_forecasting_intent_strictly_unsupported():
-    """Verify forward-looking forecast queries are recognized and marked unsupported in G2.6."""
+def test_forecasting_intent_supported_and_evaluated():
+    """Verify forward-looking forecast queries route to forecast_future_demand and evaluate readiness."""
     service = IntentPlannerService()
     queries = [
         "Will Python demand increase next year?",
-        "Forecast future demand for Rust in 2027",
-        "What is the half-life of Java?",
+        "Forecast future demand for Python in 2027",
+        "Predict future demand for Java in 2028",
     ]
 
     for q in queries:
         resp = service.create_plan(IntelligencePlanRequest(message=q))
         assert resp.intent == "forecast_future_demand"
-        assert resp.plan_status == "unsupported"
         assert resp.selected_capabilities == ["skill_forecasting_half_life"]
         assert resp.clarification_required is False
-        assert any("Forecasting engine is explicitly disabled in G2.6" in lim or "inactive" in lim for lim in resp.limitations)
-        # Verify capability itself is building and cannot execute
         assert len(resp.readiness_results) == 1
+        assert resp.plan_status == "insufficient_data"
+        assert resp.readiness_results[0].global_status == "available"
         assert resp.readiness_results[0].can_execute is False
-        assert resp.readiness_results[0].global_status == "building"
+        assert resp.readiness_results[0].runtime_status == "insufficient_data"
+
+    # Unknown entity triggers clarification
+    resp_unknown = service.create_plan(IntelligencePlanRequest(message="Forecast future demand for UnknownSkillXYZ in 2027"))
+    assert resp_unknown.intent == "forecast_future_demand"
+    assert resp_unknown.clarification_required is True
 
 
 def test_simulation_intent_strictly_unsupported():
@@ -366,7 +370,7 @@ def test_plan_api_endpoint():
         assert data["entities"][0]["canonical_entity"]["canonical_name"] == "Python"
         assert len(data["readiness_results"]) > 0
 
-        # Case B: Blocked forecasting query
+        # Case B: Forecasting query without observations evaluates to insufficient_data
         resp_fc = client.post(
             "/api/v1/intelligence/plan",
             json={"message": "Will Python demand increase next year?"},
@@ -374,7 +378,7 @@ def test_plan_api_endpoint():
         assert resp_fc.status_code == 200
         data_fc = resp_fc.json()
         assert data_fc["intent"] == "forecast_future_demand"
-        assert data_fc["plan_status"] == "unsupported"
+        assert data_fc["plan_status"] == "insufficient_data"
         assert data_fc["clarification_required"] is False
     finally:
         app.dependency_overrides.pop(dependencies.get_current_user, None)

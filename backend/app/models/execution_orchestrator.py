@@ -17,6 +17,7 @@ from app.models.intent_planner import PlanStatus
 from app.models.capability_registry import CapabilityId
 from app.models.skill_intelligence import MarketObservation
 from app.models.intelligence_contract import IntelligenceMetricResult
+from app.analytics.ai_disruption import AIExposureDatasetProvenance, TaskExposureRecord
 
 
 ExecutionStatus = Literal[
@@ -91,6 +92,7 @@ class EvidenceItem(BaseModel):
     evidence_id: str
     source: str
     signal_type: str
+    measured_signal_type: str | None = None
     period: str | None = None
     unit: str | None = None
     data_origin: str = "real"
@@ -101,10 +103,12 @@ class EvidenceItem(BaseModel):
     query_id: str | None = None
     panel_version: str | None = None
     fetch_run_id: str | None = None
+    supporting_fetch_run_ids: list[str] = Field(default_factory=list)
     source_url: str | None = None
     provenance_id: str | None = None
     supporting_observation_ids: list[str] = Field(default_factory=list)
     supporting_source_urls: list[str] = Field(default_factory=list)
+    freshness_state: str | None = None
     quality: str = "valid"
     confidence: float | None = None
     description: str
@@ -141,6 +145,8 @@ class CoreIntelligenceAnswerRequest(BaseModel):
     filters: dict[str, Any] = Field(default_factory=dict)
     clear_context: bool = False
     observations: list[MarketObservation] = Field(default_factory=list)
+    task_exposure_records: list[TaskExposureRecord] = Field(default_factory=list)
+    dataset_provenance: AIExposureDatasetProvenance | None = None
     context_override: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("selected_skills", "selected_roles", "selected_companies")
@@ -271,6 +277,7 @@ class CoreIntelligenceAnswerResponse(BaseModel):
     execution_status: ExecutionStatus
     status: Literal["ready", "partial", "insufficient_data", "unavailable", "error", "not_applicable"] = "insufficient_data"
     answer: str
+    answer_origin: Literal["deterministic", "gemini"] = "deterministic"
     conversation_id: str | None = None
     client_message_id: str | None = None
     resolved_entity: str | None = None

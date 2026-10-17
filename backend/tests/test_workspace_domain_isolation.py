@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.models.auth import AuthenticatedUser
 from app.models.execution_orchestrator import CoreIntelligenceAnswerRequest
 from app.services.execution_orchestrator_service import ExecutionOrchestratorService
 from app.storage.conversation_store import ConversationStore
+
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
 
 
 def test_conversation_store_isolates_conversations_by_domain() -> None:
@@ -149,4 +153,3 @@ def test_home_to_assistant_conversation_continuity_reuses_conversation_id() -> N
     )
     assistant_res = svc.answer(assistant_req, authenticated_user=auth_user)
     assert assistant_res.conversation_id == conv_id
-

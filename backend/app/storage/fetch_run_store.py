@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 from typing import Any
 
@@ -23,11 +22,7 @@ class FirestoreFetchRunStore:
     def _collection(self):
         client = self.client
         if client is None:
-            if os.getenv("RUN_LIVE_FIRESTORE_TESTS") != "1" and os.getenv("PYTEST_CURRENT_TEST"):
-                from app.storage.mock_firestore_hub import get_mock_firestore_client
-                client = get_mock_firestore_client()
-            else:
-                client = get_firestore_client()
+            client = get_firestore_client()
         return client.collection(self.collection_name)
 
     def start(self, run_id: str, record: dict[str, Any]) -> None:

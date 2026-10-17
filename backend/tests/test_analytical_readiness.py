@@ -17,6 +17,7 @@ from app.main import app
 from app.models.auth import AuthenticatedUser
 from app.models.skill_intelligence import MarketObservation
 from app.storage.firestore_observation_store import FirestoreObservationStore
+from app.storage.mock_firestore_hub import get_demo_firestore_client
 
 
 def _make_obs(
@@ -297,17 +298,17 @@ def test_o_deterministic_readiness():
     assert s1 == s2
 
 
-# P. Current real production dataset with only 2026-10 -> not_ready
-def test_p_real_production_dataset_is_not_ready():
-    # Read real stored observations from Firestore store
-    store = FirestoreObservationStore()
-    observations = store.get_observations(cutoff=datetime(2020, 1, 1, tzinfo=timezone.utc))
-    assert len(observations) >= 1  # Production has real observations
+# P. Explicit demo fixture with one current demand period is not forecast-ready
+def test_p_demo_fixture_demand_is_not_forecast_ready():
+    store = FirestoreObservationStore(get_demo_firestore_client())
+    observations = store.get_observations(cutoff=datetime(2000, 1, 1, tzinfo=timezone.utc))
+    assert observations
+    assert all(observation.data_origin == "demo" for observation in observations)
 
     reports = assess_analytical_readiness(observations, min_trend_periods=4, min_forecast_periods=6)
     assert len(reports) >= 1
 
-    # In production demand series, each provider has only 2026-10
+    # The generated demo demand fixture contains one current period per provider series.
     demand_reports = [r for r in reports if r.signal_type == "demand"]
     for rep in demand_reports:
         assert rep.consecutive_valid_periods <= 1
@@ -356,7 +357,16 @@ def test_r_g1_4_trend_behavior_unchanged():
 
 
 # S. Existing G1.6 API remains compatible
-def test_s_g1_6_api_compatibility():
+def test_s_g1_6_api_compatibility_with_explicit_demo_store(monkeypatch):
+    from app.storage import fetch_run_store, firestore_observation_store
+    from app.services import onboarding_service
+    from app.services import skill_intelligence_service
+
+    demo_client = get_demo_firestore_client()
+    monkeypatch.setattr(onboarding_service, "get_firestore_client", lambda: demo_client)
+    monkeypatch.setattr(skill_intelligence_service, "get_firestore_client", lambda: demo_client)
+    monkeypatch.setattr(firestore_observation_store, "get_firestore_client", lambda: demo_client)
+    monkeypatch.setattr(fetch_run_store, "get_firestore_client", lambda: demo_client)
     client = TestClient(app)
 
     async def mock_user():

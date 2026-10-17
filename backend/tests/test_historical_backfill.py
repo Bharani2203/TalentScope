@@ -26,6 +26,8 @@ from app.analytics.trend import calculate_skill_trends
 from app.storage.fetch_run_store import FirestoreFetchRunStore
 from app.storage.firestore_observation_store import FirestoreObservationStore
 
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
+
 
 class Snapshot:
     def __init__(self, value):

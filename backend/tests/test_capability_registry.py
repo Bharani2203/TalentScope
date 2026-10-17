@@ -66,19 +66,19 @@ def test_capability_catalog_completeness_and_states():
     service = CapabilityRegistryService()
     catalog = service.get_catalog()
 
-    assert catalog.total_capabilities == 15
-    assert len(catalog.capabilities) == 15
+    assert catalog.total_capabilities == 18
+    assert len(catalog.capabilities) == 18
 
     # Check breakdown
-    assert catalog.available_count == 10
+    assert catalog.available_count == 13
     assert catalog.partial_count == 3
-    assert catalog.building_count == 2
+    assert catalog.building_count == 1
     assert catalog.insufficient_data_count == 0
-    assert catalog.blocked_count == 0
+    assert catalog.blocked_count == 1
 
     # Verify building capabilities
     building_ids = {c.capability_id for c in catalog.capabilities if c.global_status == "building"}
-    assert building_ids == {"skill_forecasting_half_life", "workforce_what_if_simulation"}
+    assert building_ids == {"workforce_what_if_simulation"}
 
     # Verify partial capabilities
     partial_ids = {c.capability_id for c in catalog.capabilities if c.global_status == "partial"}
@@ -87,6 +87,8 @@ def test_capability_catalog_completeness_and_states():
         "job_posting_search",
         "company_intelligence",
     }
+    blocked_ids = {c.capability_id for c in catalog.capabilities if c.global_status == "blocked"}
+    assert blocked_ids == {"ai_task_exposure"}
 
 
 def test_capability_records_have_complete_contracts():
@@ -117,7 +119,7 @@ def test_planned_capabilities_cannot_execute():
     """Verify planned/building capabilities always return can_execute=False and runtime_status=building."""
     service = CapabilityRegistryService()
 
-    for cap_id in ["skill_forecasting_half_life", "workforce_what_if_simulation"]:
+    for cap_id in ["workforce_what_if_simulation"]:
         req = CapabilityEvaluationRequest(
             capability_id=cap_id,
             entity_name="python",
@@ -190,7 +192,8 @@ def test_entity_resolution_runtime_evaluation():
 # 5. REFERENCE TAXONOMY & OCCUPATION LOOKUP TESTS
 # =============================================================================
 
-def test_occupation_and_crosswalk_runtime_evaluation():
+@pytest.mark.integration
+def test_occupation_and_crosswalk_runtime_evaluation(local_reference_database):
     """Verify occupation lookup, software crosswalk, and related occupations evaluate real O*NET data."""
     service = CapabilityRegistryService()
 
@@ -429,6 +432,17 @@ def test_partial_capabilities_evaluation():
     assert res_comp_missing.runtime_status == "insufficient_data"
     assert res_comp_missing.can_execute is False
 
+    res_comp_employee = service.evaluate(
+        CapabilityEvaluationRequest(
+            capability_id="company_intelligence",
+            portal_type="employee",
+            context_override={"company_id": "org_456"},
+        )
+    ).results[0]
+    assert res_comp_employee.runtime_status == "insufficient_data"
+    assert res_comp_employee.can_execute is False
+    assert "COMPANY_ADMIN_PORTAL_REQUIRED" in res_comp_employee.reason_codes
+
 
 # =============================================================================
 # 8. DETERMINISM TEST
@@ -471,11 +485,12 @@ def test_capabilities_api_endpoints():
         cat_resp = client.get("/api/v1/intelligence/capabilities")
         assert cat_resp.status_code == 200
         cat_data = cat_resp.json()
-        assert cat_data["total_capabilities"] == 15
-        assert cat_data["available_count"] == 10
+        assert cat_data["total_capabilities"] == 18
+        assert cat_data["available_count"] == 13
         assert cat_data["partial_count"] == 3
-        assert cat_data["building_count"] == 2
-        assert len(cat_data["capabilities"]) == 15
+        assert cat_data["building_count"] == 1
+        assert cat_data["blocked_count"] == 1
+        assert len(cat_data["capabilities"]) == 18
 
         # 2. POST /api/v1/intelligence/capabilities/evaluate
         eval_resp = client.post(
@@ -499,7 +514,7 @@ def test_capabilities_api_endpoints():
         eval_build = client.post(
             "/api/v1/intelligence/capabilities/evaluate",
             json={
-                "capability_id": "skill_forecasting_half_life",
+                "capability_id": "workforce_what_if_simulation",
                 "entity_name": "python",
             },
         )

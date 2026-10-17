@@ -1,8 +1,4 @@
-"""In-memory mock Firestore client and dataset for quota-safe unit testing.
-
-Used exclusively during test execution when RUN_LIVE_FIRESTORE_TESTS is not enabled,
-preventing unit test suites from exhausting production Firestore daily read quotas.
-"""
+"""In-memory Firestore client and explicitly synthetic dataset for unit tests."""
 
 from __future__ import annotations
 
@@ -52,6 +48,9 @@ class MockDocRef:
         if self.id in self._collection.records:
             raise AlreadyExists(f"Document {self.id} already exists")
         self._collection.records[self.id] = copy.deepcopy(data)
+
+    def collection(self, name: str) -> MockCollection:
+        return self._collection.client.collection(f"{self._collection.name}/{self.id}/{name}")
 
 
 class MockQuery:
@@ -132,8 +131,9 @@ class MockQuery:
 
 
 class MockCollection:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, client: MockFirestoreClient) -> None:
         self.name = name
+        self.client = client
         self.records: dict[str, dict[str, Any]] = {}
 
     def document(self, document_id: str) -> MockDocRef:
@@ -170,22 +170,23 @@ class MockFirestoreClient:
         self.collections: dict[str, MockCollection] = {}
 
     def collection(self, name: str) -> MockCollection:
-        return self.collections.setdefault(name, MockCollection(name))
+        return self.collections.setdefault(name, MockCollection(name, self))
 
     def batch(self) -> MockBatch:
         return MockBatch()
 
 
-def create_verified_production_snapshot() -> MockFirestoreClient:
-    """Build an in-memory client populated with the exact 100 verified production observations."""
+def create_demo_test_snapshot() -> MockFirestoreClient:
+    """Build an in-memory demo dataset for deterministic storage and analytics tests."""
     client = MockFirestoreClient()
     signals_coll = client.collection("skill_market_signals")
     runs_coll = client.collection("fetch_runs")
 
-    dt_2026_10 = datetime(2026, 10, 5, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    current_period = now.strftime("%Y-%m")
+    current_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    # 1. 86 JSearch demand observations (2026-10)
-    # 86 postings across tech skills
+    # 1. 86 JSearch demo demand observations in the current month.
     skills_for_jsearch = [
         ("Python", "python"), ("Java", "java"), ("JavaScript", "javascript"),
         ("TypeScript", "typescript"), ("C#", "c_sharp"), ("C++", "c_plus_plus"),
@@ -195,90 +196,90 @@ def create_verified_production_snapshot() -> MockFirestoreClient:
     jsearch_count = 0
     for idx in range(86):
         skill_name, skill_id = skills_for_jsearch[idx % len(skills_for_jsearch)]
-        post_id = f"post_jsearch_2026-10_{idx}"
+        post_id = f"post_jsearch_{current_period}_{idx}"
         obs = MarketObservation(
             id=None,
             source="jsearch",
             signal_type="demand",
-            observed_at=dt_2026_10,
-            period="2026-10",
+            observed_at=current_month_start,
+            period=current_period,
             location="Global",
             scope="global",
             skill=skill_name,
             skill_id=skill_id,
             value=1.0,
             posting_id=post_id,
-            metadata={"raw_archive_id": f"raw_jsearch_2026-10_{idx}"},
-            data_origin="real",
+            metadata={"raw_archive_id": f"raw_jsearch_{current_period}_{idx}"},
+            data_origin="demo",
             history_type="platform_collected",
             series_id=f"jsearch:job-demand-v1:job-demand:{skill_id}:v1",
             panel_version="job-demand-v1",
-            fetch_run_id="run_jsearch_2026-10",
+            fetch_run_id=f"run_jsearch_{current_period}",
         )
         obs_id = stable_observation_id(obs)
         signals_coll.records[obs_id] = {
             "observation_id": obs_id,
             "source": "jsearch",
             "signal_type": "demand",
-            "observed_at": dt_2026_10,
-            "period": "2026-10",
+            "observed_at": current_month_start,
+            "period": current_period,
             "location": "Global",
             "scope": "global",
             "skill": skill_name,
             "skill_id": skill_id,
             "value": 1.0,
             "posting_id": post_id,
-            "metadata": {"raw_archive_id": f"raw_jsearch_2026-10_{idx}"},
-            "data_origin": "real",
+            "metadata": {"raw_archive_id": f"raw_jsearch_{current_period}_{idx}"},
+            "data_origin": "demo",
             "history_type": "platform_collected",
             "series_id": f"jsearch:job-demand-v1:job-demand:{skill_id}:v1",
             "panel_version": "job-demand-v1",
-            "fetch_run_id": "run_jsearch_2026-10",
+            "fetch_run_id": f"run_jsearch_{current_period}",
         }
         jsearch_count += 1
 
-    # 2. 1 Adzuna demand observation (2026-10)
+    # 2. 1 Adzuna demo demand observation in the current month.
     adzuna_obs = MarketObservation(
         id=None,
         source="adzuna",
         signal_type="demand",
-        observed_at=dt_2026_10,
-        period="2026-10",
+        observed_at=current_month_start,
+        period=current_period,
         location="Global",
         scope="global",
         skill="C#",
         skill_id="c_sharp",
         value=1.0,
-        posting_id="post_adzuna_2026-10_0",
-        metadata={"raw_archive_id": "raw_adzuna_2026-10_0"},
-        data_origin="real",
+        posting_id=f"post_adzuna_{current_period}_0",
+        metadata={"raw_archive_id": f"raw_adzuna_{current_period}_0"},
+        data_origin="demo",
         history_type="platform_collected",
         series_id="adzuna:job-demand-v1:job-demand:c_sharp:v1",
         panel_version="job-demand-v1",
-        fetch_run_id="run_adzuna_2026-10",
+        fetch_run_id=f"run_adzuna_{current_period}",
     )
     adzuna_id = stable_observation_id(adzuna_obs)
     signals_coll.records[adzuna_id] = {
         "observation_id": adzuna_id,
         "source": "adzuna",
         "signal_type": "demand",
-        "observed_at": dt_2026_10,
-        "period": "2026-10",
+        "observed_at": current_month_start,
+        "period": current_period,
         "location": "Global",
         "scope": "global",
         "skill": "C#",
         "skill_id": "c_sharp",
         "value": 1.0,
-        "posting_id": "post_adzuna_2026-10_0",
-        "metadata": {"raw_archive_id": "raw_adzuna_2026-10_0"},
-        "data_origin": "real",
+        "posting_id": f"post_adzuna_{current_period}_0",
+        "metadata": {"raw_archive_id": f"raw_adzuna_{current_period}_0"},
+        "data_origin": "demo",
         "history_type": "platform_collected",
         "series_id": "adzuna:job-demand-v1:job-demand:c_sharp:v1",
         "panel_version": "job-demand-v1",
-        "fetch_run_id": "run_adzuna_2026-10",
+        "fetch_run_id": f"run_adzuna_{current_period}",
     }
 
-    # 3. 3 GitHub adoption observations (2026-10) in distinct query/panel series
+    # 3. 3 GitHub demo adoption observations in distinct query/panel series.
     for idx, (sk, sid, qid, pv) in enumerate([
         ("Python", "python", "q_v1", "panel_v1"),
         ("Python", "python", "q_v2", "panel_v2"),
@@ -288,46 +289,50 @@ def create_verified_production_snapshot() -> MockFirestoreClient:
             id=None,
             source="github",
             signal_type="adoption",
-            observed_at=dt_2026_10,
-            period="2026-10",
+            observed_at=current_month_start,
+            period=current_period,
             location="Global",
             scope="global",
             skill=sk,
             skill_id=sid,
             value=100.0 + idx * 10,
             posting_id=f"gh_topic_python_{idx}",
-            metadata={"raw_archive_id": f"raw_github_2026-10_{idx}"},
-            data_origin="real",
+            metadata={"raw_archive_id": f"raw_github_{current_period}_{idx}"},
+            data_origin="demo",
             history_type="snapshot",
             series_id="github:repository-topic:python:v1",
             panel_version=pv,
             query_id=qid,
-            fetch_run_id="run_github_2026-10",
+            fetch_run_id=f"run_github_{current_period}",
         )
         gh_id = stable_observation_id(gh_obs)
         signals_coll.records[gh_id] = {
             "observation_id": gh_id,
             "source": "github",
             "signal_type": "adoption",
-            "observed_at": dt_2026_10,
-            "period": "2026-10",
+            "observed_at": current_month_start,
+            "period": current_period,
             "location": "Global",
             "scope": "global",
             "skill": sk,
             "skill_id": sid,
             "value": 100.0 + idx * 10,
             "posting_id": f"gh_topic_python_{idx}",
-            "metadata": {"raw_archive_id": f"raw_github_2026-10_{idx}"},
-            "data_origin": "real",
+            "metadata": {"raw_archive_id": f"raw_github_{current_period}_{idx}"},
+            "data_origin": "demo",
             "history_type": "snapshot",
             "series_id": "github:repository-topic:python:v1",
             "panel_version": pv,
             "query_id": qid,
-            "fetch_run_id": "run_github_2026-10",
+            "fetch_run_id": f"run_github_{current_period}",
         }
 
     # 4. 10 Stack Exchange interest observations (5 for Python, 5 for C#)
-    periods = ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
+    current_month_index = now.year * 12 + now.month - 1
+    periods = []
+    for offset in range(5, 0, -1):
+        year, month_index = divmod(current_month_index - offset, 12)
+        periods.append(f"{year:04d}-{month_index + 1:02d}")
     for i, p in enumerate(periods):
         p_dt = datetime.fromisoformat(f"{p}-15T12:00:00+00:00")
         # Python
@@ -344,7 +349,7 @@ def create_verified_production_snapshot() -> MockFirestoreClient:
             value=50.0 + i * 5.0,
             posting_id=f"se_py_{p}",
             metadata={"raw_archive_id": f"raw_se_py_{p}"},
-            data_origin="real",
+            data_origin="demo",
             history_type="backfill",
             series_id="stackexchange:stackoverflow:question-tag:python:v1",
             panel_version="tag-v1",
@@ -364,7 +369,7 @@ def create_verified_production_snapshot() -> MockFirestoreClient:
             "value": 50.0 + i * 5.0,
             "posting_id": f"se_py_{p}",
             "metadata": {"raw_archive_id": f"raw_se_py_{p}"},
-            "data_origin": "real",
+            "data_origin": "demo",
             "history_type": "backfill",
             "series_id": "stackexchange:stackoverflow:question-tag:python:v1",
             "panel_version": "tag-v1",
@@ -385,7 +390,7 @@ def create_verified_production_snapshot() -> MockFirestoreClient:
             value=30.0 + i * 3.0,
             posting_id=f"se_cs_{p}",
             metadata={"raw_archive_id": f"raw_se_cs_{p}"},
-            data_origin="real",
+            data_origin="demo",
             history_type="backfill",
             series_id="stackexchange:stackoverflow:question-tag:c#:v1",
             panel_version="tag-v1",
@@ -405,7 +410,7 @@ def create_verified_production_snapshot() -> MockFirestoreClient:
             "value": 30.0 + i * 3.0,
             "posting_id": f"se_cs_{p}",
             "metadata": {"raw_archive_id": f"raw_se_cs_{p}"},
-            "data_origin": "real",
+            "data_origin": "demo",
             "history_type": "backfill",
             "series_id": "stackexchange:stackoverflow:question-tag:c#:v1",
             "panel_version": "tag-v1",
@@ -420,20 +425,20 @@ def create_verified_production_snapshot() -> MockFirestoreClient:
             "run_id": r_id,
             "source": prov,
             "status": "success",
-            "started_at": datetime(2026, 10, 5, 10, 0, 0, tzinfo=timezone.utc),
-            "completed_at": datetime(2026, 10, 5, 10, 5, 0, tzinfo=timezone.utc),
+            "started_at": now,
+            "completed_at": now,
             "raw_response_archive": {
                 "archive_reference": f"raw_response_archives/{prov}__{r_id}__meta",
             },
         }
-        # 2026-10 period runs
-        p_run_id = f"run_{prov}_2026-10"
+        # Current-month run.
+        p_run_id = f"run_{prov}_{current_period}"
         runs_coll.records[p_run_id] = {
             "run_id": p_run_id,
             "source": prov,
             "status": "success",
-            "started_at": datetime(2026, 10, 5, 10, 0, 0, tzinfo=timezone.utc),
-            "completed_at": datetime(2026, 10, 5, 10, 5, 0, tzinfo=timezone.utc),
+            "started_at": now,
+            "completed_at": now,
             "raw_response_archive": {
                 "archive_reference": f"raw_response_archives/{prov}__{p_run_id}__meta",
             },
@@ -455,16 +460,6 @@ def create_verified_production_snapshot() -> MockFirestoreClient:
     return client
 
 
-_GLOBAL_MOCK_CLIENT: MockFirestoreClient | None = None
-
-
-def get_mock_firestore_client() -> MockFirestoreClient:
-    global _GLOBAL_MOCK_CLIENT
-    if _GLOBAL_MOCK_CLIENT is None:
-        _GLOBAL_MOCK_CLIENT = create_verified_production_snapshot()
-    return _GLOBAL_MOCK_CLIENT
-
-
-def reset_mock_firestore_client() -> None:
-    global _GLOBAL_MOCK_CLIENT
-    _GLOBAL_MOCK_CLIENT = create_verified_production_snapshot()
+def get_demo_firestore_client() -> MockFirestoreClient:
+    """Return a fresh demo client; each test owns its records and mutations."""
+    return create_demo_test_snapshot()

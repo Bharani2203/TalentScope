@@ -21,7 +21,6 @@ Verifies:
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
@@ -32,6 +31,8 @@ from app.models.execution_orchestrator import (
     CoreIntelligenceAnswerRequest,
     CoreIntelligenceAnswerResponse,
 )
+
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
 
 
 def mock_individual_user(uid: str = "user_indiv_g27", email: str = "indiv@talentscope.ai") -> AuthenticatedUser:
@@ -47,7 +48,8 @@ def mock_company_user(company_id: str = "nvidia", uid: str = "user_corp_nvidia")
     )
 
 
-def test_individual_portal_grounded_answer():
+@pytest.mark.integration
+def test_individual_portal_grounded_answer(local_reference_database):
     """Verify Individual portal receives validated CoreIntelligenceAnswerResponse."""
     app.dependency_overrides[dependencies.get_current_user] = mock_individual_user
     client = TestClient(app)
@@ -76,8 +78,10 @@ def test_individual_portal_grounded_answer():
         app.dependency_overrides.clear()
 
 
-def test_employee_portal_grounded_answer():
+@pytest.mark.integration
+def test_employee_portal_grounded_answer(approve_company_membership, local_reference_database):
     """Verify Employee portal receives validated CoreIntelligenceAnswerResponse with employee context."""
+    approve_company_membership["employee"]("user_indiv_g27", "company-g27")
     app.dependency_overrides[dependencies.get_current_user] = mock_individual_user
     client = TestClient(app)
 
@@ -104,7 +108,8 @@ def test_employee_portal_grounded_answer():
         app.dependency_overrides.clear()
 
 
-def test_company_portal_tenant_isolation_guards():
+@pytest.mark.integration
+def test_company_portal_tenant_isolation_guards(approve_company_membership, local_reference_database):
     """Verify strict tenant isolation across Individual and Cross-Company access."""
     client = TestClient(app)
 
@@ -130,13 +135,10 @@ def test_company_portal_tenant_isolation_guards():
             "company_id": "nvidia",
         },
     )
-    assert resp_individual.status_code == 200
-    data_indiv = resp_individual.json()
-    assert data_indiv["execution_status"] == "blocked"
-    assert "UNAUTHORIZED_PORTAL_ACCESS" in data_indiv["reason_codes"]
-    assert "company organization" in data_indiv["answer"].lower()
+    assert resp_individual.status_code == 403
 
     # 3. Cross-company access: user from "nvidia" queries "google" -> blocked
+    approve_company_membership["owner"]("user_corp_nvidia", "nvidia")
     app.dependency_overrides[dependencies.get_current_user] = lambda: mock_company_user("nvidia")
     resp_cross = client.post(
         "/api/v1/intelligence/answer",
@@ -146,10 +148,7 @@ def test_company_portal_tenant_isolation_guards():
             "company_id": "google",
         },
     )
-    assert resp_cross.status_code == 200
-    data_cross = resp_cross.json()
-    assert data_cross["execution_status"] == "blocked"
-    assert "UNAUTHORIZED_CROSS_COMPANY_ACCESS" in data_cross["reason_codes"]
+    assert resp_cross.status_code == 403
 
     # 4. Valid matching company query -> completed
     app.dependency_overrides[dependencies.get_current_user] = lambda: mock_company_user("nvidia")
@@ -169,17 +168,18 @@ def test_company_portal_tenant_isolation_guards():
     app.dependency_overrides.clear()
 
 
-def test_unsupported_forecasting_consistency_across_all_portals():
+def test_unsupported_forecasting_consistency_across_all_portals(approve_company_membership):
     """Verify forecasting and what-if simulation are consistently rejected across all portals."""
     app.dependency_overrides[dependencies.get_current_user] = mock_individual_user
     client = TestClient(app)
 
+    approve_company_membership["employee"]("user_indiv_g27", "company-g27")
     portals = ["individual", "employee"]
     for p in portals:
         resp = client.post(
             "/api/v1/intelligence/answer",
             json={
-                "message": "Forecast future demand for Python over the next 2 years.",
+                "message": "Simulate workforce what-if transition scenario.",
                 "portal_type": p,
             },
         )
@@ -214,13 +214,10 @@ def test_clarification_consistency_across_all_portals():
         app.dependency_overrides.clear()
 
 
-def test_database_immutability_and_zero_synthetic_data():
+@pytest.mark.integration
+def test_database_immutability_and_zero_synthetic_data(local_reference_database):
     """Verify that intelligence queries preserve exact reference row counts and 0 observations."""
-    db_path = Path("backend/data/skill_intelligence.sqlite3")
-    if not db_path.exists():
-        db_path = Path("data/skill_intelligence.sqlite3")
-
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(local_reference_database)
     cur = conn.cursor()
 
     obs_count = cur.execute("SELECT count(*) FROM market_observations").fetchone()[0]

@@ -14,6 +14,7 @@ import {
 
 import { getCurrentUser } from '../../../auth/auth-state.js';
 import { queryCoreIntelligenceAnswer } from '../../../api/core-intelligence-client.js';
+import { cleanConversationAnswer, renderConversationAnswer } from '../../../components/common/ConversationAnswer.js';
 import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
 import { renderAnswerEvidencePanel } from '../../../components/common/IntelligenceComponents.js';
 
@@ -22,7 +23,7 @@ let activeConversationId = null;
 let chatHistory = [
   {
     sender: 'assistant',
-    text: `Good morning. I am your **Workforce Intelligence Assistant**. I evaluate your role evolution, skill health, career readiness, and learning pathways against verified empirical platform intelligence. How can I assist you today?`
+    text: `Good morning. I can help interpret the role, skill, and market information available to you. I will call out when profile details or verified evidence are missing. How can I help?`
   }
 ];
 
@@ -36,7 +37,7 @@ const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
 
 function formatMarkdown(content) {
   if (!content) return '';
-  return String(content)
+  return esc(content)
     .replace(/^### (.*$)/gim, '<h4 style="margin:8px 0 4px; font-size:13.5px; color:var(--emp-primary); font-weight:800;">$1</h4>')
     .replace(/^## (.*$)/gim, '<h3 style="margin:10px 0 4px; font-size:14.5px; color:var(--emp-primary); font-weight:800;">$1</h3>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -45,19 +46,6 @@ function formatMarkdown(content) {
     .replace(/\n\n/g, '<br/><br/>')
     .replace(/\n/g, '<br/>');
 }
-
-const statusBadgeMap = {
-  completed: { label: 'Verified Grounded', bg: 'rgba(25,183,122,0.12)', color: '#059669', icon: 'check-circle-2' },
-  ready: { label: 'Verified Grounded', bg: 'rgba(25,183,122,0.12)', color: '#059669', icon: 'check-circle-2' },
-  partial: { label: 'Partial Coverage', bg: 'rgba(245,158,11,0.12)', color: '#D97706', icon: 'alert-circle' },
-  unavailable: { label: 'Capability Unavailable', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'ban' },
-  error: { label: 'Service Error', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'alert-triangle' },
-  requires_clarification: { label: 'Clarification Required', bg: 'rgba(245,158,11,0.12)', color: '#D97706', icon: 'help-circle' },
-  insufficient_data: { label: 'Insufficient Data', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'database' },
-  unsupported: { label: 'Unsupported in G2.6/G2.7', bg: 'rgba(107,114,128,0.12)', color: '#4B5563', icon: 'ban' },
-  blocked: { label: 'Access Restricted', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'lock' },
-  failed: { label: 'Query Failed', bg: 'rgba(239,68,68,0.12)', color: '#DC2626', icon: 'alert-triangle' }
-};
 
 export function renderEmployeeAIAssistant() {
   const p = getEmployeeProfile();
@@ -88,7 +76,7 @@ export function renderEmployeeAIAssistant() {
           </span>
           <h1 class="emp-hero-title">Employee AI Assistant</h1>
           <p class="emp-hero-desc">
-            Grounded in your role (${esc(p.role)}), verified skill health, target career goals (${esc(p.targetRole)}), and community contributions.
+            Answers use profile context and evidence available to your account. Skills or preferences may be self-reported; verified assessments and market signals are identified when available.
           </p>
         </div>
         <div class="emp-hero-actions">
@@ -97,8 +85,8 @@ export function renderEmployeeAIAssistant() {
             <span>Clear Session</span>
           </button>
           <div class="emp-stat-pill" style="background: var(--emp-light); border: 1px solid rgba(39, 53, 245, 0.2);">
-            <strong style="color: var(--emp-primary);">Context Active</strong>
-            <small style="color: var(--emp-text-muted);">${isCompany ? 'NVIDIA APAC L4' : 'Independent ML Lead'}</small>
+            <strong style="color: var(--emp-primary);">Profile context</strong>
+            <small style="color: var(--emp-text-muted);">Used when available</small>
           </div>
         </div>
       </section>
@@ -110,34 +98,31 @@ export function renderEmployeeAIAssistant() {
         <div class="emp-card" style="display: flex; flex-direction: column; height: 580px; padding: 20px;">
           <!-- Messages Scroll View -->
           <div id="empChatMessages" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 8px;">
-            ${chatHistory.map(msg => {
-              const statusCfg = msg.status ? statusBadgeMap[msg.status] : null;
-              return `
+            ${chatHistory.map((msg, index) => {
+                return `
               <div style="display: flex; gap: 12px; align-items: flex-start; ${msg.sender === 'user' ? 'flex-direction: row-reverse;' : ''}">
                 <div style="width: 34px; height: 34px; border-radius: 10px; background: ${msg.sender === 'assistant' ? 'var(--emp-primary)' : 'var(--emp-deep-primary)'}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0;">
                   ${msg.sender === 'assistant' ? '<i data-lucide="sparkles" style="width: 16px; height: 16px;"></i>' : esc(p.initials)}
                 </div>
                 <div style="max-width: 82%; background: ${msg.sender === 'assistant' ? '#FFFFFF' : 'var(--emp-light)'}; border: 1px solid var(--emp-border); padding: 14px 18px; border-radius: 14px; font-size: 13.5px; line-height: 1.55; color: var(--emp-text-primary); box-shadow: var(--emp-shadow-sm);">
-                  ${statusCfg ? `
-                    <div style="margin-bottom:8px;">
-                      <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; background:${statusCfg.bg}; color:${statusCfg.color}; padding:2px 8px; border-radius:6px;">
-                        <i data-lucide="${statusCfg.icon}" style="width:11px; height:11px;"></i>
-                        ${statusCfg.label}
-                      </span>
-                    </div>
-                  ` : ''}
-                  <div>${formatMarkdown(msg.text)}</div>
-                  ${msg.metric_results?.length ? renderIntelligenceEvidencePanel({
+                  ${renderConversationAnswer(msg, formatMarkdown, { answer: msg.text })}
+                  ${msg.metric_results?.length || msg.limitations?.length ? renderIntelligenceEvidencePanel({
                     status: msg.status,
+                    execution_status: msg.execution_status,
                     metric_results: msg.metric_results,
                     limitations: msg.limitations
-                  }, { title: 'Structured answer metrics' }) : ''}
+                  }, { title: 'Evidence snapshot', compact: true }) : ''}
 
-                  ${renderAnswerEvidencePanel(msg.facts, msg.evidence)}
+                  ${renderAnswerEvidencePanel(msg.facts, msg.evidence, {
+                    status: msg.status,
+                    executionStatus: msg.execution_status
+                  })}
 
-                  ${msg.limitations && msg.limitations.length ? `
-                    <div style="margin-top:8px; padding:6px 10px; background:#FEF3C7; border:1px solid #FCD34D; border-radius:6px; font-size:11px; color:#92400E;">
-                      <strong>Limitations:</strong> ${msg.limitations.map(l => esc(l)).join('; ')}
+                  ${msg.status ? `
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:8px;" aria-label="Answer actions">
+                      <button type="button" class="emp-btn-ghost" data-copy-assistant-answer="${index}" style="height:auto; padding:4px 8px; font-size:11px;">Copy answer</button>
+                      <button type="button" class="emp-btn-ghost ${msg.feedback === 'up' ? 'is-active' : ''}" data-assistant-feedback="up" data-message-index="${index}" aria-label="Good response" aria-pressed="${msg.feedback === 'up'}" style="height:auto; padding:4px 8px; font-size:11px;">Helpful</button>
+                      <button type="button" class="emp-btn-ghost ${msg.feedback === 'down' ? 'is-active' : ''}" data-assistant-feedback="down" data-message-index="${index}" aria-label="Needs improvement" aria-pressed="${msg.feedback === 'down'}" style="height:auto; padding:4px 8px; font-size:11px;">Not helpful</button>
                     </div>
                   ` : ''}
 
@@ -171,7 +156,7 @@ export function renderEmployeeAIAssistant() {
                     Synthesizing workforce intelligence...
                   </div>
                   <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--emp-text-secondary);">
-                    <div>Step ${currentAnalysisStep}/4: Inspecting verified skill profile and role benchmarks</div>
+                    <div>Step ${currentAnalysisStep}/4: Checking available profile context and evidence</div>
                   </div>
                 </div>
               </div>
@@ -281,7 +266,9 @@ async function runAnalysisAndRespond(query, rerenderFn) {
     chatHistory.push({
       sender: 'assistant',
       status: res.status || res.execution_status,
+      execution_status: res.execution_status,
       conversation_id: res.conversation_id || activeConversationId,
+      answer_origin: res.answer_origin,
       text: res.answer,
       facts: res.facts,
       metric_results: res.metric_results,
@@ -390,6 +377,33 @@ export function bindEmployeeAIAssistantEvents(rerenderFn) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       runAnalysisAndRespond(btn.dataset.retryQuestion, rerenderFn);
+    });
+  });
+  document.querySelectorAll('[data-copy-assistant-answer]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const message = chatHistory[Number(btn.dataset.copyAssistantAnswer)];
+      if (!message) return;
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
+        await navigator.clipboard.writeText(cleanConversationAnswer(message.text || ''));
+        btn.textContent = 'Copied';
+        btn.setAttribute('aria-label', 'Answer copied');
+      } catch {
+        btn.textContent = 'Copy unavailable';
+        btn.setAttribute('aria-label', 'Clipboard access is unavailable');
+      }
+    });
+  });
+  document.querySelectorAll('[data-assistant-feedback]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const message = chatHistory[Number(btn.dataset.messageIndex)];
+      if (!message) return;
+      message.feedback = btn.dataset.assistantFeedback;
+      btn.parentElement?.querySelectorAll('[data-assistant-feedback]').forEach(feedbackButton => {
+        const selected = feedbackButton === btn;
+        feedbackButton.classList.toggle('is-active', selected);
+        feedbackButton.setAttribute('aria-pressed', String(selected));
+      });
     });
   });
 }

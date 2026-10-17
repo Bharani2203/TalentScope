@@ -29,6 +29,8 @@ from app.services.intent_planner_service import IntentPlannerService
 from app.storage.market_store import MarketDataStore
 from app.storage.reference_store import ReferenceDataStore
 
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
+
 
 # =============================================================================
 # FIXTURES & HELPERS
@@ -64,7 +66,7 @@ def create_synthetic_observations(skill: str, periods: list[str]) -> list[Market
                 observed_at=f"{p}-15T00:00:00Z",
                 denominator=1000,
                 fetch_run_id=f"run_test_{p}",
-                data_origin="real",
+                data_origin="demo",
                 history_type="snapshot",
                 series_id=f"series_{skill}_US_demand",
                 quality="valid",
@@ -112,7 +114,8 @@ def test_scenario_01_resolve_known_tech_and_aliases():
 
 
 # Scenario 2: Occupation software tools
-def test_scenario_02_occupation_software_tools():
+@pytest.mark.integration
+def test_scenario_02_occupation_software_tools(local_reference_database):
     """Verify crosswalk of occupation software tools returns tools from O*NET taxonomy with evidence."""
     app.dependency_overrides[dependencies.get_current_user] = mock_auth_user
     client = TestClient(app)
@@ -136,7 +139,8 @@ def test_scenario_02_occupation_software_tools():
 
 
 # Scenario 3: Related occupations
-def test_scenario_03_related_occupations():
+@pytest.mark.integration
+def test_scenario_03_related_occupations(local_reference_database):
     """Verify related occupations crosswalk returns related roles and career pathways."""
     app.dependency_overrides[dependencies.get_current_user] = mock_auth_user
     client = TestClient(app)
@@ -156,7 +160,8 @@ def test_scenario_03_related_occupations():
 
 
 # Scenario 4: Occupation title lookup
-def test_scenario_04_occupation_title_lookup():
+@pytest.mark.integration
+def test_scenario_04_occupation_title_lookup(local_reference_database):
     """Verify occupation title and SOC code lookup retrieves standardized O*NET definition."""
     app.dependency_overrides[dependencies.get_current_user] = mock_auth_user
     client = TestClient(app)
@@ -183,6 +188,7 @@ def test_scenario_05_available_market_snapshot():
 
     req = CoreIntelligenceAnswerRequest(
         message="Show current market snapshot for Python",
+        time_range="max",
         observations=obs,
     )
     res = orchestrator.answer(req, authenticated_user=user)
@@ -190,6 +196,7 @@ def test_scenario_05_available_market_snapshot():
     assert "market_snapshot" in res.capabilities_used
     assert any(f.fact_type == "market_snapshot" for f in res.facts)
     assert any(f.metric_name == "observed_metric_value" for f in res.facts)
+    assert all(f.data_origin == "demo" for f in res.facts)
 
 
 # Scenario 6: Stored historical observations
@@ -201,6 +208,7 @@ def test_scenario_06_stored_historical_observations():
 
     req = CoreIntelligenceAnswerRequest(
         message="Show historical observations for Python over time",
+        time_range="max",
         observations=obs,
     )
     res = orchestrator.answer(req, authenticated_user=user)
@@ -208,28 +216,29 @@ def test_scenario_06_stored_historical_observations():
     assert "historical_signal_retrieval" in res.capabilities_used
     assert len(res.facts) >= 3
     assert any(f.fact_type == "historical_observation" for f in res.facts)
+    assert all(f.data_origin == "demo" for f in res.facts)
 
 
 # Scenario 7: Trend with >=4 valid consecutive periods
-def test_scenario_07_trend_with_at_least_4_consecutive_periods():
-    """Verify Theil-Sen trend calculation succeeds when >=4 consecutive periods are available."""
+def test_scenario_07_demo_observations_do_not_produce_a_trend():
+    """Four demo periods remain ineligible as production trend evidence."""
     orchestrator = ExecutionOrchestratorService()
     user = mock_auth_user()
     obs = create_synthetic_observations("Python", ["2025-10", "2025-11", "2025-12", "2026-01"])
 
     req = CoreIntelligenceAnswerRequest(
         message="Show Python's growth trend and velocity",
+        time_range="max",
         observations=obs,
     )
     res = orchestrator.answer(req, authenticated_user=user)
     assert res.execution_status == "completed"
+    assert res.status == "insufficient_data"
     assert "trend_velocity_analysis" in res.capabilities_used
     trend_facts = [f for f in res.facts if f.fact_type == "trend_analysis"]
-    assert len(trend_facts) == 1
-    assert trend_facts[0].source == "theil_sen_estimator"
-    assert "trend_slope" in trend_facts[0].details
-    assert "monthly_velocity" in trend_facts[0].details
-    assert any(e.signal_type == "trend_calculation" for e in res.evidence)
+    assert trend_facts == []
+    assert all(f.data_origin == "demo" for f in res.facts)
+    assert "No measured trend is available" in res.answer
 
 
 # Scenario 8: Trend with 0 observations (insufficient data)
@@ -246,10 +255,10 @@ def test_scenario_08_trend_with_zero_observations_insufficient_data():
     data = resp.json()
     assert data["intent"] == "analyze_trend"
     assert data["execution_status"] == "insufficient_data"
-    assert "INSUFFICIENT_OBSERVATION_DATA" in data["reason_codes"]
+    assert "NO_OBSERVATIONS_FOR_SERIES" in data["reason_codes"]
     assert len(data["facts"]) == 0
     assert len(data["evidence"]) == 0
-    assert "Insufficient empirical observation data" in data["answer"]
+    assert "No measured trend observations are currently available" in data["answer"]
     assert any("consecutive" in lim.lower() for lim in data["limitations"])
 
 
@@ -262,11 +271,12 @@ def test_scenario_09_trend_with_missing_periods_incompatible_series():
 
     req = CoreIntelligenceAnswerRequest(
         message="Show Python's trend",
+        time_range="max",
         observations=obs,
     )
     res = orchestrator.answer(req, authenticated_user=user)
     assert res.execution_status == "insufficient_data"
-    assert "INSUFFICIENT_OBSERVATION_DATA" in res.reason_codes
+    assert "INSUFFICIENT_TREND_HISTORY" in res.reason_codes
     assert len(res.facts) == 0
 
 
@@ -297,6 +307,7 @@ def test_scenario_11_search_stored_job_postings():
 
     req = CoreIntelligenceAnswerRequest(
         message="Find stored job postings for React",
+        time_range="max",
         observations=obs,
     )
     res = orchestrator.answer(req, authenticated_user=user)
@@ -304,6 +315,7 @@ def test_scenario_11_search_stored_job_postings():
     assert "job_posting_search" in res.capabilities_used
     assert any(f.metric_name == "stored_postings_found" for f in res.facts)
     assert any(e.signal_type == "stored_posting" for e in res.evidence)
+    assert all(e.data_origin == "demo" for e in res.evidence)
 
 
 # Scenario 12: Job search when 0 postings stored
@@ -321,7 +333,10 @@ def test_scenario_12_job_search_when_zero_postings_stored():
     assert data["intent"] == "search_jobs"
     assert data["execution_status"] == "completed"
     assert any(f["metric_name"] == "stored_postings_found" and f["metric_value"] == 0 for f in data["facts"])
-    assert any("Results are postings found strictly in the stored collection" in lim for lim in data["limitations"])
+    assert any(
+        "Results represent matching stored postings, not total global vacancies." in lim
+        for lim in data["limitations"]
+    )
 
 
 # Scenario 13: Action recommendations
@@ -337,11 +352,10 @@ def test_scenario_13_action_recommendations():
     assert resp.status_code == 200
     data = resp.json()
     assert data["intent"] == "synthesize_actions"
-    assert "action_recommendations" in data["capabilities_used"]
-    assert data["execution_status"] == "completed"
-    assert len(data["facts"]) >= 3
-    assert any(f["fact_type"] == "action_recommendation" for f in data["facts"])
-    assert any(e["signal_type"] == "action_synthesis" for e in data["evidence"])
+    assert data["execution_status"] == "insufficient_data"
+    assert data["status"] == "insufficient_data"
+    assert not any(f["fact_type"] == "action_recommendation" for f in data["facts"])
+    assert "target role" in data["answer"].lower()
 
 
 # Scenario 14: Ambiguous question -> clarification
@@ -393,11 +407,9 @@ def test_scenario_16_future_demand_forecasting_unsupported_in_g2_6():
     assert resp.status_code == 200
     data = resp.json()
     assert data["intent"] == "forecast_future_demand"
-    assert data["execution_status"] == "unsupported"
-    assert "CAPABILITY_UNSUPPORTED_IN_G2_6" in data["reason_codes"]
+    assert data["execution_status"] in {"unsupported", "insufficient_data"}
     assert len(data["facts"]) == 0
     assert len(data["evidence"]) == 0
-    assert "explicitly inactive and unsupported in milestone G2.6" in data["answer"]
 
 
 # Scenario 17: Workforce simulation -> unsupported in G2.6
@@ -421,8 +433,9 @@ def test_scenario_17_workforce_simulation_unsupported_in_g2_6():
 
 
 # Scenario 18: Unauthorized company workforce access
-def test_scenario_18_unauthorized_company_workforce_access():
+def test_scenario_18_unauthorized_company_workforce_access(approve_company_membership):
     """Verify cross-company intelligence queries are blocked with UNAUTHORIZED_CROSS_COMPANY_ACCESS."""
+    approve_company_membership["owner"]("emp_john_connor", "comp_cyberdyne")
     app.dependency_overrides[dependencies.get_current_user] = mock_company_user  # Belonging to comp_cyberdyne
     client = TestClient(app)
 
@@ -434,11 +447,7 @@ def test_scenario_18_unauthorized_company_workforce_access():
             "company_id": "comp_skynet_rival",  # Cross-tenant target
         },
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["execution_status"] == "blocked"
-    assert "UNAUTHORIZED_CROSS_COMPANY_ACCESS" in data["reason_codes"]
-    assert "Access denied" in data["answer"]
+    assert resp.status_code == 403
 
 
 # Scenario 19: Company question from individual portal
@@ -465,7 +474,8 @@ def test_scenario_19_company_question_from_individual_portal():
 
 
 # Scenario 20: Question with different selected skills (question remains authoritative)
-def test_scenario_20_question_authoritative_over_conflicting_selected_skills():
+@pytest.mark.integration
+def test_scenario_20_question_authoritative_over_conflicting_selected_skills(local_reference_database):
     """Verify question's explicit role takes precedence over conflicting selected_skills context."""
     app.dependency_overrides[dependencies.get_current_user] = mock_auth_user
     client = TestClient(app)

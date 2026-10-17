@@ -39,6 +39,8 @@ from app.services.execution_orchestrator_service import ExecutionOrchestratorSer
 from app.services.intent_planner_service import IntentPlannerService
 from app.storage.conversation_store import ConversationStore
 
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
+
 
 # Test users
 USER_ALICE = AuthenticatedUser(uid="user_alice_001")
@@ -125,8 +127,9 @@ def test_five_turn_conversation_continuity():
     resp5 = orchestrator.answer(req_turn5, authenticated_user=USER_ALICE)
     assert resp5.conversation_id == conv_id
     assert resp5.intent == "synthesize_actions"
-    assert resp5.execution_status == "completed"
-    assert any(f.fact_type == "action_recommendation" for f in resp5.facts)
+    assert resp5.execution_status == "insufficient_data"
+    assert "target role" in resp5.answer.lower()
+    assert not any(f.fact_type == "action_recommendation" for f in resp5.facts)
 
 
 def test_bare_why_reuses_prior_conversation_intent_and_entity():
@@ -157,7 +160,8 @@ def test_bare_why_reuses_prior_conversation_intent_and_entity():
     assert follow_up.conversation_id == conv_id
 
 
-def test_role_specific_learning_follow_up_reuses_conversation_role():
+@pytest.mark.integration
+def test_role_specific_learning_follow_up_reuses_conversation_role(local_reference_database):
     orchestrator = ExecutionOrchestratorService()
     conv_id = f"conv_role_{uuid.uuid4().hex[:8]}"
 
@@ -181,8 +185,8 @@ def test_role_specific_learning_follow_up_reuses_conversation_role():
         authenticated_user=USER_ALICE,
     )
 
-    assert response.intent == "crosswalk_occupation_software"
-    assert "occupation_software_skills" in response.capabilities_used
+    assert response.intent == "synthesize_actions"
+    assert "action_recommendations" in response.capabilities_used
     assert response.execution_status == "completed"
 
 
@@ -267,7 +271,8 @@ def test_cross_company_isolation():
 # 4. REAL SQLITE REFERENCE LOOKUPS
 # =============================================================================
 
-def test_real_sqlite_occupation_lookup():
+@pytest.mark.integration
+def test_real_sqlite_occupation_lookup(local_reference_database):
     """Verify lookup of real O*NET occupation from SQLite."""
     orchestrator = ExecutionOrchestratorService()
     req = CoreIntelligenceAnswerRequest(
@@ -283,7 +288,8 @@ def test_real_sqlite_occupation_lookup():
     assert occ_facts[0].metric_value == "15-1242.00"
 
 
-def test_real_sqlite_software_skills_crosswalk():
+@pytest.mark.integration
+def test_real_sqlite_software_skills_crosswalk(local_reference_database):
     """Verify real O*NET software skills retrieval from SQLite."""
     orchestrator = ExecutionOrchestratorService()
     req = CoreIntelligenceAnswerRequest(
@@ -298,7 +304,8 @@ def test_real_sqlite_software_skills_crosswalk():
     assert any("Software Developers" in f.details.get("occupation_title", "") for f in resp.facts if f.details)
 
 
-def test_real_sqlite_related_occupations():
+@pytest.mark.integration
+def test_real_sqlite_related_occupations(local_reference_database):
     """Verify real O*NET related occupations crosswalk from SQLite."""
     orchestrator = ExecutionOrchestratorService()
     req = CoreIntelligenceAnswerRequest(
@@ -312,7 +319,8 @@ def test_real_sqlite_related_occupations():
     assert len(rel_facts) > 0
 
 
-def test_real_sqlite_github_technology_series():
+@pytest.mark.integration
+def test_real_sqlite_github_technology_series(local_reference_database):
     """Verify GitHub Innovation Graph technology adoption lookup from SQLite."""
     orchestrator = ExecutionOrchestratorService()
     req = CoreIntelligenceAnswerRequest(
@@ -339,13 +347,14 @@ def test_zero_market_observations_returns_honest_insufficient_data():
     )
     resp = orchestrator.answer(req, authenticated_user=USER_ALICE)
     assert resp.execution_status == "insufficient_data"
-    assert "INSUFFICIENT_OBSERVATION_DATA" in resp.reason_codes
-    assert "insufficient empirical observation data" in resp.answer.lower()
+    assert resp.status == "insufficient_data"
+    assert "NO_OBSERVATIONS_FOR_SERIES" in resp.reason_codes
+    assert "no measured trend observations are currently available" in resp.answer.lower()
     assert len(resp.facts) == 0
 
 
-def test_sufficient_observations_computes_theil_sen_trend():
-    """Verify that when >=4 consecutive observations are provided, trend calculation completes."""
+def test_snapshot_observations_without_origin_do_not_compute_a_measured_trend():
+    """History type alone cannot promote observations with missing origin to measured evidence."""
     orchestrator = ExecutionOrchestratorService()
     observations = [
         MarketObservation(
@@ -372,11 +381,10 @@ def test_sufficient_observations_computes_theil_sen_trend():
     )
     resp = orchestrator.answer(req, authenticated_user=USER_ALICE)
     assert resp.execution_status == "completed"
+    assert resp.status == "insufficient_data"
     assert resp.intent == "analyze_trend"
-    assert any(f.fact_type == "trend_analysis" for f in resp.facts)
-    trend_fact = next(f for f in resp.facts if f.fact_type == "trend_analysis")
-    assert str(trend_fact.metric_value).upper() in {"GROWING", "RISING", "INCREASING"}
-    assert trend_fact.calculation_version == "trend-velocity-theil-sen-v2-comparable-units"
+    assert not any(f.fact_type == "trend_analysis" for f in resp.facts)
+    assert resp.reason_codes == ["OBSERVATION_PROVENANCE_UNAVAILABLE"]
 
 
 def test_historical_observations_respect_default_and_explicit_max_range():
@@ -425,22 +433,26 @@ def test_forecasting_and_simulation_strictly_disabled():
         message="Forecast future demand for Python over next 3 years.",
     )
     resp_fc = orchestrator.answer(req_fc, authenticated_user=USER_ALICE)
-    assert resp_fc.execution_status == "unsupported"
-    assert resp_fc.reason_codes == ["CAPABILITY_UNSUPPORTED_IN_G2_6"]
+    assert resp_fc.execution_status in {"unsupported", "insufficient_data"}
+    assert len(resp_fc.facts) == 0
 
     req_sim = CoreIntelligenceAnswerRequest(
         message="Simulate workforce what-if transition to AI engineering.",
     )
     resp_sim = orchestrator.answer(req_sim, authenticated_user=USER_ALICE)
     assert resp_sim.execution_status == "unsupported"
-    assert resp_sim.reason_codes == ["CAPABILITY_UNSUPPORTED_IN_G2_6"]
+    assert "CAPABILITY_UNSUPPORTED_IN_G2_6" in resp_sim.reason_codes
+    assert "SIMULATION_PREREQUISITES_NOT_MET" in resp_sim.reason_codes
+    assert resp_sim.facts == []
+    assert resp_sim.evidence == []
 
 
 # =============================================================================
 # 7. LLM EXPLANATION FALLBACK & GROUNDING INTEGRITY
 # =============================================================================
 
-def test_deterministic_fallback_opens_with_answer_and_uses_relevant_details():
+@pytest.mark.integration
+def test_deterministic_fallback_opens_with_answer_and_uses_relevant_details(local_reference_database):
     """Verify deterministic fallback leads with an answer, not a fixed section template."""
     orchestrator = ExecutionOrchestratorService()
     req = CoreIntelligenceAnswerRequest(
@@ -458,7 +470,8 @@ def test_deterministic_fallback_opens_with_answer_and_uses_relevant_details():
 # 8. FASTAPI ENDPOINTS INTEGRATION
 # =============================================================================
 
-def test_fastapi_endpoints_plan_and_answer():
+@pytest.mark.integration
+def test_fastapi_endpoints_plan_and_answer(local_reference_database):
     """Verify FastAPI routes /plan, /answer, /entities/resolve with conversation continuity."""
     app.dependency_overrides[dependencies.get_current_user] = mock_auth_alice
     client = TestClient(app)

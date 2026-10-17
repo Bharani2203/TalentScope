@@ -299,11 +299,10 @@ def test_github_adoption_query_by_canonical_skill(tmp_path):
     assert [s["num_pushers"] for s in series] == [5000, 5500]
 
 
-def test_staged_reference_files_exist_and_manifest_valid():
+@pytest.mark.integration
+def test_staged_reference_files_exist_and_manifest_valid(staged_reference_data_directory):
     """Verify staged files in backend/data/reference match manifest.json."""
-    ref_dir = Path("backend/data/reference")
-    if not ref_dir.exists():
-        ref_dir = Path("data/reference")
+    ref_dir = staged_reference_data_directory
     manifest_file = ref_dir / "manifest.json"
     assert manifest_file.is_file(), f"manifest.json missing in {ref_dir}"
 

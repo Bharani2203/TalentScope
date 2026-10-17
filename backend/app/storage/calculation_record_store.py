@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
@@ -37,11 +36,7 @@ class FirestoreCalculationRecordStore:
     def _collection(self):
         client = self.client
         if client is None:
-            if os.getenv("RUN_LIVE_FIRESTORE_TESTS") != "1" and os.getenv("PYTEST_CURRENT_TEST"):
-                from app.storage.mock_firestore_hub import get_mock_firestore_client
-                client = get_mock_firestore_client()
-            else:
-                client = get_firestore_client()
+            client = get_firestore_client()
         return client.collection(self.collection_name)
 
     def get_trend_calculation(self, calculation_id: str) -> CalculationRecord | None:
@@ -98,11 +93,7 @@ class FirestoreCalculationRecordStore:
         """Persist the calculation result already produced by the shared trend engine."""
         client = self.client
         if client is None:
-            if os.getenv("RUN_LIVE_FIRESTORE_TESTS") != "1" and os.getenv("PYTEST_CURRENT_TEST"):
-                from app.storage.mock_firestore_hub import get_mock_firestore_client
-                client = get_mock_firestore_client()
-            else:
-                client = get_firestore_client()
+            client = get_firestore_client()
 
         fetch_runs = FirestoreFetchRunStore(client)
         records: dict[str, str] = {}
@@ -257,11 +248,7 @@ class FirestoreCalculationRecordStore:
         """Persist G1.4 trend & velocity calculation records with idempotency, caching, and provenance."""
         client = self.client
         if client is None:
-            if os.getenv("RUN_LIVE_FIRESTORE_TESTS") != "1" and os.getenv("PYTEST_CURRENT_TEST"):
-                from app.storage.mock_firestore_hub import get_mock_firestore_client
-                client = get_mock_firestore_client()
-            else:
-                client = get_firestore_client()
+            client = get_firestore_client()
 
         fetch_runs = FirestoreFetchRunStore(client)
         records: dict[str, str] = {}

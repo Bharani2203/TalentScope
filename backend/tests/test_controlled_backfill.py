@@ -17,8 +17,8 @@ M. Stack Exchange cannot merge with JSearch demand.
 N. Stack Exchange cannot merge with GitHub adoption.
 O. G1.8 remains authoritative.
 P. G1.9 remains authoritative.
-Q. Existing production observations remain unchanged.
-R. No synthetic production observations.
+Q. An explicit demo fixture remains separate from production Firestore.
+R. Demo observations are never represented as real data.
 """
 
 from __future__ import annotations
@@ -36,6 +36,7 @@ from app.services.market_data.stack_exchange_historical_provider import (
     _month_periods,
 )
 from app.storage.firestore_observation_store import FirestoreObservationStore
+from app.storage.mock_firestore_hub import get_demo_firestore_client
 from app.storage.observation_identity import stable_observation_id
 
 
@@ -345,17 +346,17 @@ def test_p_g1_9_remains_authoritative():
 
 
 # =========================================================================
-# REQUIREMENT Q: Existing production observations remain unchanged
+# REQUIREMENT Q: Demo observations remain isolated from production
 # =========================================================================
 
-def test_q_existing_production_observations_remain_unchanged():
-    """Verify live Firestore retains all original JSearch, Adzuna, and GitHub observations."""
-    store = FirestoreObservationStore()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=365)
+def test_q_demo_observation_fixture_is_explicit_and_isolated():
+    """The explicit in-memory demo fixture has stable provider coverage."""
+    store = FirestoreObservationStore(get_demo_firestore_client())
+    cutoff = datetime(2000, 1, 1, tzinfo=timezone.utc)
     obs = store.get_observations(cutoff=cutoff)
 
-    # 86 JSearch + 3 GitHub + 1 Adzuna + 10 Stack Exchange = 100
     assert len(obs) == 100
+    assert all(item.data_origin == "demo" for item in obs)
     providers = {o.source: 0 for o in obs}
     for o in obs:
         providers[o.source] += 1
@@ -366,16 +367,15 @@ def test_q_existing_production_observations_remain_unchanged():
 
 
 # =========================================================================
-# REQUIREMENT R: No synthetic production observations
+# REQUIREMENT R: Demo fixture records are never labeled real
 # =========================================================================
 
-def test_r_no_synthetic_production_observations():
-    """All production observations originate from real data sources."""
-    store = FirestoreObservationStore()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=365)
+def test_r_demo_observations_are_not_labeled_as_real():
+    store = FirestoreObservationStore(get_demo_firestore_client())
+    cutoff = datetime(2000, 1, 1, tzinfo=timezone.utc)
     obs = store.get_observations(cutoff=cutoff)
 
+    assert obs
     for o in obs:
-        assert o.data_origin != "synthetic"
-        assert o.data_origin in {"real", None}
+        assert o.data_origin == "demo"
         assert o.history_type in {"platform_collected", "snapshot", "backfill", "backfilled"}

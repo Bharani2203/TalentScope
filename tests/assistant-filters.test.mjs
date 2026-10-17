@@ -159,6 +159,7 @@ assert.deepEqual(JSON.parse(conversationRequests[3].options.body), {
 });
 
 const assistantSource = await readFile(new URL('../src/pages/individual/ai-assistant/AIAssistant.js', import.meta.url), 'utf8');
+const conversationAnswerSource = await readFile(new URL('../src/components/common/ConversationAnswer.js', import.meta.url), 'utf8');
 const assistantCss = await readFile(new URL('../src/pages/individual/ai-assistant/ai-assistant.css', import.meta.url), 'utf8');
 const appSource = await readFile(new URL('../src/app/app.js', import.meta.url), 'utf8');
 assert.equal((assistantSource.match(/id="btnOpenFilters"/g) || []).length, 1, 'there is one Filters trigger');
@@ -297,15 +298,19 @@ assert.match(assistantSource, /guidedJourney = null;\s*domState\.selectedFeature
 assert.match(assistantSource, /await executeAiQuery\(query, \{ selectedFeatureId \}\);\s*\}/, 'submitting preserves the selected capability mode for conversation follow-ups');
 assert.match(assistantSource, /guidedJourneyId: savedJourney\?\.completedCapabilityIds\?\.includes\(capabilityId\)/, 'restored completed guided steps retain a locally persisted journey when available');
 assert.match(assistantSource, /usedCapability \?/, 'conversation responses identify the capability that produced them');
-assert.match(assistantSource, /role="alert"[\s\S]*This request could not be completed/, 'failed requests render as an explicit error state rather than answer prose');
+assert.match(conversationAnswerSource, /label: 'Could not complete'/, 'failed requests have an explicit non-success label');
+assert.match(conversationAnswerSource, /role="\$\{\['blocked', 'error', 'failed'\]/, 'access and execution failures use an alert');
 
 // Conversational AI Turn Flow & Actions
 assert.match(assistantSource, /class="ai-user-turn-wrapper"/, 'User turn is right-aligned in conversation stream');
 assert.match(assistantSource, /class="ai-assistant-turn-card ai-conv-card-modern"/, 'Assistant turn uses modern card layout');
-assert.match(assistantSource, /class="ai-conv-prose"/, 'Assistant turn leads with natural markdown prose answer');
+assert.match(assistantSource, /renderConversationAnswer\(turn, formatMarkdown/, 'Assistant turn uses the shared natural-language answer renderer');
 assert.match(assistantSource, /data-action="copy_answer"/, 'Turn footer includes copy answer button');
 assert.match(assistantSource, /data-feedback="up"/, 'Turn footer includes thumbs-up feedback');
 assert.match(assistantSource, /data-feedback="down"/, 'Turn footer includes thumbs-down feedback');
+assert.match(assistantSource, /data-feedback="up" data-turn-index="\$\{index\}"/, 'Feedback actions are bound to their assistant turn');
+assert.match(assistantSource, /requestContext: turn\?\.requestContext/, 'follow-up questions preserve the originating turn context');
+assert.match(assistantSource, /writeText\(cleanConversationAnswer/, 'copy actions omit hidden internal fields');
 
 // Guided Intelligence Journey & backend-driven recommendation checks
 assert.match(assistantSource, /queryCoreIntelligencePlan\(/, 'recommendations are planned by the authenticated backend engine');

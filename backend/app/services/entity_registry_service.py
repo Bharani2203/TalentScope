@@ -368,8 +368,9 @@ class EntityRegistryService:
                 (text.strip(),),
             ).fetchone()
             if not row:
-                # Check by title case-insensitive (including singular/plural)
                 clean_t = text.strip()
+                if clean_t.lower() in {"software development", "software engineering", "software dev"}:
+                    clean_t = "Software Developers"
                 t_plural = clean_t if clean_t.endswith("s") else f"{clean_t}s"
                 t_singular = clean_t[:-1] if clean_t.endswith("s") else clean_t
                 row = conn.execute(

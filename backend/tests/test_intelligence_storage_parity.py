@@ -37,6 +37,8 @@ class Query:
         self.collection = collection
         self.cutoff = None
         self.limit_count = None
+        self.order_field = None
+        self.order_direction = "ASCENDING"
 
     def where(self, *, filter):
         field = getattr(filter, "field_path", None)
@@ -48,6 +50,11 @@ class Query:
 
     def limit(self, count):
         self.limit_count = count
+        return self
+
+    def order_by(self, field, direction="ASCENDING"):
+        self.order_field = field
+        self.order_direction = direction
         return self
 
     def stream(self):
@@ -62,6 +69,14 @@ class Query:
                 if obs_str < cutoff_str:
                     continue
             records.append(Snapshot(document_id, data))
+        if self.order_field:
+            records.sort(
+                key=lambda snapshot: (
+                    snapshot.to_dict().get(self.order_field) is not None,
+                    str(snapshot.to_dict().get(self.order_field) or ""),
+                ),
+                reverse=self.order_direction == "DESCENDING",
+            )
         if self.limit_count is not None:
             records = records[:self.limit_count]
         return records
@@ -133,6 +148,7 @@ def _observation(
         value=1,
         posting_id=posting_id,
         metadata=metadata or {},
+        data_origin="demo",
     )
 
 
@@ -167,13 +183,12 @@ def test_sqlite_and_firestore_calculations_match_for_all_records(tmp_path):
     firestore_shares, firestore_denominators = _source_demand_shares(firestore_rows)
     assert firestore_denominators == sqlite_denominators
     assert firestore_shares.keys() == sqlite_shares.keys()
-    for skill_name, period_values in sqlite_shares.items():
-        assert firestore_shares[skill_name].keys() == period_values.keys()
-        for period, source_values in period_values.items():
-            for source, sqlite_value in source_values.items():
-                assert firestore_shares[skill_name][period][source] == pytest.approx(sqlite_value, abs=1e-12)
+    for series_key, period_values in sqlite_shares.items():
+        assert firestore_shares[series_key].keys() == period_values.keys()
+        for period, sqlite_value in period_values.items():
+            assert firestore_shares[series_key][period] == pytest.approx(sqlite_value, abs=1e-12)
     firestore_trends = calculate_skill_trends(firestore_rows, now=now)
-    assert {item["skill"] for item in firestore_trends} == {"Python", "Java", "Go"}
+    assert firestore_trends == []
 
 
 def test_firestore_reader_supports_range_location_scope_skill_source_signal_and_period(tmp_path):
@@ -249,12 +264,12 @@ def test_one_period_keeps_status_insufficient_and_trends_empty(tmp_path):
         **common, observations=firestore_rows, summary={"observations": len(firestore_rows), "last_collection": None},
     )
 
-    # Both test stores now preserve known history semantics; the same source-local
-    # observations must have the same count while origin remains unknown.
+    # Demo observations are retained for transparency but not used as evidence.
     assert sqlite_response.data_status == firestore_response.data_status == "insufficient_data"
     assert sqlite_response.skill_trends == firestore_response.skill_trends == []
-    assert sqlite_response.provenance["observation_count"] == 2
-    assert firestore_response.provenance["observation_count"] == 2
+    assert sqlite_response.provenance["observation_count"] == 0
+    assert firestore_response.provenance["observation_count"] == 0
+    assert sqlite_response.data_origin == firestore_response.data_origin == "demo"
     assert sqlite_response.data_status == "insufficient_data"
     assert sqlite_response.observations_count == 2
     assert sqlite_response.historical_periods_count == 1

@@ -121,7 +121,8 @@ def test_empty_or_whitespace_input():
     assert res.confidence == 0.0
 
 
-def test_onet_occupation_resolution():
+@pytest.mark.integration
+def test_onet_occupation_resolution(local_reference_database):
     service = EntityRegistryService()
 
     # By exact Title
@@ -140,7 +141,8 @@ def test_onet_occupation_resolution():
     assert res2.entity.entity_id == "occupation:soc:15-1252.00"
 
 
-def test_occupation_skills_and_related_occupations():
+@pytest.mark.integration
+def test_occupation_skills_and_related_occupations(local_reference_database):
     service = EntityRegistryService()
 
     # Query skills for Software Developers (15-1252.00)

@@ -27,6 +27,7 @@ import {
   evaluateCapabilities
 } from '../../../api/core-intelligence-client.js';
 import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
+import { cleanConversationAnswer, renderConversationAnswer } from '../../../components/common/ConversationAnswer.js';
 import { API_BASE_URL } from '../../../config/api.js';
 
 function formatMarkdown(content) {
@@ -2505,8 +2506,8 @@ function describeFactKind(fact) {
 
 function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
   const statusLabels = {
-    completed: { label: 'Verified Grounded', badge: 'cmp-badge--success', icon: 'check-circle-2' },
-    ready: { label: 'Verified Grounded', badge: 'cmp-badge--success', icon: 'check-circle-2' },
+    completed: { label: 'Answer ready', badge: 'cmp-badge--success', icon: 'check-circle-2' },
+    ready: { label: 'Answer ready', badge: 'cmp-badge--success', icon: 'check-circle-2' },
     partial: { label: 'Partial Coverage', badge: 'cmp-badge--warning', icon: 'alert-circle' },
     requires_clarification: { label: 'Clarification Required', badge: 'cmp-badge--warning', icon: 'help-circle' },
     insufficient_data: { label: 'Insufficient Observation Data', badge: 'cmp-badge--neutral', icon: 'database' },
@@ -2544,7 +2545,8 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
       .filter(suggestion => !previousFollowUps.has(String(suggestion).trim().toLocaleLowerCase()))
       .slice(0, 1);
 
-  const facts = (Array.isArray(turn.facts) ? turn.facts : []).filter(f =>
+  const allFacts = Array.isArray(turn.facts) ? turn.facts : [];
+  const facts = allFacts.filter(f =>
     f.metric_value != null
     && f.quality_state === 'valid'
   );
@@ -2553,13 +2555,6 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
   const jobPostings = Array.isArray(turn.jobPostings) && turn.jobPostings.length
     ? turn.jobPostings
     : (Array.isArray(postingsFact?.details?.postings) ? postingsFact.details.postings : []);
-
-  // 2. Key Signal extraction
-  const primarySignalFact = trendFact || facts[0] || null;
-  const keySignalLabel = primarySignalFact ? primarySignalFact.metric_name : (jobPostings.length ? 'Verified Job Postings' : 'Execution Status');
-  const keySignalValue = primarySignalFact
-    ? `${primarySignalFact.metric_value}${primarySignalFact.unit ? ` ${primarySignalFact.unit}` : ''}`
-    : (jobPostings.length ? `${jobPostings.length} deduplicated postings` : (statusInfo?.label || 'Observed'));
 
   // 4. Contextual explanation (only when explicitly provided)
   const caps = turn.capabilities || {};
@@ -2570,11 +2565,11 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
     whyItMattersText = sh.explanation;
   } else if (hl?.explanation) {
     whyItMattersText = hl.explanation;
-  } else if (!isServiceError && Array.isArray(turn.limitations) && turn.limitations.length > 0 && turn.status !== 'completed') {
-    whyItMattersText = turn.limitations[0];
   }
 
   const evidenceList = Array.isArray(turn.evidence) ? turn.evidence : [];
+  const metricResults = Array.isArray(turn.metric_results) ? turn.metric_results : [];
+  const hasEvidencePanel = allFacts.length > 0 || evidenceList.length > 0 || metricResults.length > 0;
   const hasChartOrPostings = jobPostings.length > 0 || Boolean(trendFact && (trendFact.details?.series?.length >= 2 || trendFact.details?.observation_count >= 2));
   const journeyStep = isLatest
     ? resolveNextJourneyStep(turn, activeDomain, domState.history, domState.guidedJourney)
@@ -2638,16 +2633,10 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
         <!-- Flowing Conversational Body (Natural AI Answer First, Requirement 10) -->
         <div class="ai-conv-body">
           <!-- Main Markdown Response -->
-          ${isServiceError ? `
-            <div class="ai-conv-service-error" role="alert">
-              <strong>${statusKey === 'blocked' ? 'Access required' : 'This request could not be completed'}</strong>
-              <p>${escapeHTML(turn.answer || turn.finding || 'The intelligence service did not return an answer.')}</p>
-            </div>
-          ` : `
-            <div class="ai-conv-prose">
-              ${formatMarkdown(turn.answer || turn.finding)}
-            </div>
-          `}
+          ${renderConversationAnswer(turn, formatMarkdown, {
+            answer: turn.answer || turn.finding || (isServiceError ? 'The intelligence service did not return an answer.' : ''),
+            explanation: whyItMattersText
+          })}
 
           ${['error', 'failed', 'data_source_unavailable'].includes(statusKey) && turn.userQuestion ? `
             <div class="ai-conv-error-retry">
@@ -2657,64 +2646,18 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
             </div>
           ` : ''}
 
-          <!-- Key Measured Signals & Telemetry Inline Highlights (Only when facts exist) -->
-          ${facts.length > 0 ? `
-            <div class="ai-conv-signals-section">
-              <div class="ai-conv-signals-label">
-                <i data-lucide="gauge"></i>
-                <span>Evidence Highlights</span>
-              </div>
-              <div class="ai-conv-signal-pills">
-                <div class="ai-conv-sig-pill is-primary">
-                  <span class="ai-conv-sig-label">${escapeHTML(keySignalLabel)}</span>
-                  <strong class="ai-conv-sig-value">${escapeHTML(String(keySignalValue))}</strong>
-                </div>
-                ${facts.slice(1, 4).map(f => `
-                  <div class="ai-conv-sig-pill">
-                    <span class="ai-conv-sig-label">${escapeHTML(f.metric_name)}</span>
-                    <strong class="ai-conv-sig-value">${escapeHTML(String(f.metric_value))}${f.unit ? ` ${escapeHTML(f.unit)}` : ''}</strong>
-                    <small class="ai-conv-sig-meta">${f.period ? `Period: ${escapeHTML(f.period)}` : (f.source ? `Source: ${escapeHTML(f.source)}` : 'Observed')}</small>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          ` : ''}
-
-          ${turn.metric_results?.length ? renderIntelligenceEvidencePanel({
+          ${hasEvidencePanel ? renderIntelligenceEvidencePanel({
             status: turn.status,
-            metric_results: turn.metric_results,
+            metric_results: metricResults,
+            facts: allFacts,
+            evidence: evidenceList,
             limitations: turn.limitations,
             freshness: turn.freshness
-          }, { title: 'Structured answer metrics' }) : ''}
+          }, { title: 'Evidence snapshot', compact: true }) : ''}
 
           <!-- Trend Chart or Verified Postings (Rendered only when relevant data exists) -->
           ${hasChartOrPostings ? renderTurnChartOrBaselineHTML(turn, trendFact, facts, jobPostings) : ''}
 
-          <!-- Strategic Context & Reasoning (Rendered only when useful context exists) -->
-          ${whyItMattersText ? `
-            <div class="ai-conv-reasoning-box">
-              <div class="ai-conv-reasoning-title">
-                <i data-lucide="lightbulb"></i>
-                <span>Strategic Context & Reasoning</span>
-              </div>
-              <p class="ai-conv-reasoning-text">${escapeHTML(whyItMattersText)}</p>
-            </div>
-          ` : ''}
-
-          <!-- Evidence & Citation Sources Row (Rendered only when evidence exists) -->
-          ${evidenceList.length > 0 ? `
-            <div class="ai-conv-sources-row">
-              <span class="ai-conv-sources-label"><i data-lucide="link-2"></i> Sources (${evidenceList.length}):</span>
-              ${evidenceList.slice(0, 3).map(ev => `
-                <span class="ai-conv-source-chip">
-                  ${/^https?:\/\//i.test(String(ev.source_url || '')) ? `
-                    <a href="${escapeHTML(ev.source_url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(ev.source || ev.title || 'Source')} ↗</a>
-                  ` : `<span>${escapeHTML(ev.source || ev.title || ev.data_origin || 'Verified Record')}</span>`}
-                  ${ev.period ? `<small>(${escapeHTML(ev.period)})</small>` : ''}
-                </span>
-              `).join('')}
-            </div>
-          ` : ''}
         </div>
 
         <!-- Conversational Turn Footer (Copy, Regenerate & Feedback) -->
@@ -2726,10 +2669,10 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
             <button type="button" class="ai-turn-action-btn" data-action="regenerate_answer" data-turn-index="${index}" ${turn.clientMessageId ? '' : 'disabled title="This saved turn cannot be regenerated because its idempotency key is unavailable."'}>
               <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Regenerate response</span>
             </button>
-            <button type="button" class="ai-conv-feedback-btn" data-feedback="up" title="Good response" aria-label="Good response">
+            <button type="button" class="ai-conv-feedback-btn ${turn.feedback === 'up' ? 'is-active' : ''}" data-feedback="up" data-turn-index="${index}" aria-pressed="${turn.feedback === 'up'}" title="Good response" aria-label="Good response">
               <i data-lucide="thumbs-up"></i>
             </button>
-            <button type="button" class="ai-conv-feedback-btn" data-feedback="down" title="Bad response" aria-label="Bad response">
+            <button type="button" class="ai-conv-feedback-btn ${turn.feedback === 'down' ? 'is-active' : ''}" data-feedback="down" data-turn-index="${index}" aria-pressed="${turn.feedback === 'down'}" title="Bad response" aria-label="Bad response">
               <i data-lucide="thumbs-down"></i>
             </button>
           </div>
@@ -2737,7 +2680,7 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
           ${followUps.length > 0 ? `
             <div class="ai-conv-followup-chips" aria-label="Contextual follow-up suggestions">
               ${followUps.map(fu => `
-                <button type="button" class="ai-conv-fu-chip" data-followup="${escapeHTML(fu)}">
+                <button type="button" class="ai-conv-fu-chip" data-followup="${escapeHTML(fu)}" data-turn-index="${index}">
                   <i data-lucide="corner-down-right"></i>
                   <span>${escapeHTML(fu)}</span>
                 </button>
@@ -3810,7 +3753,12 @@ function attachEventListeners(container) {
   container.querySelectorAll('[data-followup]').forEach(el => {
     el.addEventListener('click', () => {
       const fu = el.getAttribute('data-followup');
-      if (fu) executeAiQuery(fu);
+      const index = parseInt(el.getAttribute('data-turn-index'), 10);
+      const turn = getActiveDomainSession().history[index];
+      if (fu) executeAiQuery(fu, {
+        requestContext: turn?.requestContext,
+        selectedFeatureId: turn?.capabilityId || null
+      });
     });
   });
   container.querySelectorAll('.ai-retry-turn').forEach(button => {
@@ -3843,7 +3791,7 @@ function attachEventListeners(container) {
       if (turn) {
         try {
           if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
-          await navigator.clipboard.writeText(turn.answer || turn.finding || '');
+          await navigator.clipboard.writeText(cleanConversationAnswer(turn.answer || turn.finding || ''));
           btn.classList.add('is-copied');
           btn.innerHTML = '<i data-lucide="check" style="width:14px; height:14px;"></i><span>Copied!</span>';
           if (window.lucide) window.lucide.createIcons();
@@ -3880,13 +3828,20 @@ function attachEventListeners(container) {
   // User feedback on assistant turns (thumbs up / thumbs down)
   container.querySelectorAll('[data-feedback]').forEach(btn => {
     btn.addEventListener('click', () => {
+      const idx = parseInt(btn.getAttribute('data-turn-index'), 10);
+      const turn = getActiveDomainSession().history[idx];
+      if (!turn) return;
       const parent = btn.parentElement;
       if (parent) {
-        parent.querySelectorAll('[data-feedback]').forEach(b => b.classList.remove('is-active'));
+        parent.querySelectorAll('[data-feedback]').forEach(b => {
+          const active = b === btn;
+          b.classList.toggle('is-active', active);
+          b.setAttribute('aria-pressed', String(active));
+        });
       }
-      btn.classList.add('is-active');
       const type = btn.getAttribute('data-feedback');
-      showToast(type === 'up' ? 'Feedback recorded: helpful response' : 'Feedback recorded: thanks for your input');
+      turn.feedback = type;
+      showToast('Thanks for letting us know.');
     });
   });
 
@@ -4089,6 +4044,7 @@ async function executeAiQuery(question, options = {}) {
       domainIcon: DOMAIN_CONFIG[dom]?.icon || 'sparkles',
       badgeClass: 'badge-skill-market',
       answer: answerRes.answer,
+      answer_origin: answerRes.answer_origin,
       finding: answerRes.answer,
       facts: factsList,
       metric_results: answerRes.metric_results || [],

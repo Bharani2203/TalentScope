@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app.analytics.signal_aggregation import aggregate_market_signals, partition_key
+from app.analytics.shared_intelligence import analyze_market_observations
 from app.models.market_signal import AggregatedMarketSignal
 from app.models.skill_intelligence import MarketObservation
 
@@ -325,7 +326,7 @@ def test_19_calculation_record_compatibility():
     assert s.fetch_run_ids == ["run-1"]
 
 
-def test_20_existing_adzuna_c_sharp_production_observation():
+def test_20_adzuna_c_sharp_compatibility_fixture():
     # Production record:
     # id = e6abb60cadea16865e5ece6073e1e3de6b9c1f1bace7c5ff1e413b81fea191dc
     # fetch_run_id = 61aa8c5206224fa28410d25299767696
@@ -360,3 +361,29 @@ def test_20_existing_adzuna_c_sharp_production_observation():
     assert signal.data_state == "insufficient_data"
     assert signal.observation_ids == ["e6abb60cadea16865e5ece6073e1e3de6b9c1f1bace7c5ff1e413b81fea191dc"]
     assert signal.fetch_run_ids == ["61aa8c5206224fa28410d25299767696"]
+
+
+def test_missing_provenance_is_not_promoted_to_real_production_history():
+    observations = [
+        MarketObservation(
+            id=f"legacy-{period}",
+            source="jsearch",
+            skill="Python",
+            signal_type="demand",
+            observed_at=datetime.fromisoformat(f"{period}-15T00:00:00+00:00"),
+            period=period,
+            value=10,
+            denominator=100,
+        )
+        for period in ("2025-01", "2025-02", "2025-03", "2025-04")
+    ]
+
+    analysis = analyze_market_observations(observations)
+
+    assert analysis.aggregated_signals
+    assert all(signal.data_origin == "unavailable" for signal in analysis.aggregated_signals)
+    assert all(signal.history_type == "unavailable" for signal in analysis.aggregated_signals)
+    assert all(signal.data_state == "insufficient_data" for signal in analysis.aggregated_signals)
+    assert analysis.trend_results
+    assert all(result.data_origin == "unavailable" for result in analysis.trend_results)
+    assert all(result.trend == "Insufficient Data" for result in analysis.trend_results)

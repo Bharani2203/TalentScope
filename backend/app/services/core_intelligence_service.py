@@ -285,9 +285,14 @@ class CoreIntelligenceService:
         else:
             data_status = "available"
             origins = {o.data_origin for o in observations if o.data_origin}
-            data_origin = "real" if origins == {"real"} else "mixed" if len(origins) > 1 else "demo" if origins == {"demo"} else "real"
+            data_origin = (
+                "real" if origins == {"real"}
+                else "mixed" if len(origins) > 1
+                else "demo" if origins == {"demo"}
+                else "unavailable"
+            )
             hist_types = {o.history_type for o in observations if o.history_type}
-            history_type = next(iter(hist_types)) if len(hist_types) == 1 else "mixed" if hist_types else "platform_collected"
+            history_type = next(iter(hist_types)) if len(hist_types) == 1 else "mixed" if hist_types else "unavailable"
             data_state = "ready" if history_complete else "partial"
 
         # 4. Filter observations if specific skills/roles/companies were selected
@@ -781,8 +786,8 @@ class CoreIntelligenceService:
                         else "repositories" if o.signal_type == "adoption"
                         else "tagged_questions"
                     ),
-                    data_origin=o.data_origin or "real",
-                    history_type=o.history_type or "platform_collected",
+                    data_origin=o.data_origin or "unavailable",
+                    history_type=o.history_type or "unavailable",
                     quality_state=_normalize_quality_state(o.quality),
                     confidence=o.confidence,
                     raw_archive_id=o.metadata.get("raw_archive_id") if o.metadata else None,
@@ -936,8 +941,8 @@ class CoreIntelligenceService:
                     calculation_version=tr.calculation_version,
                     readiness_state=tr.readiness_state or ("ready_for_trend" if is_ready else "not_ready"),
                     quality_state="valid" if is_ready else getattr(tr, "data_state", "valid"),
-                    data_origin=getattr(tr, "data_origin", "real"),
-                    history_type=getattr(tr, "history_type", "platform_collected"),
+                    data_origin=getattr(tr, "data_origin", "unavailable"),
+                    history_type=getattr(tr, "history_type", "unavailable"),
                     is_trend_ready=is_ready,
                     is_forecast_ready=(len(p_used) >= 24 and is_ready),
                     confidence=trend_conf if is_ready else None,

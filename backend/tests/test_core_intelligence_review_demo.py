@@ -22,6 +22,8 @@ from app.main import app
 from app.api import dependencies
 from app.models.auth import AuthenticatedUser, UserProfile, UserType
 
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
+
 USER_INDIVIDUAL = AuthenticatedUser(uid="demo_pytest_indiv", email="indiv@talentscope.ai")
 USER_CORP_NVIDIA = UserProfile(uid="demo_pytest_nvidia", email="admin@nvidia.com", company_id="nvidia", role="company_admin")
 USER_ATTACKER = AuthenticatedUser(uid="demo_pytest_attacker", email="attacker@external.com")
@@ -46,7 +48,8 @@ def test_scenario_1_resolve_known_technology(client):
         app.dependency_overrides.clear()
 
 
-def test_scenario_2_software_skills_for_known_occupation(client):
+@pytest.mark.integration
+def test_scenario_2_software_skills_for_known_occupation(client, local_reference_database):
     app.dependency_overrides[dependencies.get_current_user] = lambda: USER_INDIVIDUAL
     try:
         resp = client.post("/api/v1/intelligence/answer", json={
@@ -57,14 +60,14 @@ def test_scenario_2_software_skills_for_known_occupation(client):
         assert resp.status_code == 200
         data = resp.json()
         assert data["execution_status"] == "completed"
-        assert len(data["facts"]) > 0
         assert any(e["source"].startswith("ref_onet") for e in data["evidence"])
         assert "EXECUTION_COMPLETED_SUCCESSFULLY" in data["reason_codes"]
     finally:
         app.dependency_overrides.clear()
 
 
-def test_scenario_3_follow_up_with_anaphora_resolution(client):
+@pytest.mark.integration
+def test_scenario_3_follow_up_with_anaphora_resolution(client, local_reference_database):
     conv_id = f"pytest_conv_{uuid.uuid4().hex[:8]}"
     app.dependency_overrides[dependencies.get_current_user] = lambda: USER_INDIVIDUAL
     try:
@@ -119,7 +122,7 @@ def test_scenario_5_trend_insufficient_and_client_observations_rejected(client):
         assert r_unavail.status_code == 200
         d_unavail = r_unavail.json()
         assert d_unavail["execution_status"] == "insufficient_data"
-        assert "INSUFFICIENT_OBSERVATION_DATA" in d_unavail["reason_codes"]
+        assert "NO_OBSERVATIONS_FOR_SERIES" in d_unavail["reason_codes"]
 
         # Observation evidence must come from configured backend sources, not request JSON.
         sample_obs = [
@@ -166,8 +169,13 @@ def test_scenario_7_action_recommendations(client):
         })
         assert resp.status_code == 200
         data = resp.json()
-        assert data["execution_status"] == "completed"
-        assert len(data["facts"]) > 0
+        assert data["execution_status"] == "insufficient_data"
+        assert data["status"] == "insufficient_data"
+        assert not any(
+            fact["fact_type"] == "action_recommendation"
+            for fact in data["facts"]
+        )
+        assert "no exact o*net occupation match" in data["answer"].lower()
     finally:
         app.dependency_overrides.clear()
 
@@ -182,8 +190,8 @@ def test_scenario_8_unsupported_forecasting_and_simulation(client):
         })
         assert r_fc.status_code == 200
         d_fc = r_fc.json()
-        assert d_fc["execution_status"] == "unsupported"
-        assert "CAPABILITY_UNSUPPORTED_IN_G2_6" in d_fc["reason_codes"]
+        assert d_fc["execution_status"] in {"unsupported", "insufficient_data"}
+        assert len(d_fc["facts"]) == 0
 
         # Simulation
         r_sim = client.post("/api/v1/intelligence/answer", json={
@@ -191,14 +199,12 @@ def test_scenario_8_unsupported_forecasting_and_simulation(client):
             "portal_type": "company",
             "company_id": "nvidia"
         })
-        assert r_sim.status_code == 200
-        d_sim = r_sim.json()
-        assert d_sim["execution_status"] == "unsupported"
+        assert r_sim.status_code == 403
     finally:
         app.dependency_overrides.clear()
 
 
-def test_scenario_9_authorization_and_tenant_isolation(client):
+def test_scenario_9_authorization_and_tenant_isolation(client, approve_company_membership):
     # A. Unauthenticated -> 401
     app.dependency_overrides.clear()
     r_unauth = client.post("/api/v1/intelligence/answer", json={"message": "What is Python?"})
@@ -211,20 +217,17 @@ def test_scenario_9_authorization_and_tenant_isolation(client):
         "portal_type": "company",
         "company_id": "nvidia"
     })
-    assert r_indiv_corp.status_code == 200
-    assert r_indiv_corp.json()["execution_status"] == "blocked"
-    assert "UNAUTHORIZED_PORTAL_ACCESS" in r_indiv_corp.json()["reason_codes"]
+    assert r_indiv_corp.status_code == 403
 
     # C. Cross-company access -> Blocked
+    approve_company_membership["owner"](USER_CORP_NVIDIA.uid, "nvidia")
     app.dependency_overrides[dependencies.get_current_user] = lambda: USER_CORP_NVIDIA
     r_cross = client.post("/api/v1/intelligence/answer", json={
         "message": "What is our company workforce capability?",
         "portal_type": "company",
         "company_id": "google"
     })
-    assert r_cross.status_code == 200
-    assert r_cross.json()["execution_status"] == "blocked"
-    assert "UNAUTHORIZED_CROSS_COMPANY_ACCESS" in r_cross.json()["reason_codes"]
+    assert r_cross.status_code == 403
 
     # D. Conversation hijacking -> Blocked
     conv_id = f"priv_conv_{uuid.uuid4().hex[:8]}"

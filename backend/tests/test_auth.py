@@ -134,6 +134,8 @@ def test_me_returns_normalized_user_and_checks_revocation(monkeypatch):
 
 
 def test_unverified_email_token_can_sync_and_use_protected_auth_api(monkeypatch):
+    database = FakeFirestore()
+    monkeypatch.setattr(auth_service, "get_firestore_client", lambda: database)
     monkeypatch.setattr(dependencies, "get_firebase_app", lambda: object())
     monkeypatch.setattr(
         dependencies.auth,

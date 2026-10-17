@@ -8,6 +8,7 @@ Guarantees:
 5. Canonical skill identity: all skills normalized via G1.2 canonical registry.
 6. Provenance preservation: traces observation_ids, fetch_run_ids, series_id, and panel_version.
 7. Zero data fabrication: missing periods, missing denominators, or missing observations are never invented.
+8. Missing origin or history provenance remains unavailable; it is never inferred as real.
 """
 
 from __future__ import annotations
@@ -26,8 +27,8 @@ def partition_key(obs: MarketObservation) -> tuple[object, ...]:
     source = obs.source.casefold().strip()
     signal_type = obs.signal_type.strip()
     panel = obs.panel_version.strip() if obs.panel_version else None
-    data_origin = obs.data_origin or "real"
-    history_type = obs.history_type or ("platform_collected" if signal_type == "demand" else "snapshot")
+    data_origin = obs.data_origin or "unavailable"
+    history_type = obs.history_type or "unavailable"
     return (
         source,
         signal_type,

@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.capability_registry import CapabilityEvaluationResult, CapabilityId
 from app.models.entity_registry import CanonicalEntity, EntityCandidate
 from app.models.skill_intelligence import MarketObservation
+from app.analytics.ai_disruption import AIExposureDatasetProvenance, TaskExposureRecord
 
 PlanStatus = Literal[
     "ready_to_execute",
@@ -33,6 +34,8 @@ IntentCategory = Literal[
     "retrieve_snapshot",
     "retrieve_history",
     "analyze_trend",
+    "analyze_skill_health",
+    "estimate_skill_half_life",
     "rank_skill_trends",
     "compare_entities",
     "retrieve_evidence",
@@ -41,6 +44,7 @@ IntentCategory = Literal[
     "search_jobs",
     "analyze_company_workforce",
     "forecast_future_demand",
+    "analyze_ai_task_exposure",
     "simulate_workforce_scenarios",
     "unsupported_or_unclear",
 ]
@@ -97,6 +101,8 @@ class IntelligencePlanRequest(BaseModel):
     conversation_id: str | None = None
     clear_context: bool = False
     observations: list[MarketObservation] = Field(default_factory=list)
+    task_exposure_records: list[TaskExposureRecord] = Field(default_factory=list)
+    dataset_provenance: AIExposureDatasetProvenance | None = None
     context_override: dict[str, Any] = Field(default_factory=dict)
 
 

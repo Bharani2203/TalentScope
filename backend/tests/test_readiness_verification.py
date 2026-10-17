@@ -25,6 +25,7 @@ from app.services.market_collection_service import get_collection_status
 from app.services.market_data_scheduler import MarketDataScheduler
 from app.storage.observation_identity import stable_observation_id
 from app.storage.firestore_observation_store import FirestoreObservationStore
+from app.storage.mock_firestore_hub import get_demo_firestore_client
 
 
 def _make_test_obs(
@@ -273,8 +274,8 @@ def test_integrity_b_config_change_different_series_id():
 
 def test_integrity_c_legacy_github_queries_remain_isolated():
     """Legacy GitHub query/panel partitions remain separate and insufficient."""
-    store = FirestoreObservationStore()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=365)
+    store = FirestoreObservationStore(get_demo_firestore_client())
+    cutoff = datetime(2000, 1, 1, tzinfo=timezone.utc)
     obs = store.get_observations(cutoff=cutoff)
     gh_obs = [o for o in obs if o.source.casefold() == "github"]
 
@@ -319,10 +320,9 @@ def test_integrity_f_null_value_remains_null():
     assert agg[0].normalized_value != 0.0
 
 
-def test_integrity_g_no_future_observation_periods():
-    """Requirement G: No future observation periods exist in live production store."""
-    store = FirestoreObservationStore()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=365)
+def test_integrity_g_demo_observations_are_not_future_dated():
+    store = FirestoreObservationStore(get_demo_firestore_client())
+    cutoff = datetime(2000, 1, 1, tzinfo=timezone.utc)
     obs = store.get_observations(cutoff=cutoff)
     current_period = datetime.now(timezone.utc).strftime("%Y-%m")
 
@@ -331,15 +331,14 @@ def test_integrity_g_no_future_observation_periods():
 
 
 def test_integrity_h_no_synthetic_observations():
-    """Requirement H: All production observations have real data (no synthetic data)."""
-    store = FirestoreObservationStore()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=365)
+    """Demo fixture records are labeled demo, not verified production data."""
+    store = FirestoreObservationStore(get_demo_firestore_client())
+    cutoff = datetime(2000, 1, 1, tzinfo=timezone.utc)
     obs = store.get_observations(cutoff=cutoff)
 
-    assert len(obs) >= 90
+    assert len(obs) == 100
     for o in obs:
-        assert o.data_origin != "synthetic"
-        assert o.data_origin in {"real", None}
+        assert o.data_origin == "demo"
         assert o.history_type in {"platform_collected", "snapshot", "backfill", "backfilled"}
 
 
@@ -377,12 +376,12 @@ def test_integrity_l_observation_ids_remain_deterministic():
     assert all(c in "0123456789abcdef" for c in obs.id)
 
 
-def test_integrity_m_existing_90_production_observations_readable():
-    """Requirement M: Existing production observations in Firestore load cleanly."""
-    store = FirestoreObservationStore()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=365)
+def test_integrity_m_demo_fixture_observations_load_cleanly():
+    store = FirestoreObservationStore(get_demo_firestore_client())
+    cutoff = datetime(2000, 1, 1, tzinfo=timezone.utc)
     obs = store.get_observations(cutoff=cutoff)
-    assert len(obs) >= 90
+    assert len(obs) == 100
+    assert all(o.data_origin == "demo" for o in obs)
     providers = {o.source for o in obs}
     assert {"adzuna", "github", "jsearch"}.issubset(providers)
 
@@ -391,9 +390,16 @@ def test_integrity_m_existing_90_production_observations_readable():
 # SECTION 11: COLLECTION HEALTH
 # =========================================================================
 
-def test_collection_health_exposes_quality_and_readiness():
+def test_collection_health_exposes_quality_and_readiness_for_demo_fixture():
     """Verify get_collection_status exposes quality_status and readiness_status."""
-    status = get_collection_status()
+    from app.storage.fetch_run_store import FirestoreFetchRunStore
+    from app.storage.firestore_observation_store import FirestoreObservationStore
+
+    demo_client = get_demo_firestore_client()
+    status = get_collection_status(
+        fetch_run_store=FirestoreFetchRunStore(demo_client),
+        observation_store=FirestoreObservationStore(demo_client),
+    )
     assert isinstance(status, MarketCollectionStatusResponse)
     assert len(status.providers) >= 3
 
@@ -406,6 +412,78 @@ def test_collection_health_exposes_quality_and_readiness():
     assert provider_map["github"].quality_status == "insufficient_data"
     assert provider_map["github"].readiness_status == "not_ready"
     assert provider_map["jsearch"].readiness_status in {"blocked_coverage", "not_ready"}
+
+
+def test_collection_health_does_not_assess_truncated_observation_history():
+    from app.core.config import Settings
+    from app.storage.firestore_observation_store import ObservationBatch
+
+    now = datetime.now(timezone.utc)
+    observation = _make_test_obs(period=now.strftime("%Y-%m"))
+
+    class FetchRunStore:
+        def collection_summary(self):
+            return {
+                "last_collection": {
+                    "providers": {
+                        "jsearch": {
+                            "run_id": "run-truncated",
+                            "status": "success",
+                            "started_at": now,
+                        }
+                    }
+                }
+            }
+
+    class TruncatedObservationStore:
+        def get_observations(self, **_kwargs):
+            return ObservationBatch([observation], truncated=True)
+
+    status = get_collection_status(
+        fetch_run_store=FetchRunStore(),
+        settings=Settings(_env_file=None, market_collection_enabled_providers=[]),
+        observation_store=TruncatedObservationStore(),
+    )
+
+    [jsearch] = status.providers
+    assert jsearch.quality_status == "incomplete"
+    assert jsearch.readiness_status == "incomplete"
+
+
+def test_collection_health_marks_observation_read_failure_unavailable(caplog):
+    from app.core.config import Settings
+
+    now = datetime.now(timezone.utc)
+
+    class FetchRunStore:
+        def collection_summary(self):
+            return {
+                "last_collection": {
+                    "providers": {
+                        "jsearch": {
+                            "run_id": "run-unavailable",
+                            "status": "success",
+                            "started_at": now,
+                        }
+                    }
+                }
+            }
+
+    class FailingObservationStore:
+        def get_observations(self, **_kwargs):
+            raise RuntimeError("private Firestore index details")
+
+    status = get_collection_status(
+        fetch_run_store=FetchRunStore(),
+        settings=Settings(_env_file=None, market_collection_enabled_providers=[]),
+        observation_store=FailingObservationStore(),
+    )
+
+    [jsearch] = status.providers
+    assert jsearch.quality_status == "unavailable"
+    assert jsearch.readiness_status == "unavailable"
+    assert "collection_status_observation_read_failed (RuntimeError)" in caplog.text
+    assert "private Firestore index details" not in caplog.text
 
 
 # =========================================================================

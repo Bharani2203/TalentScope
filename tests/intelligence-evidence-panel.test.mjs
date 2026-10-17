@@ -8,6 +8,7 @@ import {
 } from '../src/api/core-intelligence-client.js';
 import { adaptSkillIntelligenceResponse } from '../src/pages/individual/skills/skills-api.js';
 import { renderIntelligenceEvidencePanel } from '../src/components/common/IntelligenceEvidencePanel.js';
+import { cleanConversationAnswer, renderConversationAnswer, renderConversationNextAction } from '../src/components/common/ConversationAnswer.js';
 
 const metric = {
   capability: 'skill_trend',
@@ -22,6 +23,7 @@ const metric = {
   denominator_unit: 'sampled_postings',
   source: 'jsearch',
   signal_type: 'demand',
+  measured_signal_type: 'demand',
   period: '2026-10',
   observation_periods: ['2026-09', '2026-10'],
   latest_observed_at: '2026-10-13T10:00:00Z',
@@ -39,13 +41,121 @@ assert.doesNotThrow(() => {
     data_state: 'ready',
     metric_results: [metric]
   });
+
+  {
+    const escapedMarkdown = value => `<p>${String(value).replace(/[&<>]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[char])}</p>`;
+    const html = renderConversationAnswer({
+      status: 'completed',
+      execution_status: 'completed',
+      answer_origin: 'gemini'
+    }, escapedMarkdown, {
+      answer: 'Python is relevant to the role.\n\nforecast_readiness: ready\nskill_health_component_readiness: unknown\n### Evidence Highlights\nObserved details\nSources:\n{\n"taxonomy_category": "synthetic"\n}',
+      explanation: 'This is based on the selected role requirements.'
+    });
+    assert.ok(html.includes('AI explanation'));
+    assert.ok(html.includes('Python is relevant to the role.'));
+    assert.ok(html.includes('What this means'));
+    assert.ok(renderConversationNextAction('Review the cited skill mapping.', escapedMarkdown).includes('Next step'));
+    for (const internal of ['forecast_readiness', 'skill_health_component_readiness', 'Evidence Highlights', 'Observed details', 'taxonomy_category', '{']) {
+      assert.ok(!html.includes(internal));
+    }
+  }
+
+  {
+    const html = renderConversationAnswer({
+      status: 'completed',
+      execution_status: 'unsupported'
+    }, value => `<p>${value}</p>`, {
+      answer: 'Workforce projections are not available.'
+    });
+    assert.ok(html.includes('Not supported'));
+    assert.ok(html.includes('no estimate or projection was produced'));
+    assert.ok(html.includes('Workforce projections are not available.'));
+  }
+
+  {
+    const html = renderIntelligenceEvidencePanel({
+      status: 'completed',
+      execution_status: 'blocked',
+      metric_results: [{ ...metric, metric_value: 15, status: 'ready' }],
+      facts: [{
+        metric_name: 'Employee skill coverage',
+        metric_value: 12,
+        quality_state: 'valid',
+        details: { employee_ids: ['private-employee-id'] }
+      }]
+    }, { compact: true });
+    assert.ok(!html.includes('15 job_postings'));
+    assert.ok(!html.includes('12'));
+    assert.ok(!html.includes('private-employee-id'));
+    assert.ok(html.includes('Unavailable'));
+  }
   for (const expected of [
-    'Monthly job postings', '0 job_postings', 'jsearch', 'demand',
+    'Monthly job postings', '0 job postings', 'jsearch', 'demand',
     '2026-10', 'Sampled postings are not a global total.',
     'obs-1', 'run-1', 'https://provider.example/jobs/1', 'ready_for_trend'
   ]) assert.ok(html.includes(expected), `expected panel to contain ${expected}`);
   assert.ok(!html.includes('global market total'));
 });
+
+{
+  const html = renderIntelligenceEvidencePanel({
+    status: 'ready',
+    facts: [{
+      fact_type: 'trend_analysis',
+      metric_name: 'trend_direction',
+      metric_value: 'Increasing',
+      unit: 'job_postings per month',
+      period: '2026-07_to_2026-10',
+      source: 'jsearch',
+      data_origin: 'real',
+      history_type: 'platform_collected',
+      quality_state: 'valid',
+      readiness_state: 'ready',
+      calculation_version: 'trend-velocity-theil-sen-v2',
+      details: {
+        provider: 'jsearch',
+        signal_type: 'demand',
+        start_period: '2026-07',
+        end_period: '2026-10',
+        freshness_state: 'fresh',
+        history_complete: true,
+        observation_ids: ['obs-1'],
+        fetch_run_ids: ['run-1'],
+        source_urls: ['https://provider.example/obs-1']
+      }
+    }]
+  }, { compact: true });
+  const visibleSummary = html.split('<details')[0];
+  assert.ok(visibleSummary.includes('Observed skill trend'));
+  assert.ok(visibleSummary.includes('Increasing · Job-posting demand'));
+  assert.ok(!visibleSummary.includes('trend_direction'));
+  assert.ok(html.includes('Freshness: fresh'));
+  assert.ok(html.includes('History completeness: complete within the requested range'));
+  assert.ok(html.includes('Observation obs-1'));
+  assert.ok(html.includes('Fetch run run-1'));
+  assert.ok(html.includes('href="https://provider.example/obs-1"'));
+}
+
+{
+  const html = renderIntelligenceEvidencePanel({
+    status: 'ready',
+    facts: [{
+      fact_type: 'trend_analysis',
+      metric_name: 'trend_direction',
+      metric_value: 'Increasing',
+      source: 'github',
+      quality_state: 'valid',
+      details: {
+        provider: 'github',
+        signal_type: 'adoption',
+        freshness_state: 'unknown'
+      }
+    }]
+  }, { compact: true });
+  assert.ok(html.includes('Developer adoption/activity'));
+  assert.ok(!html.includes('Job-posting demand'));
+}
 
 {
   const html = renderIntelligenceEvidencePanel({
@@ -123,12 +233,90 @@ assert.doesNotThrow(() => {
       source: 'reference_taxonomy',
       history_type: 'static_dataset',
       metric_kind: 'observed',
-      source_urls: ['https://reference.example/taxonomy', 'javascript:alert(1)']
+      source_urls: ['https://reference.example/taxonomy', 'javascript:alert(1)', 'https://', 'https://user:pass@reference.example/private']
     }]
   });
   assert.ok(html.includes('Reference dataset · not observed market demand'));
   assert.ok(!html.includes('href="javascript:'));
+  assert.ok(!html.includes('href="https:///'));
+  assert.ok(!html.includes('user:pass@'));
   assert.ok(html.includes('href="https://reference.example/taxonomy"'));
+}
+
+{
+  const html = renderIntelligenceEvidencePanel({
+    status: 'ready',
+    metric_results: [metric],
+    facts: [{
+      metric_name: 'Monthly job postings',
+      metric_value: 0,
+      unit: 'job_postings',
+      period: '2026-10',
+      source: 'jsearch',
+      series_id: 'jsearch:query-a:job-demand:python:v1',
+      quality_state: 'valid',
+      metric_kind: 'observed',
+      signal_type: 'demand',
+      provenance_id: 'fact-provenance'
+    }],
+    evidence: [{
+      evidence_id: 'evidence-1',
+      source: 'jsearch',
+      signal_type: 'job_demand',
+      period: '2026-10',
+      source_url: 'https://provider.example/jobs/1',
+      description: 'A stored posting record'
+    }]
+  }, { title: 'Evidence snapshot', compact: true });
+  const visibleSummary = html.split('<details')[0];
+  assert.ok(visibleSummary.includes('Evidence snapshot'));
+  assert.ok(visibleSummary.includes('Job postings'));
+  assert.ok(visibleSummary.includes('0 job postings'));
+  assert.ok(visibleSummary.includes('Job-posting demand'));
+  assert.ok(!visibleSummary.includes('jsearch'));
+  assert.ok(!visibleSummary.includes('fact-provenance'));
+  assert.ok(html.includes('<details class="intel-evidence-details">'));
+  assert.ok(!html.includes('<details open'));
+  assert.ok(html.includes('Source: jsearch'));
+  assert.ok(html.includes('fact-provenance'));
+  assert.ok(html.includes('href="https://provider.example/jobs/1"'));
+  const referenceHtml = renderIntelligenceEvidencePanel({
+    metric_results: [{
+      ...metric,
+      metric_kind: 'observed',
+      source: 'reference_graph',
+      history_type: 'static_dataset',
+      signal_type: 'adoption'
+    }]
+  }, { compact: true });
+  assert.ok(referenceHtml.includes('Reference material · not job-market demand'));
+  assert.ok(!html.includes('href="javascript:'));
+  assert.equal((html.match(/class="intel-evidence-highlight"/g) || []).length, 1);
+}
+
+{
+  const html = renderIntelligenceEvidencePanel({
+    status: 'partial',
+    metric_results: [{
+      ...metric,
+      status: 'unavailable',
+      metric_value: 0,
+      freshness_state: 'stale'
+    }],
+    facts: [{
+      metric_name: 'Trend direction',
+      metric_value: 'up',
+      quality_state: 'valid',
+      freshness_state: 'incomplete'
+    }],
+    limitations: ['The latest observation is stale.']
+  }, { compact: true });
+  const visibleSummary = html.split('<details')[0];
+  assert.ok(!visibleSummary.includes('0 job postings'));
+  assert.ok(!visibleSummary.includes('>up<'));
+  assert.ok(visibleSummary.includes('No current, usable metric values are available.'));
+  assert.ok(html.includes('The latest observation is stale.'));
+  assert.ok(html.includes('Unavailable'));
 }
 
 {
@@ -219,9 +407,31 @@ assert.doesNotThrow(() => {
     const source = await readFile(new URL(path, import.meta.url), 'utf8');
     assert.ok(source.includes('renderIntelligenceEvidencePanel'), `${path} should render structured intelligence evidence`);
   }
+  const individualAssistant = await readFile(new URL(pagePaths[3], import.meta.url), 'utf8');
+  assert.ok(individualAssistant.includes("{ title: 'Evidence snapshot', compact: true }"));
+  assert.ok(!individualAssistant.includes('Evidence Highlights'));
+  assert.ok(!individualAssistant.includes('Verified Grounded'));
+  assert.ok(individualAssistant.includes("showToast('Thanks for letting us know.')"));
+  assert.ok(individualAssistant.includes('data-action="copy_answer"'));
+  assert.ok(individualAssistant.includes('data-feedback="up"'));
+  assert.ok(individualAssistant.includes('executeAiQuery(fu'));
+  assert.ok(individualAssistant.includes('requestContext: turn.requestContext'));
+  const assistantStyles = await readFile(new URL('../src/pages/individual/ai-assistant/ai-assistant.css', import.meta.url), 'utf8');
+  assert.ok(assistantStyles.includes('max-width: 1200px;'));
+  const employeeAssistant = await readFile(new URL(pagePaths[4], import.meta.url), 'utf8');
+  assert.ok(!employeeAssistant.includes('verified empirical platform intelligence'));
+  assert.ok(!employeeAssistant.includes('NVIDIA APAC L4'));
   const companyAssistant = await readFile(new URL(pagePaths[5], import.meta.url), 'utf8');
   assert.ok(!companyAssistant.includes('29,600 employee records'));
   assert.ok(!companyAssistant.includes('Simulated Prototype Intelligence Feed'));
+  assert.ok(!companyAssistant.includes('Workday and DLI benchmarks'));
+  for (const assistantPath of [pagePaths[4], pagePaths[5]]) {
+    const source = await readFile(new URL(assistantPath, import.meta.url), 'utf8');
+    assert.ok(source.includes('data-copy-assistant-answer'), `${assistantPath} should provide answer copying`);
+    assert.ok(source.includes('data-assistant-feedback'), `${assistantPath} should provide message feedback`);
+    assert.ok(source.includes('data-message-index'), `${assistantPath} actions should target a specific message`);
+    assert.ok(source.includes('cleanConversationAnswer'), `${assistantPath} should omit hidden fields from copied answers`);
+  }
 }
 
-console.log('INTELLIGENCE EVIDENCE PANEL TESTS: 11 passed');
+console.log('INTELLIGENCE EVIDENCE PANEL TESTS: 14 passed');

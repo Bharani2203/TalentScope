@@ -86,15 +86,71 @@ const responseFixture = {
 
 {
   const response = adaptCoreIntelligenceAnswerResponse(responseFixture);
+  assert.equal(response.answer_origin, 'deterministic');
   const html = renderAnswerEvidencePanel(response.facts, response.evidence);
   for (const expected of [
-    '12 postings', 'observed', 'jsearch', 'Denominator: 40', '2026-10',
+    '12 postings', 'Observed measurement', 'jsearch', 'Denominator: 40', '2026-10',
     'fetch-run-1', 'posting-1', 'https://jobs.example.test/posting/1'
   ]) {
     assert.ok(html.includes(expected), `expected answer evidence panel to include ${expected}`);
   }
   assert.ok(html.includes('rel="noopener noreferrer"'));
   assert.ok(!html.includes('javascript:'));
+}
+
+{
+  const html = renderAnswerEvidencePanel(
+    [{ ...responseFixture.facts[0], details: { employee_id: 'private-person-id' } }],
+    responseFixture.evidence,
+    { status: 'completed', executionStatus: 'blocked' }
+  );
+  assert.equal(html, '', 'blocked responses do not render attached facts, evidence, or identifiers');
+}
+
+{
+  const html = renderAnswerEvidencePanel([{
+    fact_type: 'trend_analysis',
+    entity_name: 'Python',
+    metric_name: 'trend_direction',
+    metric_value: 'Increasing',
+    unit: 'job_postings per month',
+    period: '2026-07_to_2026-10',
+    source: 'jsearch',
+    data_origin: 'real',
+    history_type: 'platform_collected',
+    denominator: 1000,
+    calculation_version: 'trend-v2',
+    details: {
+      signal_type: 'demand',
+      provider: 'jsearch',
+      start_period: '2026-07',
+      end_period: '2026-10',
+      freshness_state: 'fresh',
+      history_complete: true
+    }
+  }], [{
+    evidence_id: 'trend-evidence',
+    source: 'jsearch',
+    signal_type: 'demand',
+    period: '2026-07_to_2026-10',
+    unit: 'job_postings per month',
+    data_origin: 'real',
+    history_type: 'platform_collected',
+    series_id: 'jsearch:python:demand:v1',
+    supporting_observation_ids: ['obs-1'],
+    supporting_fetch_run_ids: ['run-1'],
+    supporting_source_urls: ['https://provider.example/obs-1'],
+    freshness_state: 'fresh',
+    description: 'Comparable job-posting demand series'
+  }]);
+  assert.ok(html.includes('Observed skill trend · Python'));
+  assert.ok(html.includes('Increasing Job-posting demand'));
+  assert.ok(html.includes('Freshness: fresh'));
+  assert.ok(html.includes('History completeness: complete within the requested range'));
+  assert.ok(html.includes('Collection runs: run-1'));
+  assert.ok(html.includes('Observation records: obs-1'));
+  assert.ok(html.includes('href="https://provider.example/obs-1"'));
+  assert.ok(!html.includes('trend_direction'));
 }
 
 {

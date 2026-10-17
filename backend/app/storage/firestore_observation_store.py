@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 from datetime import datetime, timezone
 import logging
@@ -50,12 +49,7 @@ class FirestoreObservationStore:
     def _collection(self):
         client = self.client
         if client is None:
-            # Prevent accidental quota burn during unit testing
-            if os.getenv("RUN_LIVE_FIRESTORE_TESTS") != "1" and os.getenv("PYTEST_CURRENT_TEST"):
-                from app.storage.mock_firestore_hub import get_mock_firestore_client
-                client = get_mock_firestore_client()
-            else:
-                client = get_firestore_client()
+            client = get_firestore_client()
         return client.collection(self.collection_name)
 
     @classmethod
@@ -200,11 +194,7 @@ class FirestoreObservationStore:
 
         client_to_use = self.client
         if client_to_use is None:
-            if os.getenv("RUN_LIVE_FIRESTORE_TESTS") != "1" and os.getenv("PYTEST_CURRENT_TEST"):
-                from app.storage.mock_firestore_hub import get_mock_firestore_client
-                client_to_use = get_mock_firestore_client()
-            else:
-                client_to_use = get_firestore_client()
+            client_to_use = get_firestore_client()
 
         for offset in range(0, len(new_documents), 450):
             batch = client_to_use.batch()

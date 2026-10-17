@@ -16,6 +16,8 @@ from app.main import app
 from app.models.auth import AuthenticatedUser
 from app.models.skill_intelligence import MarketObservation
 
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
+
 
 def _make_obs(
     *,

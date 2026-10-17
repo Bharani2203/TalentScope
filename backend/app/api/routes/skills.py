@@ -1,7 +1,9 @@
+import asyncio
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from app.api.dependencies import get_current_user
 from app.models.auth import AuthenticatedUser
@@ -74,17 +76,20 @@ async def read_skill_intelligence(
             "message": "Unsupported historical window.",
             "allowed": ["7d", "30d", "3m", "6m", "custom (7-184 days)"],
         })
-    return await get_skill_intelligence(
-        current_user.uid,
-        location=location,
-        range_key=range_key,
-        custom_days=days if range_key == "custom" else None,
-        skill=skill,
+    return await run_in_threadpool(
+        asyncio.run,
+        get_skill_intelligence(
+            current_user.uid,
+            location=location,
+            range_key=range_key,
+            custom_days=days if range_key == "custom" else None,
+            skill=skill,
+        ),
     )
 
 
 @router.get("/intelligence/{skill_id}/evidence", response_model=SkillEvidenceResponse)
-async def read_skill_intelligence_evidence(
+def read_skill_intelligence_evidence(
     skill_id: str,
     source: str | None = Query(default=None),
     signal_type: str | None = Query(default=None),
@@ -107,4 +112,3 @@ async def read_skill_intelligence_evidence(
             },
         )
     return evidence
-

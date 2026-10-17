@@ -499,12 +499,10 @@ def test_intelligence_returns_empty_profile_skills_without_fabrication(monkeypat
 def _store_city_history(path, location="Chennai"):
     store = MarketDataStore(path)
     observations = []
-    for period, python_count, sql_count, react_count in [
-        ("2026-06", 20, 50, 30),
-        ("2026-07", 40, 40, 20),
-        ("2026-08", 60, 30, 10),
-        ("2026-09", 80, 15, 5),
-    ]:
+    for period, (python_count, sql_count, react_count) in zip(
+        _recent_completed_periods(),
+        [(20, 50, 30), (40, 40, 20), (60, 30, 10), (80, 15, 5)],
+    ):
         for index in range(python_count):
             observations.append(MarketObservation(
                 id=f"{location}:{period}:python:{index}",
@@ -518,6 +516,7 @@ def _store_city_history(path, location="Chennai"):
                 scope="city",
                 posting_id=f"{period}:python:{index}",
                 value=1,
+                data_origin="demo",
             ))
         for index in range(sql_count):
             observations.append(MarketObservation(
@@ -532,6 +531,7 @@ def _store_city_history(path, location="Chennai"):
                 scope="city",
                 posting_id=f"{period}:sql:{index}",
                 value=1,
+                data_origin="demo",
             ))
         for index in range(react_count):
             observations.append(MarketObservation(
@@ -546,6 +546,7 @@ def _store_city_history(path, location="Chennai"):
                 scope="city",
                 posting_id=f"{period}:react:{index}",
                 value=1,
+                data_origin="demo",
             ))
     database = skill_intelligence_service.get_firestore_client()
     database.observations.extend(observations)
@@ -555,7 +556,17 @@ def _store_city_history(path, location="Chennai"):
     return TestObservationSink()
 
 
-def test_intelligence_separates_personal_and_market_top_five_and_reads_proficiency(monkeypatch, tmp_path):
+def _recent_completed_periods():
+    now = datetime.now(timezone.utc)
+    current_month_index = now.year * 12 + now.month - 1
+    periods = []
+    for offset in range(4, 0, -1):
+        year, month_index = divmod(current_month_index - offset, 12)
+        periods.append(f"{year:04d}-{month_index + 1:02d}")
+    return periods
+
+
+def test_demo_observations_are_excluded_from_market_evidence_and_proficiency_remains(monkeypatch, tmp_path):
     database = FakeFirestore({
         "users/user-a": profile_doc(
             "user-a",
@@ -582,43 +593,24 @@ def test_intelligence_separates_personal_and_market_top_five_and_reads_proficien
 
     body = response.json()
     assert response.status_code == 200
-    assert body["data_status"] == "available"
-    # These legacy fixtures have publication dates but no collection timestamps;
-    # they must not be described as fresh.
-    assert body["data_state"] == "building"
-    assert body["calculation"]["signal_type"] == "demand"
-    assert body["calculation"]["history_type"] == "platform_collected"
-    assert body["calculation"]["observation_count"] == body["observations_count"]
-    assert body["calculation"]["formula"] == body["calculation_version"]
-    assert body["calculation"]["unknown_freshness_count"] == 400
-    assert body["provenance"]["signal_type"] == "demand"
-    assert body["provenance"]["history_type"] == "platform_collected"
-    assert body["provenance"]["observation_count"] == 400
-    assert body["provenance"]["sources"][0]["observation_count"] == 400
-    assert body["provenance"]["sources"][0]["skills"][0]["observation_count"] > 0
-    assert body["provenance"]["sources"][0]["fetch_run_ids"] == []
-    assert body["provenance"]["sources"][0]["latest_fetch_run_id"] is None
-    assert body["provenance"]["sources"][0]["last_collected"] is None
-    assert "data_origin" not in body["provenance"]
-    assert "source_url" not in body["provenance"]["sources"][0]
-    assert body["provenance"]["sources"][0]["skills"][0]["observation_ids"]
-    assert body["provenance"]["sources"][0]["skills"][0]["observation_ids_truncated"] is True
+    assert body["data_status"] == "insufficient_data"
+    assert body["data_origin"] == "demo"
+    assert body["data_state"] == "insufficient_data"
+    assert body["calculation"]["observation_count"] == 0
+    assert body["provenance"]["observation_count"] == 0
+    assert body["provenance"]["sources"] == []
     assert body["profile_context"]["selected_skills"] == ["Python", "SQL"]
-    assert [item["skill"] for item in body["personal_top_skills"]] == ["Python", "SQL"]
-    assert [item["skill"] for item in body["market_top_skills"]] == ["Python", "SQL", "React"]
-    assert any(item["source"] == "jsearch" and item["skill"] == "Python"
-               for item in body["current_demand"])
+    assert body["personal_top_skills"] == []
+    assert body["market_top_skills"] == []
+    assert body["current_demand"] == []
     assert body["selected_skill"]["proficiency"] == "Comfortable"
-    assert body["selected_skill"]["trend"] == "Growing"
-    assert body["selected_skill"]["series"] == body["market_top_skills"][0]["series"]
-    assert [item["period"] for item in body["selected_skill"]["series"]] == [
-        "2026-06", "2026-07", "2026-08", "2026-09"
-    ]
+    assert body["selected_skill"]["trend"] == "Insufficient Data"
+    assert body["selected_skill"]["series"] == []
     assert body["observations_count"] == 400
     assert body["historical_periods_count"] == 4
 
 
-def test_global_filter_reads_market_observations_across_locations(monkeypatch, tmp_path):
+def test_global_filter_does_not_treat_demo_observations_as_market_evidence(monkeypatch, tmp_path):
     database = FakeFirestore({
         "users/user-a": profile_doc(
             "user-a",
@@ -638,11 +630,12 @@ def test_global_filter_reads_market_observations_across_locations(monkeypatch, t
     body = response.json()
     assert response.status_code == 200
     assert body["filters"]["location"] == "Global"
+    assert body["data_origin"] == "demo"
+    assert body["market_top_skills"] == []
     assert body["observations_count"] == 800
-    assert [item["skill"] for item in body["market_top_skills"]] == ["Python", "SQL", "React"]
 
 
-def test_personal_ranking_ignores_proficiency_and_user_data_is_isolated(monkeypatch, tmp_path):
+def test_profile_skills_and_proficiency_remain_user_isolated_without_market_evidence(monkeypatch, tmp_path):
     database = FakeFirestore({
         "users/user-a": profile_doc(
             "user-a",
@@ -662,24 +655,32 @@ def test_personal_ranking_ignores_proficiency_and_user_data_is_isolated(monkeypa
 
     authenticate_as("user-a")
     with TestClient(app) as client:
-        first = client.get("/api/v1/skills/intelligence").json()
+        first = client.get(
+            "/api/v1/skills/intelligence", params={"skill": "Python"}
+        ).json()
     database.documents["users/user-a"]["profile"]["skills"]["skill_levels"] = {
         "Python": "Expert",
         "SQL": "Beginner",
     }
     authenticate_as("user-a")
     with TestClient(app) as client:
-        changed_proficiency = client.get("/api/v1/skills/intelligence").json()
+        changed_proficiency = client.get(
+            "/api/v1/skills/intelligence", params={"skill": "Python"}
+        ).json()
 
     authenticate_as("user-b")
     with TestClient(app) as client:
-        other_user = client.get("/api/v1/skills/intelligence").json()
+        other_user = client.get(
+            "/api/v1/skills/intelligence", params={"skill": "React"}
+        ).json()
 
-    assert [item["skill"] for item in first["personal_top_skills"]] == [
-        item["skill"] for item in changed_proficiency["personal_top_skills"]
-    ]
+    assert first["personal_top_skills"] == []
+    assert changed_proficiency["personal_top_skills"] == []
+    assert first["selected_skill"]["proficiency"] == "Beginner"
+    assert changed_proficiency["selected_skill"]["proficiency"] == "Expert"
     assert other_user["profile_context"]["selected_skills"] == ["React"]
-    assert [item["skill"] for item in other_user["personal_top_skills"]] == ["React"]
+    assert other_user["personal_top_skills"] == []
+    assert other_user["selected_skill"]["proficiency"] == "Comfortable"
     assert "Python" not in other_user["profile_context"]["selected_skills"]
 
 
@@ -702,8 +703,9 @@ def test_location_and_range_filters_only_use_matching_stored_observations(monkey
             scope="city",
             posting_id=f"bangalore:{period}:{index}",
             value=1,
+            data_origin="demo",
         )
-        for period in ["2026-06", "2026-07", "2026-08", "2026-09"]
+        for period in _recent_completed_periods()
         for index in range(20)
     ])
     authenticate_as()
@@ -721,8 +723,9 @@ def test_location_and_range_filters_only_use_matching_stored_observations(monkey
     city_body = city_response.json()
     short_range_body = short_range_response.json()
     assert city_body["filters"]["location"] == "Bangalore"
-    assert city_body["sources_used"] == ["jsearch"]
-    assert [item["skill"] for item in city_body["market_top_skills"]] == ["Java"]
+    assert city_body["data_origin"] == "demo"
+    assert city_body["sources_used"] == []
+    assert city_body["market_top_skills"] == []
     assert city_body["observations_count"] == 80
     assert short_range_body["data_status"] == "insufficient_data"
     assert short_range_body["market_top_skills"] == []
@@ -766,7 +769,7 @@ def test_skill_response_models_reject_unexpected_fields():
         })
 
 
-def test_single_real_provider_period_is_exposed_as_snapshot_not_trend():
+def test_single_demo_provider_period_is_not_exposed_as_production_evidence():
     from app.services.skill_intelligence_service import _build_intelligence_response
 
     now = datetime(2026, 10, 7, tzinfo=timezone.utc)
@@ -774,7 +777,7 @@ def test_single_real_provider_period_is_exposed_as_snapshot_not_trend():
         id="real-observation-id", source="adzuna", skill="C#", signal_type="demand",
         observed_at=now, period="2026-10", scope="country", location="India",
         posting_id="real-job-id", value=1.0, history_type="platform_collected",
-        data_origin="real", fetch_run_id="real-run-id", series_id="adzuna:panel:job-demand:c_sharp:v1",
+        data_origin="demo", fetch_run_id="demo-run-id", series_id="adzuna:panel:job-demand:c_sharp:v1",
         query_id="adzuna:panel", panel_version="job-demand-v1",
     )
     trend_records = calculate_skill_trends([item], min_periods=4, now=now)
@@ -787,12 +790,6 @@ def test_single_real_provider_period_is_exposed_as_snapshot_not_trend():
     )
 
     assert response.data_state == "insufficient_data"
+    assert response.data_origin == "demo"
     assert response.market_top_skills == []
-    assert len(response.current_demand) == 1
-    snapshot = response.current_demand[0]
-    assert snapshot["value"] == 1.0
-    assert snapshot["source"] == "adzuna"
-    assert snapshot["data_origin"] == "real"
-    assert snapshot["data_state"] == "insufficient_data"
-    assert snapshot["evidence"]["observation_ids"] == ["real-observation-id"]
-    assert snapshot["evidence"]["fetch_run_ids"] == ["real-run-id"]
+    assert response.current_demand == []

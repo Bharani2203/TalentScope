@@ -185,11 +185,11 @@ async function runLiveBrowserVerification() {
 
     const turn1Status = await page.$eval('.ai-turn-item .cmp-badge', el => el.textContent.trim());
     const turn1Answer = await page.$eval('.ai-turn-item .ai-finding-text', el => el.textContent.trim());
-    const turn1FactCount = await page.$$eval('.ai-turn-item .ai-section-block:nth-child(2) > div > div, .ai-turn-item .ai-section-block:nth-child(3) > div > div', els => els.length);
+    const turn1FactCount = await page.$$eval('.ai-turn-item .intel-evidence-highlight', els => els.length);
 
     console.log(`   Execution Status: [${turn1Status}]`);
     console.log(`   Facts Rendered: ${turn1FactCount} verified metrics`);
-    assert.match(turn1Status, /Verified Grounded/i);
+    assert.match(turn1Status, /Answer ready/i);
     assert.ok(turn1Answer.length > 20, 'Expected non-empty answer');
     assert.ok(turn1FactCount > 0, 'Expected structured facts in DOM');
 
@@ -208,7 +208,7 @@ async function runLiveBrowserVerification() {
     const turn2Status = await page.$eval('.ai-turn-item:nth-child(2) .cmp-badge', el => el.textContent.trim());
     const turn2Answer = await page.$eval('.ai-turn-item:nth-child(2) .ai-finding-text', el => el.textContent.trim());
     console.log(`   Follow-up Status: [${turn2Status}]`);
-    assert.match(turn2Status, /Verified Grounded/i);
+    assert.match(turn2Status, /Answer ready/i);
     assert.match(turn2Answer, /Related Occupations|Computer Systems|Engineers|Architects/i);
 
     // Turn 3: Clear session

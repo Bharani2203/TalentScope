@@ -300,16 +300,25 @@ def test_answer_empty_observations():
 
 def test_answer_determinism():
     """Identical inputs produce identical answers without stochastic variation."""
+    now = datetime.now(timezone.utc)
+    current_month_index = now.year * 12 + now.month - 1
+    periods = []
+    for offset in range(4, 0, -1):
+        year, month_index = divmod(current_month_index - offset, 12)
+        periods.append(f"{year:04d}-{month_index + 1:02d}")
     obs = [
-        _make_obs(period="2026-06", value=100.0),
-        _make_obs(period="2026-07", value=120.0),
-        _make_obs(period="2026-08", value=140.0),
-        _make_obs(period="2026-09", value=165.0),
+        _make_obs(period=period, value=value)
+        for period, value in zip(periods, (100.0, 120.0, 140.0, 165.0))
     ]
     store = MockObservationStore(obs)
     service = CoreIntelligenceService(observation_store=store)
 
-    req = CoreIntelligenceRequest(portal_type="individual", intelligence_type="skill", selected_skills=["python"])
+    req = CoreIntelligenceRequest(
+        portal_type="individual",
+        intelligence_type="skill",
+        selected_skills=["python"],
+        time_range="6m",
+    )
     res1 = service.get_intelligence(req)
     res2 = service.get_intelligence(req)
 

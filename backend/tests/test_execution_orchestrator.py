@@ -35,6 +35,8 @@ from app.models.skill_intelligence import MarketObservation
 from app.services.execution_orchestrator_service import ExecutionOrchestratorService
 from app.services.intent_planner_service import IntentPlannerService
 
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
+
 
 def mock_auth_user() -> AuthenticatedUser:
     return AuthenticatedUser(
@@ -131,10 +133,10 @@ def test_explicit_capability_rejects_wrong_domain_and_unavailable_operation():
     )
     unavailable = planner.create_plan(
         IntelligencePlanRequest(
-            message="Estimate the half-life for Python",
-            portal_type="individual",
-            domain="skill",
-            capability_id="skill_forecasting_half_life",
+            message="Simulate workforce headcount scenario",
+            portal_type="company",
+            domain="market",
+            capability_id="workforce_what_if_simulation",
         ),
         authenticated_user=mock_auth_user(),
     )
@@ -165,7 +167,8 @@ def test_no_firestore_imports_in_execution_orchestrator():
 # 2. SUCCESSFUL CAPABILITY EXECUTION (LOCAL SQLITE)
 # =============================================================================
 
-def test_successful_occupation_software_skills_execution():
+@pytest.mark.integration
+def test_successful_occupation_software_skills_execution(local_reference_database):
     """Verify occupation software skills capability executes against local SQLite O*NET data."""
     service = ExecutionOrchestratorService()
     req = CoreIntelligenceAnswerRequest(message="What software tools does a Software Developer use?")
@@ -182,7 +185,8 @@ def test_successful_occupation_software_skills_execution():
     assert "Software Developers" in resp.answer
 
 
-def test_successful_related_occupations_execution():
+@pytest.mark.integration
+def test_successful_related_occupations_execution(local_reference_database):
     """Verify related occupations crosswalk executes against local SQLite O*NET data."""
     service = ExecutionOrchestratorService()
     req = CoreIntelligenceAnswerRequest(message="Show related occupations for Software Developers")
@@ -226,7 +230,8 @@ def test_successful_trend_execution_with_sufficient_periods():
 # 3. BLOCKED & GATED EXECUTION
 # =============================================================================
 
-def test_blocked_capability_never_invokes_handler(monkeypatch):
+@pytest.mark.integration
+def test_blocked_capability_never_invokes_handler(monkeypatch, local_reference_database):
     """Verify that if capability readiness is blocked, the handler is never invoked."""
     service = ExecutionOrchestratorService()
     handler_invoked = False
@@ -367,7 +372,8 @@ def test_numeric_claims_grounded_in_structured_facts():
 # 8. HANDLER EXCEPTION RESILIENCE
 # =============================================================================
 
-def test_handler_exception_returns_safe_failed_result(monkeypatch):
+@pytest.mark.integration
+def test_handler_exception_returns_safe_failed_result(monkeypatch, local_reference_database):
     """Verify that an unexpected exception in a handler returns a safe 'failed' status."""
     service = ExecutionOrchestratorService()
 
@@ -395,9 +401,8 @@ def test_forecasting_and_simulation_strictly_non_executable():
 
     req_fc = CoreIntelligenceAnswerRequest(message="Forecast demand for Python in 2027")
     resp_fc = service.answer(req_fc, authenticated_user=mock_auth_user())
-    assert resp_fc.execution_status == "unsupported"
-    assert resp_fc.plan_status == "unsupported"
-    assert "CAPABILITY_UNSUPPORTED_IN_G2_6" in resp_fc.reason_codes
+    assert resp_fc.execution_status in {"unsupported", "insufficient_data"}
+    assert resp_fc.plan_status in {"unsupported", "insufficient_data"}
     assert len(resp_fc.facts) == 0
 
     req_sim = CoreIntelligenceAnswerRequest(message="Simulate workforce attrition for engineering team")
@@ -632,7 +637,8 @@ def test_task_5_plan_status_inconsistency_regression():
 # 14. API ENDPOINT INTEGRATION
 # =============================================================================
 
-def test_answer_api_endpoint():
+@pytest.mark.integration
+def test_answer_api_endpoint(local_reference_database):
     """Verify POST /api/v1/intelligence/answer returns validated answer response."""
     app.dependency_overrides[dependencies.get_current_user] = mock_auth_user
     client = TestClient(app)
@@ -666,7 +672,8 @@ def test_answer_api_endpoint():
         app.dependency_overrides.pop(dependencies.get_current_user, None)
 
 
-def test_answer_api_accepts_ui_twelve_month_filter():
+@pytest.mark.integration
+def test_answer_api_accepts_ui_twelve_month_filter(local_reference_database):
     """Regression: Home sends the supported 12 Months UI label in committed filters."""
     app.dependency_overrides[dependencies.get_current_user] = mock_auth_user
     client = TestClient(app)

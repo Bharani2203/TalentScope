@@ -8,10 +8,12 @@ NOW = datetime(2026, 10, 6, 12, tzinfo=timezone.utc)
 
 
 def observation(*, history_type="platform_collected", signal_type="demand", created_at=NOW):
+    observed_at = NOW - timedelta(days=120)
     return MarketObservation(
         source="jsearch", skill="Python", signal_type=signal_type,
-        history_type=history_type, observed_at=NOW - timedelta(days=120),
-        created_at=created_at, period="2026-10", value=0.4,
+        history_type=history_type, observed_at=observed_at,
+        created_at=created_at, period=observed_at.strftime("%Y-%m"), value=0.4,
+        data_origin="real",
     )
 
 

@@ -3,12 +3,52 @@ from time import perf_counter
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth, exceptions
+from google.api_core.exceptions import GoogleAPICallError
 
-from app.core.firebase import get_firebase_app
+from app.core.firebase import get_firebase_app, get_firestore_client
 from app.core.auth_diagnostics import elapsed_ms, log_auth_trace, uid_reference
 from app.models.auth import AuthenticatedUser
 
 _bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def resolve_company_membership(uid: str) -> tuple[str, str] | None:
+    """Resolve an active company owner or approved employee from trusted Firestore records."""
+    try:
+        client = get_firestore_client()
+        profile = client.collection("users").document(uid).get().to_dict() or {}
+        company_id = profile.get("company_id")
+        if not isinstance(company_id, str) or not company_id:
+            return None
+
+        company_ref = client.collection("companies").document(company_id)
+        company = company_ref.get().to_dict() or {}
+        if company.get("status") != "active":
+            return None
+
+        if profile.get("user_type") == "company":
+            if company.get("owner_uid") == uid:
+                return company_id, "company"
+            return None
+
+        if profile.get("user_type") != "employee":
+            return None
+        connection = profile.get("company_connection")
+        if (
+            not isinstance(connection, dict)
+            or connection.get("status") != "connected"
+            or connection.get("company_id") != company_id
+        ):
+            return None
+        member = company_ref.collection("members").document(uid).get().to_dict() or {}
+        if member.get("status") != "connected" or member.get("uid") != uid:
+            return None
+        return company_id, "employee"
+    except (GoogleAPICallError, exceptions.FirebaseError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Company membership is temporarily unavailable.",
+        ) from exc
 
 
 def get_current_user(

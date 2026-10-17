@@ -12,6 +12,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.skill_intelligence import MarketObservation
+from app.analytics.ai_disruption import AIExposureDatasetProvenance, TaskExposureRecord
 
 CapabilityState = Literal[
     "available",
@@ -30,12 +31,15 @@ CapabilityId = Literal[
     "market_snapshot",
     "historical_signal_retrieval",
     "trend_velocity_analysis",
+    "skill_health_analysis",
+    "skill_half_life_analysis",
     "evidence_provenance_retrieval",
     "skill_gap_role_fit",
     "action_recommendations",
     "job_posting_search",
     "company_intelligence",
     "skill_forecasting_half_life",
+    "ai_task_exposure",
     "workforce_what_if_simulation",
 ]
 
@@ -90,6 +94,8 @@ class CapabilityEvaluationRequest(BaseModel):
     target_role: str | None = None
     selected_skills: list[str] = Field(default_factory=list)
     observations: list[MarketObservation] = Field(default_factory=list)
+    task_exposure_records: list[TaskExposureRecord] = Field(default_factory=list)
+    dataset_provenance: AIExposureDatasetProvenance | None = None
     context_override: dict[str, Any] = Field(default_factory=dict)
 
 

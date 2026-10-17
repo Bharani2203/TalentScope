@@ -32,6 +32,14 @@ python -m app.scripts.backfill_wikipedia --skill python --start 2025-01 --end 20
 python -m app.scripts.backfill_wikipedia --skill python --start 2025-01 --end 2025-12 --execute
 ```
 
+The standard shared intelligence reader uses Firestore, so rows written only by
+this SQLite backfill are not visible to that reader. If pageview history is
+approved for production use, a bounded migration can export selected validated
+rows to the existing Wikipedia JSON-loader format, run its dry-run validation,
+then write explicit batches of at most 450 observations with the existing
+Firestore loader. Preserve the article, monthly period, unit, series ID, source
+URL, and import-run provenance. No SQLite-to-Firestore migration has been run.
+
 The existing SQLite observation table is migrated additively and idempotently
 to retain canonical skill IDs, denominators, run/series/query provenance,
 quality, confidence, observation counts, extractor versions, annotations, and

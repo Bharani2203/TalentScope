@@ -58,6 +58,23 @@ const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[c]);
 
+function friendlyEvidenceLabel(value) {
+  const key = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const labels = {
+    forecast_readiness: 'Forecast readiness',
+    github_developer_pushers: 'Related developer activity',
+    job_demand: 'Job-posting demand',
+    language_pushers: 'Related programming languages',
+    skill_health_category: 'Skill health category',
+    skill_health_component_readiness: 'Skill health input readiness',
+    taxonomy_category: 'Taxonomy category',
+    topic_pushers: 'Related topics',
+    trend_analysis: 'Trend analysis',
+    trend_direction: 'Trend direction'
+  };
+  return labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase()) || 'Evidence';
+}
+
 /**
  * Standardized status badge
  */
@@ -109,8 +126,11 @@ export function renderStructuredFactsGrid(facts, options = {}) {
 
 export function renderAnswerEvidencePanel(facts = [], evidence = [], options = {}) {
   const title = options.title || 'Evidence & provenance';
-  const validFacts = Array.isArray(facts) ? facts : [];
-  const validEvidence = Array.isArray(evidence) ? evidence : [];
+  const unavailableStatuses = new Set(['blocked', 'data_source_unavailable', 'error', 'failed', 'unavailable', 'unsupported']);
+  const unavailable = [options.executionStatus, options.status]
+    .some(status => unavailableStatuses.has(String(status || '').toLowerCase()));
+  const validFacts = unavailable ? [] : Array.isArray(facts) ? facts : [];
+  const validEvidence = unavailable ? [] : Array.isArray(evidence) ? evidence : [];
   const postings = validFacts
     .filter(fact => fact.fact_type === 'stored_job_postings')
     .flatMap(fact => Array.isArray(fact.details?.postings) ? fact.details.postings : [])
@@ -125,33 +145,77 @@ export function renderAnswerEvidencePanel(facts = [], evidence = [], options = {
       || String(fact.source || '').toLowerCase().startsWith('reference')) {
       return 'Reference';
     }
-    if (fact.metric_kind) return fact.metric_kind;
-    if (/forecast|prediction/i.test(fact.fact_type || '')) return 'Predicted';
+    if (fact.metric_kind === 'observed') return 'Observed measurement';
+    if (fact.metric_kind === 'derived') return 'Derived analysis';
+    if (fact.metric_kind === 'predicted') return 'Forecast';
+    if (/forecast|prediction/i.test(fact.fact_type || '')) return 'Forecast';
     if (/readiness/i.test(fact.fact_type || '')) return 'Readiness';
     if (/trend|health|half.life|analysis/i.test(fact.fact_type || '')) return 'Derived';
     return 'Evidence-backed fact';
   };
-  const safeSourceUrl = value => /^https?:\/\//i.test(String(value || '').trim())
-    ? String(value).trim()
-    : null;
+  const safeSourceUrl = value => {
+    try {
+      const url = new URL(String(value || '').trim());
+      return url.protocol === 'https:' && url.hostname && !url.username && !url.password
+        ? url.href
+        : null;
+    } catch {
+      return null;
+    }
+  };
+  const trendSignalLabel = (signalType, source) => {
+    if (signalType === 'demand') {
+      return ['jsearch', 'adzuna'].includes(String(source || '').toLowerCase())
+        ? 'Job-posting demand'
+        : 'Demand signal';
+    }
+    return ({
+      adoption: 'Developer adoption/activity',
+      interest: 'Community or public interest'
+    })[signalType] || 'Source-specific signal';
+  };
 
   return `
     <section class="ts-answer-evidence" aria-label="${esc(title)}" style="display:flex; flex-direction:column; gap:8px; margin-top:10px; padding-top:8px; border-top:1px solid #E5E7EB;">
       <strong style="font-size:11px; text-transform:uppercase; color:#6B7280;">${esc(title)}</strong>
       ${validFacts.length ? `
         <div class="ts-answer-evidence__facts" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:6px;">
-          ${validFacts.map(fact => `
-            <article class="ts-answer-evidence__fact" style="display:flex; flex-direction:column; gap:3px; background:#F9FAFB; border:1px solid #E5E7EB; border-radius:7px; padding:8px; font-size:11px;">
-              <strong>${esc(fact.metric_name || fact.fact_type || 'Fact')}</strong>
-              <div>${fact.metric_value == null ? 'Unavailable' : esc(fact.metric_value)}${fact.metric_value != null && fact.unit ? ` ${esc(fact.unit)}` : ''}</div>
-              <small>${esc(factKind(fact))}${fact.source ? ` · ${esc(fact.source)}` : ''}</small>
-              ${fact.period ? `<small>Period: ${esc(fact.period)}</small>` : ''}
-              ${fact.denominator != null ? `<small>Denominator: ${esc(fact.denominator)}${fact.denominator_unit ? ` ${esc(fact.denominator_unit)}` : ''}</small>` : ''}
-              ${fact.readiness_state ? `<small>Readiness: ${esc(fact.readiness_state)}</small>` : ''}
-              ${fact.provenance_id ? `<small>Provenance: ${esc(fact.provenance_id)}</small>` : ''}
-              ${fact.calculation_version ? `<small>Method: ${esc(fact.calculation_version)}</small>` : ''}
-            </article>
-          `).join('')}
+          ${validFacts.map(fact => {
+            if (fact.fact_type === 'trend_analysis') {
+              const details = fact.details || {};
+              const source = details.provider || fact.source;
+              const signalType = details.signal_type;
+              const period = details.start_period && details.end_period
+                ? `${details.start_period} to ${details.end_period}`
+                : fact.period;
+              return `
+                <article class="ts-answer-evidence__fact ts-answer-evidence__trend" style="display:flex; flex-direction:column; gap:4px; background:#F9FAFB; border:1px solid #E5E7EB; border-radius:7px; padding:9px; font-size:11px;">
+                  <strong>Observed skill trend · ${esc(fact.entity_name || 'Skill')}</strong>
+                  <div>${esc(fact.metric_value == null ? 'Unavailable' : fact.metric_value)} ${esc(trendSignalLabel(signalType, source))}</div>
+                  ${period ? `<small>Observation period: ${esc(period)}</small>` : ''}
+                  ${fact.unit ? `<small>Measured rate unit: ${esc(fact.unit)}</small>` : ''}
+                  ${fact.denominator != null ? `<small>Denominator: ${esc(fact.denominator)}${details.denominator_unit ? ` ${esc(details.denominator_unit)}` : ''}</small>` : ''}
+                  ${source ? `<small>Source: ${esc(source)}</small>` : ''}
+                  ${details.location || details.scope ? `<small>Scope: ${esc(details.location || details.scope)}</small>` : ''}
+                  ${details.freshness_state ? `<small>Freshness: ${esc(details.freshness_state)}</small>` : ''}
+                  ${details.history_complete === true ? '<small>History completeness: complete within the requested range</small>' : ''}
+                  ${fact.calculation_version ? '<small>Method: Theil-Sen trend</small>' : ''}
+                </article>
+              `;
+            }
+            return `
+              <article class="ts-answer-evidence__fact" style="display:flex; flex-direction:column; gap:3px; background:#F9FAFB; border:1px solid #E5E7EB; border-radius:7px; padding:8px; font-size:11px;">
+                <strong>${esc(friendlyEvidenceLabel(fact.metric_name || fact.fact_type || 'Fact'))}</strong>
+                <div>${fact.metric_value == null ? 'Unavailable' : esc(fact.metric_value)}${fact.metric_value != null && fact.unit ? ` ${esc(fact.unit)}` : ''}</div>
+                <small>${esc(factKind(fact))}${fact.source ? ` · ${esc(fact.source)}` : ''}</small>
+                ${fact.period ? `<small>Period: ${esc(fact.period)}</small>` : ''}
+                ${fact.denominator != null ? `<small>Denominator: ${esc(fact.denominator)}${fact.denominator_unit ? ` ${esc(fact.denominator_unit)}` : ''}</small>` : ''}
+                ${fact.readiness_state ? `<small>Readiness: ${esc(friendlyEvidenceLabel(fact.readiness_state))}</small>` : ''}
+                ${fact.provenance_id ? `<small>Provenance: ${esc(fact.provenance_id)}</small>` : ''}
+                ${fact.calculation_version ? `<small>Method: ${esc(fact.calculation_version)}</small>` : ''}
+              </article>
+            `;
+          }).join('')}
         </div>
       ` : ''}
       ${validEvidence.length ? `
@@ -161,10 +225,19 @@ export function renderAnswerEvidencePanel(facts = [], evidence = [], options = {
             return `
               <article class="ts-answer-evidence__citation" style="display:flex; flex-direction:column; gap:3px; background:#FFFFFF; border:1px solid #E5E7EB; border-radius:7px; padding:8px; font-size:11px;">
                 <strong>${esc(item.source || 'Source unavailable')}</strong>
-                <span>${esc(item.signal_type || 'Signal unavailable')}${item.period ? ` · ${esc(item.period)}` : ''}${item.unit ? ` · ${esc(item.unit)}` : ''}</span>
+                <span>${esc(item.measured_signal_type || item.signal_type || 'Signal unavailable')}${item.period ? ` · ${esc(item.period)}` : ''}${item.unit ? ` · ${esc(item.unit)}` : ''}</span>
                 <p>${esc(item.description || '')}</p>
                 <small>${item.data_origin ? `Origin: ${esc(item.data_origin)}` : ''}${item.history_type ? ` · History: ${esc(item.history_type)}` : ''}${item.series_id ? ` · Series: ${esc(item.series_id)}` : ''}${item.fetch_run_id ? ` · Fetch run: ${esc(item.fetch_run_id)}` : ''}${item.provenance_id ? ` · Provenance: ${esc(item.provenance_id)}` : ''}</small>
+                ${item.freshness_state ? `<small>Freshness: ${esc(item.freshness_state)}</small>` : ''}
+                ${item.supporting_fetch_run_ids?.length ? `<small>Collection runs: ${item.supporting_fetch_run_ids.map(esc).join(', ')}</small>` : ''}
+                ${item.supporting_observation_ids?.length ? `<small>Observation records: ${item.supporting_observation_ids.map(esc).join(', ')}</small>` : ''}
                 ${sourceUrl ? `<a href="${esc(sourceUrl)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>` : ''}
+                ${item.supporting_source_urls?.length ? item.supporting_source_urls.map(value => {
+                  const supportingUrl = safeSourceUrl(value);
+                  return supportingUrl
+                    ? `<a href="${esc(supportingUrl)}" target="_blank" rel="noopener noreferrer">Open supporting source ↗</a>`
+                    : '';
+                }).join('') : ''}
               </article>
             `;
           }).join('')}

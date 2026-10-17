@@ -10,6 +10,7 @@ from firebase_admin import credentials, firestore
 from app.core.config import get_settings
 
 _firebase_app_lock = Lock()
+_firestore_client_factory = firestore.client
 
 
 def _resolve_certificate_path(configured_path: str) -> Path:
@@ -51,12 +52,13 @@ def get_firebase_app() -> firebase_admin.App:
 @lru_cache
 def get_firestore_client():
     """Return the Firestore client associated with the configured Firebase app."""
-    import os
-    from unittest.mock import Mock
-    if isinstance(firestore.client, Mock):
-        return firestore.client(app=get_firebase_app())
-    is_test = os.getenv("RUN_LIVE_FIRESTORE_TESTS") != "1" and ("pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST"))
-    if is_test:
-        from app.storage.mock_firestore_hub import get_mock_firestore_client
-        return get_mock_firestore_client()
+    is_test = "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST")
+    emulator_opt_in = (
+        os.getenv("RUN_LIVE_FIRESTORE_TESTS") == "1"
+        and bool(os.getenv("FIRESTORE_EMULATOR_HOST"))
+    )
+    if is_test and not emulator_opt_in and firestore.client is _firestore_client_factory:
+        raise RuntimeError(
+            "Unit tests must inject a Firestore client; live integration tests require the Firestore emulator."
+        )
     return firestore.client(app=get_firebase_app())

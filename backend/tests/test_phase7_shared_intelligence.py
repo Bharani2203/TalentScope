@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from fastapi import HTTPException
 
 from app.api.dependencies import get_current_user
+from app.api import dependencies
 from app.api.routes import core_intelligence
 from app.core.config import get_settings
 from app.main import app
@@ -797,7 +798,82 @@ def test_truncated_observation_history_is_explicit_in_answer_readiness(monkeypat
     )
 
 
-def test_core_company_context_is_bound_to_authenticated_membership():
+def test_missing_provenance_is_not_reported_as_real_in_trend_readiness(monkeypatch):
+    from app.analytics.shared_intelligence import SharedIntelligenceAnalysis
+
+    observation = MarketObservation(
+        id="legacy-without-provenance",
+        source="jsearch",
+        signal_type="demand",
+        observed_at=datetime(2025, 10, 1, tzinfo=timezone.utc),
+        period="2025-10",
+        skill="Python",
+        value=1,
+    )
+    analysis = SharedIntelligenceAnalysis(
+        observations=[observation],
+        aggregated_signals=[],
+        trend_results=[],
+    )
+    service = ExecutionOrchestratorService(observation_store=EmptyObservationStore())
+    monkeypatch.setattr(service, "_shared_market_analysis", lambda *_args: analysis)
+
+    facts, evidence, _ = service._handle_trend_velocity_analysis(
+        CoreIntelligenceAnswerRequest(message="Show Python trend"),
+        SimpleNamespace(intent=None, context_summary={"primary_entity": "Python"}),
+    )
+
+    readiness_fact = next(fact for fact in facts if fact.fact_type == "analysis_readiness")
+    readiness_evidence = next(item for item in evidence if item.signal_type == "analysis_readiness")
+    assert readiness_fact.data_origin == "unavailable"
+    assert readiness_evidence.data_origin == "unavailable"
+
+
+def test_core_company_context_is_bound_to_authenticated_membership(monkeypatch):
+    class Snapshot:
+        def __init__(self, record):
+            self.record = record
+
+        def to_dict(self):
+            return self.record
+
+    class Document:
+        def __init__(self, database, path):
+            self.database = database
+            self.path = path
+
+        def get(self):
+            return Snapshot(self.database.get(self.path))
+
+        def collection(self, name):
+            return Collection(self.database, f"{self.path}/{name}")
+
+    class Collection:
+        def __init__(self, database, path):
+            self.database = database
+            self.path = path
+
+        def document(self, document_id):
+            return Document(self.database, f"{self.path}/{document_id}")
+
+    class Client:
+        def __init__(self):
+            self.documents = {
+                "users/company-user": {"user_type": "company", "company_id": "member-company"},
+                "companies/member-company": {
+                    "status": "active",
+                    "owner_uid": "company-user",
+                },
+            }
+
+        def get(self, path):
+            return self.documents.get(path)
+
+        def collection(self, name):
+            return Collection(self, name)
+
+    client = Client()
+    monkeypatch.setattr(dependencies, "get_firestore_client", lambda: client)
     with pytest.raises(HTTPException) as no_membership:
         core_intelligence._authorized_company_context(
             CoreIntelligenceRequest(portal_type="company"),
@@ -812,14 +888,18 @@ def test_core_company_context_is_bound_to_authenticated_membership():
         )
     assert unauthorized.value.status_code == 403
 
-    authorized = core_intelligence._authorized_company_context(
+    authorized_request, authorized_user = core_intelligence._authorized_company_context(
         CoreIntelligenceRequest(portal_type="company"),
         AuthenticatedUser(uid="company-user", company_id="member-company"),
     )
-    assert authorized.company_id == "member-company"
+    assert authorized_request.company_id == "member-company"
+    assert authorized_user.company_id == "member-company"
 
 
-def test_answer_keeps_validated_deterministic_fallback_when_llm_has_no_result(monkeypatch):
+@pytest.mark.integration
+def test_answer_keeps_validated_deterministic_fallback_when_llm_has_no_result(
+    monkeypatch, local_reference_database,
+):
     service = ExecutionOrchestratorService(observation_store=EmptyObservationStore())
     monkeypatch.setattr(service.llm_service, "is_available", lambda: True)
     monkeypatch.setattr(service.llm_service, "generate_grounded_explanation", lambda **_kwargs: None)
@@ -838,7 +918,10 @@ def test_answer_keeps_validated_deterministic_fallback_when_llm_has_no_result(mo
     assert response.evidence
 
 
-def test_answer_rejects_invalid_llm_output_and_returns_deterministic_fallback(monkeypatch):
+@pytest.mark.integration
+def test_answer_rejects_invalid_llm_output_and_returns_deterministic_fallback(
+    monkeypatch, local_reference_database,
+):
     service = ExecutionOrchestratorService(observation_store=EmptyObservationStore())
     monkeypatch.setattr(service.llm_service, "is_available", lambda: True)
     monkeypatch.setattr(

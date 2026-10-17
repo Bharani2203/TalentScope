@@ -26,7 +26,6 @@ import pytest
 
 from app.analytics.trend import calculate_trend_and_velocity
 from app.analytics.signal_aggregation import aggregate_market_signals
-from app.core.firebase import get_firestore_client
 from app.models.core_intelligence import CoreIntelligenceRequest
 from app.models.market_signal import SkillTrendVelocityResult
 from app.services.core_intelligence_service import CoreIntelligenceService
@@ -43,8 +42,7 @@ from app.storage.firestore_read_guard import (
     read_guard,
 )
 from app.storage.mock_firestore_hub import (
-    create_verified_production_snapshot,
-    get_mock_firestore_client,
+    get_demo_firestore_client,
 )
 
 
@@ -64,7 +62,7 @@ def setup_read_test_environment():
 # Criterion A: Targeted series query
 # -------------------------------------------------------------------------
 def test_criterion_a_targeted_series_query():
-    client = get_mock_firestore_client()
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
 
     read_guard.reset_metrics()
@@ -84,7 +82,7 @@ def test_criterion_a_targeted_series_query():
 # Criterion B: Targeted skill query
 # -------------------------------------------------------------------------
 def test_criterion_b_targeted_skill_query():
-    client = get_mock_firestore_client()
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
 
     read_guard.reset_metrics()
@@ -104,7 +102,7 @@ def test_criterion_b_targeted_skill_query():
 # Criterion C: Bounded date-range query
 # -------------------------------------------------------------------------
 def test_criterion_c_bounded_date_range_query():
-    client = get_mock_firestore_client()
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
 
     cutoff = datetime(2026, 8, 1, tzinfo=timezone.utc)
@@ -121,7 +119,7 @@ def test_criterion_c_bounded_date_range_query():
 # Criterion D: No unnecessary full collection scan
 # -------------------------------------------------------------------------
 def test_criterion_d_no_unnecessary_full_collection_scan(monkeypatch):
-    client = get_mock_firestore_client()
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
 
     # In strict mode, broad scans raise an error
@@ -139,8 +137,8 @@ def test_criterion_d_no_unnecessary_full_collection_scan(monkeypatch):
 # -------------------------------------------------------------------------
 # Criterion E: Calculation record reuse
 # -------------------------------------------------------------------------
-def test_criterion_e_calculation_record_reuse():
-    client = get_mock_firestore_client()
+def test_criterion_e_demo_observations_are_not_persisted_as_production_calculations():
+    client = get_demo_firestore_client()
     calc_store = FirestoreCalculationRecordStore(client)
 
     obs_store = FirestoreObservationStore(client)
@@ -152,45 +150,22 @@ def test_criterion_e_calculation_record_reuse():
     assert len(trends) == 1
     trend_res = trends[0]
 
-    # First persistence: writes to store
+    assert trend_res.data_origin == "demo"
     read_guard.reset_metrics()
     first_records = calc_store.persist_trend_velocity_results(
         [trend_res],
         observations_by_id={o.id: o for o in py_obs if o.id},
     )
-    assert len(first_records) == 1
-    key = next(iter(first_records.keys()))
-    calc_id = first_records[key]
-
-    # Second persistence call with same input: REUSES without duplicate reads/writes
-    second_records = calc_store.persist_trend_velocity_results(
-        [trend_res],
-        observations_by_id={o.id: o for o in py_obs if o.id},
-    )
-    assert second_records[key] == calc_id
-
-    metrics = read_guard.get_metrics()
-    assert metrics["calculation_records_reused"] >= 1
-
-    # find_reusable_trend_calculation retrieves the exact cached record
-    cached = calc_store.find_reusable_trend_calculation(
-        source=trend_res.source,
-        signal_type=trend_res.signal_type,
-        canonical_name=trend_res.canonical_name,
-        latest_period=trend_res.latest_period,
-        observation_ids=trend_res.observation_ids,
-        formula_id=trend_res.calculation_version,
-    )
-    assert cached is not None
-    assert cached.calculation_id == calc_id
-    assert cached.result["velocity"] == trend_res.velocity
+    assert first_records == {}
+    assert client.collection("calculation_records").stream() == []
+    assert read_guard.get_metrics()["total_document_reads"] == 0
 
 
 # -------------------------------------------------------------------------
 # Criterion F: Calculation invalidation when input changes
 # -------------------------------------------------------------------------
-def test_criterion_f_calculation_invalidation_when_input_changes():
-    client = get_mock_firestore_client()
+def test_criterion_f_unverified_synthetic_trend_is_not_persisted():
+    client = get_demo_firestore_client()
     calc_store = FirestoreCalculationRecordStore(client)
 
     # 4 periods observation list
@@ -228,10 +203,10 @@ def test_criterion_f_calculation_invalidation_when_input_changes():
         observation_count=4,
         fetch_run_ids=["run_1"],
         metric="raw_count",
+        data_origin="demo",
+        history_type="snapshot",
     )
-    calc_store.persist_trend_velocity_results([mock_trend])
-
-    # Now 4 periods is found
+    assert calc_store.persist_trend_velocity_results([mock_trend]) == {}
     cached_4 = calc_store.find_reusable_trend_calculation(
         source="stackexchange",
         signal_type="interest",
@@ -239,9 +214,7 @@ def test_criterion_f_calculation_invalidation_when_input_changes():
         latest_period="2026-08",
         observation_ids=obs_ids_4,
     )
-    assert cached_4 is not None
-
-    # Changed input (5 periods) MUST NOT reuse the 4-period calculation
+    assert cached_4 is None
     cached_5 = calc_store.find_reusable_trend_calculation(
         source="stackexchange",
         signal_type="interest",
@@ -256,7 +229,7 @@ def test_criterion_f_calculation_invalidation_when_input_changes():
 # Criterion G: Repeated Core Intelligence request does not repeat reads
 # -------------------------------------------------------------------------
 def test_criterion_g_repeated_core_intelligence_request_reuses_cache():
-    client = get_mock_firestore_client()
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
     svc = CoreIntelligenceService(observation_store=store)
 
@@ -292,9 +265,7 @@ def test_criterion_g_repeated_core_intelligence_request_reuses_cache():
 # -------------------------------------------------------------------------
 def test_criterion_h_unit_tests_do_not_require_production_firebase():
     assert os.getenv("RUN_LIVE_FIRESTORE_TESTS") != "1"
-    fs_client = get_firestore_client()
-    assert fs_client is not None
-    # Collection access works seamlessly in memory
+    fs_client = get_demo_firestore_client()
     docs = fs_client.collection("skill_market_signals").stream()
     assert len(docs) == 100
 
@@ -302,8 +273,8 @@ def test_criterion_h_unit_tests_do_not_require_production_firebase():
 # -------------------------------------------------------------------------
 # Criterion I: Existing G1.14 analytical results remain unchanged
 # -------------------------------------------------------------------------
-def test_criterion_i_g1_14_analytical_results_remain_unchanged():
-    client = get_mock_firestore_client()
+def test_criterion_i_demo_fixture_is_not_a_production_trend():
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
 
     # Stack Exchange Python
@@ -313,29 +284,24 @@ def test_criterion_i_g1_14_analytical_results_remain_unchanged():
     assert len(py_trends) == 1
     py_trend = py_trends[0]
 
-    assert py_trend.trend == "Increasing"
-    assert py_trend.slope is not None and py_trend.slope > 0
-    assert py_trend.velocity is not None and py_trend.velocity > 0
-    assert py_trend.data_state == "ready"
+    assert py_trend.data_origin == "demo"
+    assert py_trend.data_state != "ready"
 
-    # Stack Exchange C#
     cs_obs = store.get_observations_by_series("stackexchange:stackoverflow:question-tag:c#:v1")
     cs_agg = aggregate_market_signals(cs_obs)
     cs_trends = calculate_trend_and_velocity(cs_agg)
     assert len(cs_trends) == 1
     cs_trend = cs_trends[0]
 
-    assert cs_trend.trend == "Increasing"
-    assert cs_trend.slope is not None and cs_trend.slope > 0
-    assert cs_trend.velocity is not None and cs_trend.velocity > 0
-    assert cs_trend.data_state == "ready"
+    assert cs_trend.data_origin == "demo"
+    assert cs_trend.data_state != "ready"
 
 
 # -------------------------------------------------------------------------
 # Criterion J: Existing provenance remains unchanged
 # -------------------------------------------------------------------------
 def test_criterion_j_existing_provenance_remains_unchanged():
-    client = get_mock_firestore_client()
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
 
     obs = store.get_observations_by_series("stackexchange:stackoverflow:question-tag:python:v1")
@@ -349,18 +315,19 @@ def test_criterion_j_existing_provenance_remains_unchanged():
 # -------------------------------------------------------------------------
 # Criterion K: Insufficient data remains insufficient_data
 # -------------------------------------------------------------------------
-def test_criterion_k_insufficient_data_remains_insufficient_data():
-    client = get_mock_firestore_client()
+def test_criterion_k_demo_jsearch_data_is_unavailable_for_production_trends():
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
 
-    # JSearch has only 1 period (2026-10) in production
     jsearch_obs = [o for o in store.get_observations(cutoff=datetime(2020, 1, 1, tzinfo=timezone.utc)) if o.source == "jsearch"]
+    assert jsearch_obs
+    assert all(observation.data_origin == "demo" for observation in jsearch_obs)
     jsearch_agg = aggregate_market_signals(jsearch_obs)
     jsearch_trends = calculate_trend_and_velocity(jsearch_agg)
 
     for tr in jsearch_trends:
-        assert tr.data_state == "insufficient_data"
-        assert tr.trend == "Insufficient Data"
+        assert tr.data_origin == "demo"
+        assert tr.data_state == "unavailable"
         assert tr.velocity is None
 
 
@@ -368,7 +335,7 @@ def test_criterion_k_insufficient_data_remains_insufficient_data():
 # Criterion L: No missing data becomes zero
 # -------------------------------------------------------------------------
 def test_criterion_l_no_missing_data_becomes_zero():
-    client = get_mock_firestore_client()
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
 
     svc = CoreIntelligenceService(observation_store=store)
@@ -390,17 +357,16 @@ def test_criterion_l_no_missing_data_becomes_zero():
 
 
 # -------------------------------------------------------------------------
-# Criterion M: No synthetic observations are created
+# Criterion M: Demo observations are never labeled real
 # -------------------------------------------------------------------------
-def test_criterion_m_no_synthetic_observations():
-    client = get_mock_firestore_client()
+def test_criterion_m_demo_observations_are_not_labeled_real():
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
 
     obs = store.get_observations(cutoff=datetime(2020, 1, 1, tzinfo=timezone.utc), use_cache=False)
     assert len(obs) == 100
     for o in obs:
-        assert o.data_origin != "synthetic"
-        assert o.data_origin in {"real", None}
+        assert o.data_origin == "demo"
         assert o.history_type in {"platform_collected", "snapshot", "backfill", "backfilled"}
 
 
@@ -408,7 +374,7 @@ def test_criterion_m_no_synthetic_observations():
 # Criterion N: No forecasting is introduced
 # -------------------------------------------------------------------------
 def test_criterion_n_no_forecasting_introduced():
-    client = get_mock_firestore_client()
+    client = get_demo_firestore_client()
     store = FirestoreObservationStore(client)
     svc = CoreIntelligenceService(observation_store=store)
 

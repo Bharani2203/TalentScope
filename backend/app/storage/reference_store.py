@@ -549,6 +549,24 @@ class ReferenceDataStore:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def get_onet_software_skills_by_occupation(
+        self, soc_code: str, *, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Read bounded occupation mappings with the original O*NET flags intact."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, soc_code, title, workplace_example, element_id, element_name,
+                       hot_technology, in_demand, canonical_skill_id
+                FROM ref_onet_software_skills
+                WHERE soc_code = ? AND TRIM(workplace_example) <> ''
+                ORDER BY hot_technology DESC, in_demand DESC, LOWER(workplace_example), id
+                LIMIT ?
+                """,
+                (soc_code.strip(), max(1, min(limit, 500))),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
     def get_github_adoption_series(
         self,
         *,

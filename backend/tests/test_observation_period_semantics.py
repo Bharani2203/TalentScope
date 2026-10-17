@@ -3,7 +3,10 @@ from datetime import date, datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from app.analytics.observation_period import is_completed_month, normalize_month_period
+from app.analytics.observation_period import (
+    is_completed_month,
+    normalize_month_period,
+)
 from app.analytics.signal_aggregation import aggregate_market_signals
 from app.analytics.trend import calculate_trend_and_velocity
 from app.models.market_signal import AggregatedMarketSignal
@@ -11,12 +14,13 @@ from app.models.skill_intelligence import MarketObservation
 
 
 def observation(period: str, value: float, denominator: float | None):
+    year, month = map(int, normalize_month_period(period).split("-"))
     return MarketObservation(
         source="jsearch", skill="Python", skill_id="python", signal_type="demand",
-        observed_at=datetime(2026, 1, 15, tzinfo=timezone.utc), period=period,
+        observed_at=datetime(year, month, 15, tzinfo=timezone.utc), period=period,
         scope="global", location="Global", value=value, posting_id=f"job:{period}:{value}",
         denominator=denominator, data_origin="real", history_type="platform_collected",
-        series_id="jsearch:demand:python", panel_version="v1",
+        series_id="jsearch:demand:python", panel_version="v1", unit="job_postings",
     )
 
 
@@ -25,7 +29,7 @@ def signal(period: str, value: float) -> AggregatedMarketSignal:
         canonical_skill_id="python", canonical_name="Python", source="jsearch",
         signal_type="demand", period=period, metric="raw_count", raw_value=value,
         data_origin="real", history_type="platform_collected", data_state="ready",
-        series_id="jsearch:demand:python", panel_version="v1",
+        series_id="jsearch:demand:python", panel_version="v1", unit="job_postings",
     )
 
 
@@ -75,6 +79,7 @@ def test_percentage_change_is_omitted_when_previous_denominator_value_is_zero():
             signal_type="demand", period=period, metric="normalized_share", raw_value=value,
             normalized_value=value, denominator=100, data_origin="real",
             history_type="platform_collected", data_state="ready", series_id="same", panel_version="v1",
+            unit="job_postings",
         )
         for period, value in (("2026-07", 1), ("2026-08", 2), ("2026-09", 0), ("2026-10", 3))
     ]

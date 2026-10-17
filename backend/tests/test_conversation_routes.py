@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.main import app
+from app.api import dependencies
 from app.api.dependencies import get_current_user
 from app.models.auth import AuthenticatedUser
 from app.storage.conversation_store import ConversationStore, ConversationTurn, ConversationState
@@ -22,7 +23,14 @@ def override_user():
 @pytest.fixture(autouse=True)
 def setup_teardown(monkeypatch):
     from app.core import firebase
+    from app.storage.mock_firestore_hub import get_demo_firestore_client
+
     monkeypatch.setattr(firebase, "get_firestore_client", lambda: None)
+    monkeypatch.setattr(
+        dependencies,
+        "get_firestore_client",
+        get_demo_firestore_client,
+    )
     app.dependency_overrides[get_current_user] = override_user
     yield
     app.dependency_overrides.clear()
@@ -66,6 +74,23 @@ def test_conversation_crud_flow():
     # 4. Get after delete should 404
     resp_get_404 = client.get(f"/api/v1/intelligence/conversations/{cid}")
     assert resp_get_404.status_code == 404
+
+
+def test_conversation_access_fails_closed_when_firestore_lookup_fails(monkeypatch, caplog):
+    from app.core import firebase
+
+    def unavailable_firestore():
+        raise RuntimeError("Firestore unavailable")
+
+    monkeypatch.setattr(firebase, "get_firestore_client", unavailable_firestore)
+    allowed, reason = ConversationStore().check_conversation_access(
+        "persisted-conversation",
+        user_id="different_user",
+    )
+
+    assert allowed is False
+    assert reason == "Conversation access could not be verified. Please retry."
+    assert "ownership lookup failed (RuntimeError); denying access." in caplog.text
 
 
 def test_create_empty_conversation_can_be_listed_and_restored():
