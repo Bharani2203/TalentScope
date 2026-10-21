@@ -189,6 +189,31 @@ def test_observation_rejects_invalid_numeric_or_period_contract(overrides):
         MarketObservation(**fields)
 
 
+def test_zero_demand_requires_complete_named_sampling_frame():
+    fields = {
+        "source": "fixture", "skill": "Python", "signal_type": "demand",
+        "observed_at": datetime(2026, 9, 1, tzinfo=timezone.utc), "period": "2026-09",
+        "value": 0.0, "unit": "job_postings", "data_origin": "real",
+        "history_type": "platform_collected", "fetch_run_id": "synthetic-test-run",
+    }
+    with pytest.raises(ValidationError, match="complete collection coverage"):
+        MarketObservation(**fields)
+    verified = MarketObservation(**fields, quality={
+        "collection_complete": True, "pagination_complete": True,
+        "zero_results_verified": True, "sampling_frame": "synthetic-test-frame",
+    })
+    assert verified.value == 0
+
+
+def test_unresolved_skill_mapping_does_not_retain_supplied_canonical_id():
+    observation = MarketObservation(
+        source="fixture", skill="Unregistered Fixture Skill", skill_id="python",
+        signal_type="interest", observed_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        period="2026-09", value=1.0,
+    )
+    assert observation.skill_id is None
+
+
 def test_firestore_document_preserves_non_demand_series_and_quality_fields():
     observation = MarketObservation(
         source="github", skill="Python", signal_type="adoption",

@@ -18,19 +18,32 @@ from app.models.reference_data import (
 
 
 class ReferenceDataStore:
-    def __init__(self, database_path: str | Path | None = None):
+    def __init__(self, database_path: str | Path | None = None, *, read_only: bool = False):
         if database_path is None:
             from app.core.config import get_settings
-            database_path = get_settings().database_path
+            database_path = get_settings().reference_database_path
         self.database_path = Path(database_path)
-        self.database_path.parent.mkdir(parents=True, exist_ok=True)
-        self._initialize()
+        self.read_only = read_only
+        if self.read_only:
+            if not self.database_path.is_file():
+                raise FileNotFoundError(f"Reference database not found: {self.database_path}")
+        else:
+            self.database_path.parent.mkdir(parents=True, exist_ok=True)
+            self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path, timeout=15)
+        if self.read_only:
+            connection = sqlite3.connect(
+                self.database_path.resolve().as_uri() + "?mode=ro",
+                timeout=15,
+                uri=True,
+            )
+        else:
+            connection = sqlite3.connect(self.database_path, timeout=15)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA busy_timeout = 15000")
-        connection.execute("PRAGMA journal_mode = WAL")
+        if not self.read_only:
+            connection.execute("PRAGMA journal_mode = WAL")
         return connection
 
     def _initialize(self) -> None:
@@ -165,6 +178,18 @@ class ReferenceDataStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_ref_esco_skill_label
                     ON ref_esco_skills(preferred_label);
+                CREATE TABLE IF NOT EXISTS ref_esco_occupations (
+                    concept_uri TEXT PRIMARY KEY,
+                    preferred_label TEXT NOT NULL,
+                    alt_labels TEXT NOT NULL DEFAULT '[]',
+                    description TEXT,
+                    code TEXT,
+                    isco_group TEXT,
+                    modified_date TEXT,
+                    source_version TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_ref_esco_occupation_label
+                    ON ref_esco_occupations(preferred_label);
                 CREATE TABLE IF NOT EXISTS ref_esco_occupation_skill_relations (
                     occupation_uri TEXT NOT NULL,
                     occupation_label TEXT,
@@ -196,9 +221,48 @@ class ReferenceDataStore:
                     description=excluded.description,
                     modified_date=excluded.modified_date,
                     source_version=excluded.source_version
+                WHERE preferred_label IS NOT excluded.preferred_label
+                   OR alt_labels IS NOT excluded.alt_labels
+                   OR skill_type IS NOT excluded.skill_type
+                   OR reuse_level IS NOT excluded.reuse_level
+                   OR description IS NOT excluded.description
+                   OR modified_date IS NOT excluded.modified_date
+                   OR source_version IS NOT excluded.source_version
             """, [(
                 r["concept_uri"], r["preferred_label"], r.get("alt_labels", "[]"),
                 r.get("skill_type"), r.get("reuse_level"), r.get("description"),
+                r.get("modified_date"), r.get("source_version", "unknown"),
+            ) for r in records])
+            return connection.total_changes - before
+
+    def upsert_esco_occupations(self, records: list[dict[str, Any]]) -> int:
+        if not records:
+            return 0
+        with self._connect() as connection:
+            before = connection.total_changes
+            connection.executemany("""
+                INSERT INTO ref_esco_occupations
+                (concept_uri, preferred_label, alt_labels, description, code,
+                 isco_group, modified_date, source_version)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(concept_uri) DO UPDATE SET
+                    preferred_label=excluded.preferred_label,
+                    alt_labels=excluded.alt_labels,
+                    description=excluded.description,
+                    code=excluded.code,
+                    isco_group=excluded.isco_group,
+                    modified_date=excluded.modified_date,
+                    source_version=excluded.source_version
+                WHERE preferred_label IS NOT excluded.preferred_label
+                   OR alt_labels IS NOT excluded.alt_labels
+                   OR description IS NOT excluded.description
+                   OR code IS NOT excluded.code
+                   OR isco_group IS NOT excluded.isco_group
+                   OR modified_date IS NOT excluded.modified_date
+                   OR source_version IS NOT excluded.source_version
+            """, [(
+                r["concept_uri"], r["preferred_label"], r.get("alt_labels", "[]"),
+                r.get("description"), r.get("code"), r.get("isco_group"),
                 r.get("modified_date"), r.get("source_version", "unknown"),
             ) for r in records])
             return connection.total_changes - before
@@ -216,6 +280,9 @@ class ReferenceDataStore:
                     occupation_label=excluded.occupation_label,
                     skill_type=excluded.skill_type,
                     skill_label=excluded.skill_label
+                WHERE occupation_label IS NOT excluded.occupation_label
+                   OR skill_type IS NOT excluded.skill_type
+                   OR skill_label IS NOT excluded.skill_label
             """, [(
                 r["occupation_uri"], r.get("occupation_label"), r.get("relation_type"),
                 r["skill_uri"], r.get("skill_type"), r.get("skill_label"),
@@ -228,6 +295,7 @@ class ReferenceDataStore:
             onet = connection.execute("""
                 SELECT workplace_example AS name, 'onet_software' AS source,
                        GROUP_CONCAT(DISTINCT soc_code) AS occupation_ids,
+                       GROUP_CONCAT(DISTINCT element_id) AS taxonomy_id,
                        GROUP_CONCAT(DISTINCT element_name) AS categories,
                        MAX(hot_technology) AS hot_technology,
                        MAX(in_demand) AS in_demand
@@ -238,6 +306,7 @@ class ReferenceDataStore:
             essential = connection.execute("""
                 SELECT element_name AS name, 'onet_essential' AS source,
                        GROUP_CONCAT(DISTINCT soc_code) AS occupation_ids,
+                       GROUP_CONCAT(DISTINCT element_id) AS taxonomy_id,
                        'Essential competency' AS categories, NULL AS hot_technology,
                        NULL AS in_demand
                 FROM ref_onet_essential_skills
@@ -258,6 +327,81 @@ class ReferenceDataStore:
             rows = [dict(row) for row in (*onet, *essential)]
             rows.extend(dict(row) for row in esco)
             return rows
+
+    def get_esco_occupations(
+        self, *, query: str | None = None, concept_uri: str | None = None, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Read ESCO occupations without conflating their URIs with O*NET SOC IDs."""
+        with self._connect() as connection:
+            if concept_uri:
+                rows = connection.execute(
+                    "SELECT * FROM ref_esco_occupations WHERE concept_uri = ? LIMIT ?",
+                    (concept_uri.strip(), max(1, min(limit, 100))),
+                ).fetchall()
+            elif query:
+                rows = connection.execute(
+                    """SELECT * FROM ref_esco_occupations
+                       WHERE lower(preferred_label) = lower(?)
+                       ORDER BY preferred_label, concept_uri LIMIT ?""",
+                    (query.strip(), max(1, min(limit, 100))),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT * FROM ref_esco_occupations ORDER BY preferred_label, concept_uri LIMIT ?",
+                    (max(1, min(limit, 100)),),
+                ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_esco_skills(
+        self, *, query: str | None = None, concept_uri: str | None = None, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Read ESCO skill taxonomy records by exact label or concept URI."""
+        with self._connect() as connection:
+            if concept_uri:
+                rows = connection.execute(
+                    "SELECT * FROM ref_esco_skills WHERE concept_uri = ? LIMIT ?",
+                    (concept_uri.strip(), max(1, min(limit, 100))),
+                ).fetchall()
+            elif query:
+                rows = connection.execute(
+                    """SELECT * FROM ref_esco_skills
+                       WHERE lower(preferred_label) = lower(?)
+                       ORDER BY preferred_label, concept_uri LIMIT ?""",
+                    (query.strip(), max(1, min(limit, 100))),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT * FROM ref_esco_skills ORDER BY preferred_label, concept_uri LIMIT ?",
+                    (max(1, min(limit, 100)),),
+                ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_esco_occupation_skills(
+        self, occupation_uri: str, *, limit: int = 50, relation_type: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Return ESCO occupation-to-skill relations with their source taxonomy row."""
+        relation_filter = relation_type.strip().casefold() if relation_type else None
+        if relation_filter not in {None, "essential", "optional"}:
+            raise ValueError("relation_type must be essential or optional")
+        relation_clause = " AND lower(r.relation_type) = ?" if relation_filter else ""
+        params: tuple[Any, ...] = (occupation_uri.strip(), relation_filter, max(1, min(limit, 500))) if relation_filter else (occupation_uri.strip(), max(1, min(limit, 500)))
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""SELECT r.occupation_uri, r.occupation_label, r.relation_type,
+                          r.skill_type AS relation_skill_type, r.skill_uri,
+                          r.skill_label AS relation_skill_label,
+                          s.preferred_label, s.alt_labels, s.skill_type, s.reuse_level,
+                          s.description, s.source_version
+                   FROM ref_esco_occupation_skill_relations r
+                   LEFT JOIN ref_esco_skills s ON s.concept_uri = r.skill_uri
+                   WHERE r.occupation_uri = ?{relation_clause}
+                   ORDER BY CASE lower(r.relation_type)
+                              WHEN 'essential' THEN 0 WHEN 'optional' THEN 1 ELSE 2 END,
+                            lower(COALESCE(s.preferred_label, r.skill_label)), r.skill_uri
+                   LIMIT ?""",
+                params,
+            ).fetchall()
+            return [dict(row) for row in rows]
 
     def upsert_onet_occupations(self, occupations: list[OnetOccupation]) -> int:
         if not occupations:
@@ -493,6 +637,7 @@ class ReferenceDataStore:
             "ref_github_language_adoption",
             "ref_github_topic_adoption",
             "ref_esco_skills",
+            "ref_esco_occupations",
             "ref_esco_occupation_skill_relations",
             "ref_ingestion_log",
         ]
@@ -563,6 +708,23 @@ class ReferenceDataStore:
                 ORDER BY hot_technology DESC, in_demand DESC, LOWER(workplace_example), id
                 LIMIT ?
                 """,
+                (soc_code.strip(), max(1, min(limit, 500))),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_onet_essential_skills_by_occupation(
+        self, soc_code: str, *, limit: int = 500
+    ) -> list[dict[str, Any]]:
+        """Read O*NET skill importance records without calling them qualifications."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT id, soc_code, title, element_id, element_name, scale_id,
+                          scale_name, data_value, sample_size, recommend_suppress,
+                          domain_source, date
+                   FROM ref_onet_essential_skills
+                   WHERE soc_code = ? AND TRIM(element_name) <> ''
+                     AND scale_id = 'IM' AND recommend_suppress = 0
+                   ORDER BY LOWER(element_name), element_id, id LIMIT ?""",
                 (soc_code.strip(), max(1, min(limit, 500))),
             ).fetchall()
             return [dict(row) for row in rows]

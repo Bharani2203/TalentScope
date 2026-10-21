@@ -1,64 +1,198 @@
 import os
-from functools import lru_cache
 from pathlib import Path
+import socket
 from threading import Lock
-import sys
+from typing import Any
 
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.auth.credentials import AnonymousCredentials
 
 from app.core.config import get_settings
 
 _firebase_app_lock = Lock()
-_firestore_client_factory = firestore.client
+_firestore_client_lock = Lock()
+_firestore_clients: dict[int, Any] = {}
+_LOCAL_FIREBASE_PROJECT_ID = "demo-talentscope-local"
+_LOCAL_FIRESTORE_HOST = "127.0.0.1:8080"
+_LOCAL_AUTH_HOST = "127.0.0.1:9099"
+
+
+class _EmulatorCredential(credentials.Base):
+    """Anonymous credential used only for the explicitly selected local emulator."""
+
+    def get_credential(self):
+        return AnonymousCredentials()
+
+
+def _is_emulator_mode() -> bool:
+    """Determine whether local emulator execution is requested or in-progress."""
+    mode = os.getenv("TALENTSCOPE_FIREBASE_MODE", "").strip().lower()
+    offline = os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE", "").strip()
+    firestore_host = os.getenv("FIRESTORE_EMULATOR_HOST", "").strip()
+    auth_host = os.getenv("FIREBASE_AUTH_EMULATOR_HOST", "").strip()
+    live_tests = os.getenv("RUN_LIVE_FIRESTORE_TESTS", "").strip()
+    return bool(mode == "emulator" or offline == "1" or firestore_host or auth_host or live_tests == "1")
+
+
+def _configure_emulator(settings) -> bool:
+    mode = os.getenv("TALENTSCOPE_FIREBASE_MODE", "").strip().lower()
+    if mode not in {"production", "emulator"}:
+        raise RuntimeError("Firebase access is disabled unless isolated local emulator mode is explicitly enabled.")
+    if mode != "emulator":
+        raise RuntimeError(
+            "Firebase access is disabled unless the isolated local emulator mode is explicitly enabled."
+        )
+    if os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") != "1":
+        raise RuntimeError("Firebase Emulator mode requires TALENTSCOPE_OFFLINE_TEST_MODE=1.")
+    if settings.environment != "local-test":
+        raise RuntimeError("Firebase Emulator mode requires ENVIRONMENT=local-test.")
+    if settings.firebase_project_id != _LOCAL_FIREBASE_PROJECT_ID:
+        raise RuntimeError("Firebase Emulator mode requires the dedicated local demo project ID.")
+
+    firestore_host = os.getenv("FIRESTORE_EMULATOR_HOST", "").strip()
+    auth_host = os.getenv("FIREBASE_AUTH_EMULATOR_HOST", "").strip()
+    if firestore_host != _LOCAL_FIRESTORE_HOST:
+        raise RuntimeError("Firebase Emulator mode requires the approved loopback Firestore endpoint 127.0.0.1:8080.")
+    if auth_host != _LOCAL_AUTH_HOST:
+        raise RuntimeError("Firebase Emulator mode requires the approved loopback Auth endpoint 127.0.0.1:9099.")
+
+    # Firebase Admin and Google Auth use these supported emulator selectors.
+    os.environ["FIRESTORE_EMULATOR_HOST"] = firestore_host
+    os.environ["FIREBASE_AUTH_EMULATOR_HOST"] = auth_host
+    return True
+
+
+def _require_firestore_emulator_ready() -> None:
+    try:
+        with socket.create_connection(("127.0.0.1", 8080), timeout=0.5):
+            return
+    except OSError as exc:
+        raise RuntimeError(
+            "Firestore Emulator is unavailable at 127.0.0.1:8080; production Firestore was not selected."
+        ) from exc
+
+
+def _validated_emulator_settings():
+    """Validate opt-in before reading settings or invoking any Firebase SDK API."""
+    if os.getenv("TALENTSCOPE_FIREBASE_MODE", "").strip().lower() != "emulator":
+        raise RuntimeError(
+            "Firebase access is disabled unless TALENTSCOPE_FIREBASE_MODE=emulator is explicitly set."
+        )
+    if os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") != "1":
+        raise RuntimeError("Firebase Emulator mode requires TALENTSCOPE_OFFLINE_TEST_MODE=1.")
+    # get_settings() avoids loading backend/.env whenever explicit local mode is
+    # requested; this prevents credentials there from entering the local path.
+    settings = get_settings()
+    _configure_emulator(settings)
+    _require_firestore_emulator_ready()
+    return settings
 
 
 def _resolve_certificate_path(configured_path: str) -> Path:
     path = Path(os.path.expandvars(configured_path)).expanduser()
     if path.is_absolute():
         return path
-    candidates = (Path.cwd() / path, Path(__file__).resolve().parents[2] / path)
-    return next((candidate.resolve() for candidate in candidates if candidate.is_file()), candidates[0].resolve())
-
-
-@lru_cache
-def get_firebase_app() -> firebase_admin.App:
-    """Initialize Firebase Admin once, using Application Default Credentials."""
-    with _firebase_app_lock:
-        try:
-            return firebase_admin.get_app()
-        except ValueError:
-            settings = get_settings()
-            certificate_path = (
-                _resolve_certificate_path(settings.google_application_credentials)
-                if settings.google_application_credentials
-                else None
-            )
-            if certificate_path is not None and not certificate_path.is_file():
-                raise FileNotFoundError("Configured Firebase service-account file does not exist.")
-            credential = (
-                credentials.Certificate(str(certificate_path))
-                if certificate_path is not None
-                else None
-            )
-            return firebase_admin.initialize_app(
-                credential=credential,
-                options={
-                    "projectId": settings.firebase_project_id,
-                }
-            )
-
-
-@lru_cache
-def get_firestore_client():
-    """Return the Firestore client associated with the configured Firebase app."""
-    is_test = "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST")
-    emulator_opt_in = (
-        os.getenv("RUN_LIVE_FIRESTORE_TESTS") == "1"
-        and bool(os.getenv("FIRESTORE_EMULATOR_HOST"))
+    candidates = (
+        Path.cwd() / path,
+        Path.cwd().parent / path,
+        Path(__file__).resolve().parents[2] / path,
+        Path(__file__).resolve().parents[3] / path,
+        Path.cwd() / "backend" / path,
     )
-    if is_test and not emulator_opt_in and firestore.client is _firestore_client_factory:
-        raise RuntimeError(
-            "Unit tests must inject a Firestore client; live integration tests require the Firestore emulator."
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    return candidates[0].resolve()
+
+
+def get_firebase_app() -> firebase_admin.App:
+    """Return the configured Firebase Admin app (local emulator or verified credentials)."""
+    with _firebase_app_lock:
+        if _is_emulator_mode():
+            _validated_emulator_settings()
+            try:
+                app = firebase_admin.get_app()
+            except ValueError:
+                return firebase_admin.initialize_app(
+                    credential=_EmulatorCredential(),
+                    options={
+                        "projectId": _LOCAL_FIREBASE_PROJECT_ID,
+                    }
+                )
+            if app.project_id != _LOCAL_FIREBASE_PROJECT_ID:
+                raise RuntimeError("An existing non-emulator Firebase app prevents local emulator startup.")
+            if not isinstance(app.credential, _EmulatorCredential):
+                raise RuntimeError("An existing Firebase app without emulator-only credentials is not allowed.")
+            return app
+
+        # Standard / service-account credentials mode
+        settings = get_settings()
+        if not settings.google_application_credentials:
+            raise RuntimeError(
+                "Firebase access is disabled unless TALENTSCOPE_FIREBASE_MODE=emulator is explicitly set "
+                "or GOOGLE_APPLICATION_CREDENTIALS is configured."
+            )
+        try:
+            app = firebase_admin.get_app()
+            if not settings.firebase_project_id or app.project_id == settings.firebase_project_id:
+                return app
+        except ValueError:
+            pass
+
+        certificate_path = (
+            _resolve_certificate_path(settings.google_application_credentials)
+            if settings.google_application_credentials
+            else None
         )
-    return firestore.client(app=get_firebase_app())
+        if certificate_path is not None and not certificate_path.is_file():
+            raise FileNotFoundError("Configured Firebase service-account file does not exist.")
+
+        credential = (
+            credentials.Certificate(str(certificate_path))
+            if certificate_path is not None
+            else None
+        )
+        if credential is None:
+            raise RuntimeError(
+                "Firebase initialization requires either local emulator mode (TALENTSCOPE_FIREBASE_MODE=emulator) "
+                "or a configured GOOGLE_APPLICATION_CREDENTIALS service-account file."
+            )
+
+        return firebase_admin.initialize_app(
+            credential=credential,
+            options={
+                "projectId": settings.firebase_project_id,
+            } if settings.firebase_project_id else None,
+        )
+
+
+def get_firestore_client():
+    """Return a Firestore client associated with the active Firebase app."""
+    if _is_emulator_mode():
+        _validated_emulator_settings()
+    app = get_firebase_app()
+    key = id(app)
+    with _firestore_client_lock:
+        client = _firestore_clients.get(key)
+        if client is None:
+            client = firestore.client(app=app)
+            _firestore_clients[key] = client
+        return client
+
+
+def clear_firebase_client_caches() -> None:
+    """Clear process-local clients for isolated configuration tests only."""
+    with _firebase_app_lock, _firestore_client_lock:
+        _firestore_clients.clear()
+        for app in list(firebase_admin._apps.values()):
+            try:
+                firebase_admin.delete_app(app)
+            except Exception:
+                pass
+        firebase_admin._apps.clear()
+
+
+# Keep the former cache-clear hooks available to existing isolated tests.
+get_firebase_app.cache_clear = clear_firebase_client_caches  # type: ignore[attr-defined]
+get_firestore_client.cache_clear = clear_firebase_client_caches  # type: ignore[attr-defined]

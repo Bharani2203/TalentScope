@@ -16,8 +16,8 @@ const STATUS_PRESENTATION = {
     message: 'The request did not complete, so no verified result can be shown.'
   },
   insufficient_data: {
-    label: 'Not enough data',
-    message: 'There is not enough verified information to answer this reliably.'
+    label: 'Not enough verified evidence',
+    message: 'The requested result could not be calculated from verified information.'
   },
   partial: {
     label: 'Partial evidence',
@@ -71,15 +71,40 @@ export function renderConversationAnswer(response, formatMarkdown, {
   explanation = ''
 } = {}) {
   const status = responseStatus(response);
-  const presentation = STATUS_PRESENTATION[status];
-  const origin = response?.answer_origin === 'gemini'
-    ? 'AI explanation'
-    : response?.answer_origin === 'deterministic'
-      ? 'Platform-generated answer'
-      : '';
+  const intent = String(response?.intent || '').toLowerCase();
+  const responsePresentation = {
+    general_explanation: {
+      unavailable: { label: 'General explanation unavailable', message: 'The general explanation service is unavailable. No TalentScope market finding was produced.' },
+      unsupported: { label: 'General explanation unavailable', message: 'No general explanation was returned. No TalentScope market finding was produced.' },
+      insufficient_data: { label: 'General explanation unavailable', message: 'No general explanation was returned. No TalentScope market finding was produced.' }
+    },
+    explain_concept: {
+      unavailable: { label: 'Reference information unavailable', message: 'No verified reference entry was available for this concept.' },
+      unsupported: { label: 'Reference information unavailable', message: 'No verified reference entry was available for this concept.' },
+      insufficient_data: { label: 'Reference information unavailable', message: 'No verified reference entry was available for this concept.' }
+    },
+    lookup_skill_reference: {
+      unavailable: { label: 'Reference information unavailable', message: 'No verified reference entry was available for this skill.' },
+      unsupported: { label: 'Reference information unavailable', message: 'No verified reference entry was available for this skill.' },
+      insufficient_data: { label: 'Reference information unavailable', message: 'No verified reference entry was available for this skill.' }
+    },
+    analyze_trend: {
+      insufficient_data: { label: 'Trend not calculated', message: 'The selected comparable source series did not meet the trend readiness checks.' },
+      data_source_unavailable: { label: 'Trend source unavailable', message: 'The selected source could not provide verified observations; no trend was calculated.' }
+    },
+    search_jobs: {
+      insufficient_data: { label: 'No verified postings retrieved', message: 'No matching postings were retrieved from the stored posting records.' },
+      data_source_unavailable: { label: 'Posting source unavailable', message: 'The stored posting source could not provide a verified result.' }
+    }
+  };
+  const presentation = responsePresentation[intent]?.[status] || STATUS_PRESENTATION[status];
+  const origin = response?.source_mode === 'ai_general_guidance'
+    ? 'General AI guidance'
+    : (response?.answer_origin === 'gemini' ? (intent === 'general_explanation' ? 'General AI explanation' : 'AI explanation of evidence') : '');
   const safeAnswer = cleanConversationAnswer(answer);
 
   return `<div class="conversation-answer">
+    ${response?.answer_title ? `<h3 class="conversation-answer__title" style="margin:0 0 8px; font-size:15px;">${formatMarkdown(cleanConversationAnswer(response.answer_title))}</h3>` : ''}
     ${origin ? `<span class="conversation-answer__origin" style="display:inline-block; margin-bottom:6px; color:var(--portal-primary, #6B7280); font-size:11px; font-weight:700;">${origin}</span>` : ''}
     ${presentation ? `<div class="conversation-answer__status" role="${['blocked', 'error', 'failed'].includes(status) ? 'alert' : 'status'}" style="margin:0 0 10px; padding:8px 10px; border:1px solid var(--portal-border, #E5E7EB); border-radius:8px; background:var(--portal-soft, #F9FAFB); color:var(--ink-secondary, #52566E);">
       <strong style="font-size:12px;">${presentation.label}</strong>
@@ -89,6 +114,7 @@ export function renderConversationAnswer(response, formatMarkdown, {
       ? `<div class="conversation-answer__direct">${formatMarkdown(safeAnswer)}</div>`
       : `<p class="conversation-answer__empty" style="margin:0; color:var(--ink-secondary, #52566E); font-size:13px;">The answer included details that are not shown in the conversation. Review the evidence and limitations below.</p>`}
     ${explanation ? `<section class="conversation-answer__meaning" style="margin-top:10px;"><strong style="font-size:12px;">What this means</strong><p style="margin:3px 0 0;">${formatMarkdown(cleanConversationAnswer(explanation))}</p></section>` : ''}
+    ${Array.isArray(response?.next_actions) && response.next_actions.length ? `<section class="conversation-answer__next-actions" aria-label="Next actions"><strong style="font-size:12px;">Next steps</strong><ol>${response.next_actions.slice(0, 5).map(action => `<li>${formatMarkdown(cleanConversationAnswer(action))}</li>`).join('')}</ol></section>` : ''}
   </div>`;
 }
 

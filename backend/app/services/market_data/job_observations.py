@@ -5,6 +5,8 @@ from app.analytics.skill_normalization import extract_skills, normalize_skill
 from app.analytics.skill_registry import canonical_skill_id
 from app.models.skill_intelligence import MarketObservation, MarketPosting
 
+EXTRACTOR_VERSION = "skill-extractor-v1"
+
 
 def observations_from_postings(
     postings: list[MarketPosting],
@@ -15,6 +17,7 @@ def observations_from_postings(
     fetch_run_id: str | None = None,
     query_id: str | None = None,
     panel_version: str | None = None,
+    extractor_version: str = EXTRACTOR_VERSION,
 ) -> list[MarketObservation]:
     observed_at = collected_at
     if observed_at.tzinfo is None:
@@ -41,15 +44,21 @@ def observations_from_postings(
                 (observation_location or "").casefold(),
                 skill_key,
                 query_id or panel_version or "job-demand-v1",
+                panel_version or "panel-unspecified",
+                extractor_version,
             ))
             observation_id = hashlib.sha256(stable_key.encode("utf-8")).hexdigest()
-            series_id = f"{source}:{query_id or panel_version or 'job-demand-v1'}:job-demand:{skill_key}:v1"
+            series_id = (
+                f"{source}:{query_id or panel_version or 'job-demand-v1'}:job-demand:"
+                f"{skill_key}:{extractor_version}"
+            )
             result.append(MarketObservation(
                 id=observation_id,
                 source=source,
                 skill=normalized_skill,
                 location=observation_location,
                 observed_at=observed_at,
+                provider_posted_at=_parse_provider_posted_at(posting.posted_at),
                 period=period,
                 scope=scope,
                 posting_id=posting.posting_id,
@@ -59,6 +68,7 @@ def observations_from_postings(
                 fetch_run_id=fetch_run_id,
                 query_id=query_id,
                 panel_version=panel_version,
+                extractor_version=extractor_version,
                 series_id=series_id,
                 value=1.0,
                 unit="job_postings",
@@ -66,6 +76,25 @@ def observations_from_postings(
                 metadata={"title": posting.title} if posting.title else {},
             ))
     return result
+
+
+def _parse_provider_posted_at(value: str | None) -> datetime | None:
+    """Preserve a provider's posting timestamp separately from collection time."""
+    if not value:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        if text.isdigit():
+            parsed = datetime.fromtimestamp(float(text), tz=timezone.utc)
+        else:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except (OverflowError, OSError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _country_name(country: str | None) -> str | None:

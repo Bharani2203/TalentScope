@@ -378,19 +378,36 @@ def test_adversarial_case_1_taxonomy_described_as_hiring_demand(local_reference_
     assert "VALIDATION_ERROR_TAXONOMY_CONFLATED_WITH_HIRING_DEMAND" in reasons
 
 
-@pytest.mark.integration
-def test_adversarial_case_2_github_described_as_job_vacancies(local_reference_database):
-    """Validator rejects describing GitHub developer adoption as job vacancies."""
+def test_adversarial_case_2_github_described_as_job_vacancies():
+    """Validator rejects describing an explicitly supplied GitHub adoption fact as vacancies."""
     service = ExecutionOrchestratorService()
     plan = service.intent_planner.create_plan(
-        IntelligencePlanRequest(message="What is Python?"),
+        IntelligencePlanRequest(message="Analyze GitHub developer adoption for Python."),
         authenticated_user=mock_auth_user(),
     )
-    facts, evidence, _ = service._handle_skill_technology_reference(
-        CoreIntelligenceAnswerRequest(message="What is Python?"),
-        plan,
-    )
-    valid_text = service._synthesize_answer(plan.intent, facts, evidence, ["skill_technology_reference"], CoreIntelligenceAnswerRequest(message="test"))
+    facts = [StructuredFact(
+        fact_id="fact_test_github_adoption",
+        fact_type="technology_adoption",
+        entity_name="Python",
+        metric_name="github_developer_pushers",
+        metric_value=120,
+        unit="developers",
+        period="2026-Q1",
+        source="ref_github_language_adoption",
+        data_origin="real",
+        history_type="reference_dataset",
+        evidence_reference="ev_test_github_adoption",
+    )]
+    evidence = [EvidenceItem(
+        evidence_id="ev_test_github_adoption",
+        source="ref_github_language_adoption",
+        signal_type="adoption",
+        period="2026-Q1",
+        data_origin="real",
+        quality="valid",
+        description="GitHub developer adoption reference fixture.",
+    )]
+    valid_text = "GitHub developer activity records 120 developers for 2026-Q1. Evidence: `ev_test_github_adoption`."
     corrupted_text = valid_text + "\nGitHub statistics demonstrate verified job vacancies for engineers."
 
     status, reasons = service._validate_response(
@@ -496,22 +513,37 @@ def test_adversarial_case_6_ungrounded_numerical_claims():
     assert "VALIDATION_ERROR_UNGROUNDED_QUANTITATIVE_CLAIM" in reasons
 
 
-@pytest.mark.integration
-def test_adversarial_case_7_claim_altering_unit(local_reference_database):
-    """Validator rejects altering unit from developers to postings."""
+def test_adversarial_case_7_claim_altering_unit():
+    """Validator rejects changing an explicit GitHub developer unit to postings."""
     service = ExecutionOrchestratorService()
     plan = service.intent_planner.create_plan(
-        IntelligencePlanRequest(message="What is Python?"),
+        IntelligencePlanRequest(message="Analyze GitHub developer adoption for Python."),
         authenticated_user=mock_auth_user(),
     )
-    facts, evidence, _ = service._handle_skill_technology_reference(
-        CoreIntelligenceAnswerRequest(message="What is Python?"),
-        plan,
+    dev_fact = StructuredFact(
+        fact_id="fact_test_github_developers",
+        fact_type="technology_adoption",
+        entity_name="Python",
+        metric_name="github_developer_pushers",
+        metric_value=120,
+        unit="developers",
+        period="2026-Q1",
+        source="ref_github_language_adoption",
+        data_origin="real",
+        history_type="reference_dataset",
+        evidence_reference="ev_test_github_developers",
     )
-    dev_fact = next((f for f in facts if f.unit == "developers"), None)
-    assert dev_fact is not None
-
-    valid_text = service._synthesize_answer(plan.intent, facts, evidence, ["skill_technology_reference"], CoreIntelligenceAnswerRequest(message="test"))
+    facts = [dev_fact]
+    evidence = [EvidenceItem(
+        evidence_id="ev_test_github_developers",
+        source="ref_github_language_adoption",
+        signal_type="adoption",
+        period="2026-Q1",
+        data_origin="real",
+        quality="valid",
+        description="GitHub developer adoption reference fixture.",
+    )]
+    valid_text = "GitHub activity counted 120 developers in 2026-Q1. Evidence: `ev_test_github_developers`."
     corrupted_text = valid_text + f"\nObserved {dev_fact.metric_value} postings in the market."
 
     status, reasons = service._validate_response(

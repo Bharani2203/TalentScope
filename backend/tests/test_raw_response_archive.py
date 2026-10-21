@@ -309,6 +309,7 @@ def test_firestore_config_exempts_chunk_payload_from_indexing():
 
 
 def test_fetch_run_keeps_archive_reference_and_existing_call_contract():
+    """Archive retention does not turn an unverified empty result into a complete run."""
     class FetchRuns:
         def __init__(self):
             self.records = {}
@@ -342,7 +343,9 @@ def test_fetch_run_keeps_archive_reference_and_existing_call_contract():
     ))
     run_id, run = next(iter(fetch_runs.records.items()))
     stored_archive = run["raw_response_archive"]
-    assert result.status == "success"
+    assert result.status == "partial_failure"
+    assert result.providers[0].status == "partial"
+    assert result.providers[0].coverage_status == "partial"
     assert stored_archive["fetch_run_id"] == run_id
     assert stored_archive["provider"] == "github"
     assert stored_archive["archive_reference"].startswith("raw_response_archives/github__")

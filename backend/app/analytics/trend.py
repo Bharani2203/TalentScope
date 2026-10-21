@@ -11,7 +11,7 @@ from app.analytics.observation_period import is_completed_month, normalize_month
 from app.analytics.series_validation import comparable_series_key
 from app.models.skill_intelligence import MarketObservation, SkillTrendPoint
 
-CALCULATION_VERSION = "demand-theil-sen-v3-comparable-series"
+CALCULATION_VERSION = "demand-theil-sen-v4-backfill-consistent"
 SMOOTHING_ALPHA = 0.5
 STABLE_GROWTH_THRESHOLD_PCT_PER_MONTH = 2.0
 
@@ -159,14 +159,32 @@ def _source_demand_shares(
     return shares, denominators
 
 
+# History types accepted for demand trend calculation.
+# Must match the eligibility gate in forecast_signal_series() in forecasting.py to prevent
+# a situation where observations pass forecasting but are silently dropped from trends.
+_DEMAND_HISTORY_TYPES = frozenset({"platform_collected", "backfill", "backfilled"})
+
+
 def compatible_demand_observations(
     observations: list[MarketObservation],
 ) -> list[MarketObservation]:
-    """Keep eligible demand records; downstream groups each compatible series independently."""
+    """Keep eligible demand records; downstream groups each compatible series independently.
+
+    Accepted history types mirror the forecasting gate in ``forecasting.py``::
+
+        history_type in {"platform_collected", "backfill", "backfilled"}
+
+    ``"backfill"`` covers controlled historical ingestion (e.g. Stack Exchange monthly counts,
+    or a future job-board historical API); ``"backfilled"`` is the post-migration alias.
+    ``"platform_collected"`` covers live API collection runs from JSearch, Adzuna, and GitHub.
+
+    All three filters — signal_type, history_type, and data_origin — must pass.
+    Synthetic, test, and demo observations are always excluded (data_origin == "real" required).
+    """
     return [
         item for item in observations
         if item.signal_type == "demand"
-        and item.history_type == "platform_collected"
+        and item.history_type in _DEMAND_HISTORY_TYPES
         and item.data_origin == "real"
     ]
 
@@ -730,6 +748,9 @@ def calculate_trend_and_velocity(
         if qr is not None and qr.quality_state != "valid":
             is_blocked = True
             blocking_reasons.append(f"G1.8 quality state is '{qr.quality_state}'")
+            blocking_reasons.extend(
+                issue for issue in qr.issues if issue not in blocking_reasons
+            )
         if any(s.data_state in {"error", "unavailable", "incomplete", "low_coverage"} for s in ordered_signals):
             is_blocked = True
             blocking_reasons.append("Series contains observations with invalid quality states")
@@ -874,6 +895,10 @@ def calculate_trend_and_velocity(
             confidence=confidence_val,
             data_state=data_state_val,
             periods_used=ordered_periods,
+            series=[
+                {"period": period, "value": value}
+                for period, value in zip(ordered_periods, ordered_values)
+            ],
             observation_count=total_obs_count,
             observation_ids=sorted(all_obs_ids),
             fetch_run_ids=sorted(all_run_ids),

@@ -60,10 +60,30 @@ def _make_obs(
     )
 
 
+def _assess_after_october(observations, **kwargs):
+    return assess_analytical_readiness(
+        observations,
+        as_of=datetime(2026, 11, 1, tzinfo=timezone.utc),
+        **kwargs,
+    )
+
+
+def _months_ending_october_2026(count: int) -> list[str]:
+    year, month = 2026, 10
+    values = []
+    for _ in range(count):
+        values.append(f"{year:04d}-{month:02d}")
+        month -= 1
+        if month == 0:
+            month = 12
+            year -= 1
+    return list(reversed(values))
+
+
 # A. 1 period -> not_ready
 def test_a_one_period_not_ready():
     obs = [_make_obs(id="1", period="2026-10")]
-    reports = assess_analytical_readiness(obs)
+    reports = _assess_after_october(obs)
     assert len(reports) == 1
     rep = reports[0]
     assert rep.readiness_state == "not_ready"
@@ -80,7 +100,7 @@ def test_b_three_periods_not_ready():
         _make_obs(id="2", period="2026-09"),
         _make_obs(id="3", period="2026-10"),
     ]
-    reports = assess_analytical_readiness(obs, min_trend_periods=4)
+    reports = _assess_after_october(obs, min_trend_periods=4)
     assert len(reports) == 1
     rep = reports[0]
     assert rep.readiness_state == "not_ready"
@@ -98,7 +118,7 @@ def test_c_four_consecutive_periods_ready_for_trend():
         _make_obs(id="3", period="2026-09"),
         _make_obs(id="4", period="2026-10"),
     ]
-    reports = assess_analytical_readiness(obs, min_trend_periods=4, min_forecast_periods=6)
+    reports = _assess_after_october(obs, min_trend_periods=4, min_forecast_periods=6)
     assert len(reports) == 1
     rep = reports[0]
     assert rep.readiness_state == "ready_for_trend"
@@ -106,7 +126,74 @@ def test_c_four_consecutive_periods_ready_for_trend():
     assert rep.is_forecast_ready is False
     assert rep.consecutive_valid_periods == 4
     assert rep.coverage_gaps == []
-    assert any("ready for trend, but minimum 6 required for forecast" in r for r in rep.blocking_reasons)
+    assert any("ready for trend, but minimum 24 required for forecast" in r for r in rep.blocking_reasons)
+
+
+def test_forecast_readiness_requires_24_periods_even_if_caller_requests_less():
+    periods = []
+    year, month = 2024, 1
+    for index in range(24):
+        periods.append(f"{year:04d}-{month:02d}")
+        month += 1
+        if month == 13:
+            month = 1
+            year += 1
+    observations = [_make_obs(id=f"obs-{p}", period=p) for p in periods]
+
+    reports = assess_analytical_readiness(
+        observations,
+        as_of=datetime(2026, 2, 1, tzinfo=timezone.utc),
+        min_forecast_periods=6,
+    )
+
+    assert reports[0].consecutive_valid_periods == 24
+    assert reports[0].is_forecast_ready is True
+    assert reports[0].readiness_state == "ready_for_forecast"
+
+
+def test_synthetic_origin_cannot_become_operationally_ready():
+    observations = [
+        _make_obs(id=f"synthetic-{index}", period=period, data_origin="synthetic")
+        for index, period in enumerate(("2026-07", "2026-08", "2026-09", "2026-10"))
+    ]
+    report = _assess_after_october(observations)[0]
+    assert report.readiness_state == "blocked_quality"
+    assert report.is_trend_ready is False
+    assert report.is_forecast_ready is False
+    assert any("OBSERVATION_PROVENANCE_UNAVAILABLE" in reason for reason in report.blocking_reasons)
+
+
+def test_current_month_is_excluded_from_completed_trend_readiness():
+    obs = [
+        _make_obs(id="1", period="2026-07"),
+        _make_obs(id="2", period="2026-08"),
+        _make_obs(id="3", period="2026-09"),
+        _make_obs(id="4", period="2026-10"),
+    ]
+    reports = assess_analytical_readiness(
+        obs,
+        min_trend_periods=4,
+        as_of=datetime(2026, 10, 17, tzinfo=timezone.utc),
+    )
+
+    assert reports[0].consecutive_valid_periods == 3
+    assert reports[0].is_trend_ready is False
+    assert any("Only 3 valid comparable periods" in reason for reason in reports[0].blocking_reasons)
+
+
+def test_duplicate_observation_ids_fail_series_quality_validation():
+    observations = [
+        _make_obs(id=f"obs-{period}", period=period)
+        for period in ("2026-05", "2026-06", "2026-07", "2026-08")
+    ]
+    observations.append(observations[0].model_copy(deep=True))
+
+    reports = validate_series_observations(observations)
+
+    assert len(reports) == 1
+    assert reports[0].quality_state == "incomplete"
+    assert reports[0].is_analytically_sufficient is False
+    assert any("Duplicate observation IDs" in issue for issue in reports[0].issues)
 
 
 # D. Missing middle period -> blocked_missing_period
@@ -117,7 +204,7 @@ def test_d_missing_period_blocked():
         # 2026-09 missing
         _make_obs(id="4", period="2026-10"),
     ]
-    reports = assess_analytical_readiness(obs)
+    reports = _assess_after_october(obs)
     assert len(reports) == 1
     rep = reports[0]
     assert rep.readiness_state == "blocked_missing_period"
@@ -135,7 +222,7 @@ def test_e_changed_query_is_separate_series():
         _make_obs(id="3", period="2026-09", query_id="query-v2"),
         _make_obs(id="4", period="2026-10", query_id="query-v2"),
     ]
-    reports = assess_analytical_readiness(obs)
+    reports = _assess_after_october(obs)
     assert len(reports) == 2
     assert all(rep.readiness_state == "not_ready" for rep in reports)
     assert all(not rep.is_trend_ready and not rep.is_forecast_ready for rep in reports)
@@ -149,7 +236,7 @@ def test_f_provider_isolation():
         _make_obs(id="j1", source="jsearch", period="2026-10"),
         _make_obs(id="a1", source="adzuna", period="2026-10"),
     ]
-    reports = assess_analytical_readiness(obs)
+    reports = _assess_after_october(obs)
     assert len(reports) == 2
     providers = {r.provider for r in reports}
     assert providers == {"jsearch", "adzuna"}
@@ -162,7 +249,7 @@ def test_g_signal_type_isolation():
         _make_obs(id="d1", source="jsearch", signal_type="demand", period="2026-10"),
         _make_obs(id="a1", source="github", signal_type="adoption", period="2026-10"),
     ]
-    reports = assess_analytical_readiness(obs)
+    reports = _assess_after_october(obs)
     assert len(reports) == 2
     signals = {r.signal_type for r in reports}
     assert signals == {"demand", "adoption"}
@@ -173,7 +260,7 @@ def test_h_low_coverage_blocked():
     obs = [
         _make_obs(id="1", period="2026-10", denominator=None, value=1.0)
     ]
-    reports = assess_analytical_readiness(obs)
+    reports = _assess_after_october(obs)
     assert len(reports) == 1
     rep = reports[0]
     assert rep.readiness_state == "blocked_coverage"
@@ -189,7 +276,7 @@ def test_i_incomparable_quality_blocked():
         _make_obs(id="3", period="2026-09", scope="global"),
         _make_obs(id="4", period="2026-10", scope="country"),
     ]
-    reports = assess_analytical_readiness(obs)
+    reports = _assess_after_october(obs)
     assert len(reports) == 3
     assert {rep.readiness_state for rep in reports}.issubset({"not_ready", "blocked_missing_period"})
     assert all(not rep.is_trend_ready and not rep.is_forecast_ready for rep in reports)
@@ -204,7 +291,7 @@ def test_j_provenance_preservation():
         _make_obs(id="obs-3", period="2026-09", series_id="series-1", query_id="query-1", panel_version="panel-1"),
         _make_obs(id="obs-4", period="2026-10", series_id="series-1", query_id="query-1", panel_version="panel-1"),
     ]
-    reports = assess_analytical_readiness(obs)
+    reports = _assess_after_october(obs)
     assert len(reports) == 1
     rep = reports[0]
     assert rep.series_id == "series-1"
@@ -216,27 +303,24 @@ def test_j_provenance_preservation():
 
 # K. Forecast input contains only eligible observations
 def test_k_forecast_input_filters_ineligible():
-    # JSearch has 4 periods (ready for trend, but not forecast-ready if min=6)
-    # Adzuna has 6 periods (ready for forecast)
+    # JSearch has 4 periods (trend only); Adzuna has 24 (forecast eligible).
     obs = [
         _make_obs(id="j1", source="jsearch", period="2026-07"),
         _make_obs(id="j2", source="jsearch", period="2026-08"),
         _make_obs(id="j3", source="jsearch", period="2026-09"),
         _make_obs(id="j4", source="jsearch", period="2026-10"),
-        _make_obs(id="a1", source="adzuna", period="2026-05"),
-        _make_obs(id="a2", source="adzuna", period="2026-06"),
-        _make_obs(id="a3", source="adzuna", period="2026-07"),
-        _make_obs(id="a4", source="adzuna", period="2026-08"),
-        _make_obs(id="a5", source="adzuna", period="2026-09"),
-        _make_obs(id="a6", source="adzuna", period="2026-10"),
+        *[
+            _make_obs(id=f"a-{period}", source="adzuna", period=period)
+            for period in _months_ending_october_2026(24)
+        ],
     ]
-    reports = assess_analytical_readiness(obs, min_trend_periods=4, min_forecast_periods=6)
+    reports = _assess_after_october(obs, min_trend_periods=4, min_forecast_periods=6)
     forecast_inputs = build_forecast_inputs(obs, reports, require_forecast_ready=True)
 
     # Only Adzuna passes forecast readiness
     assert len(forecast_inputs) == 1
     assert forecast_inputs[0].provider == "adzuna"
-    assert len(forecast_inputs[0].observations) == 6
+    assert len(forecast_inputs[0].observations) == 24
 
     # If requiring trend readiness, both pass
     trend_inputs = build_forecast_inputs(obs, reports, require_forecast_ready=False)
@@ -246,23 +330,104 @@ def test_k_forecast_input_filters_ineligible():
 # L. Forecast input preserves observation IDs
 def test_l_forecast_input_preserves_observation_ids():
     obs = [
-        _make_obs(id=f"a-{idx}", source="adzuna", period=f"2026-0{idx}")
-        for idx in range(1, 7)
+        _make_obs(id=f"a-{period}", source="adzuna", period=period)
+        for period in _months_ending_october_2026(24)
     ]
-    reports = assess_analytical_readiness(obs, min_trend_periods=4, min_forecast_periods=6)
+    reports = _assess_after_october(obs, min_trend_periods=4, min_forecast_periods=6)
     forecast_inputs = build_forecast_inputs(obs, reports, require_forecast_ready=True)
     assert len(forecast_inputs) == 1
     obs_ids = [o.observation_id for o in forecast_inputs[0].observations]
-    assert obs_ids == [f"a-{idx}" for idx in range(1, 7)]
+    assert obs_ids == [f"a-{period}" for period in _months_ending_october_2026(24)]
+
+
+@pytest.mark.parametrize(
+    ("dimension", "alternate_value"),
+    [
+        ("location", "Bengaluru"),
+        ("unit", "distinct_postings"),
+        ("denominator_unit", "distinct_postings"),
+        ("query_id", "q-alternate"),
+        ("panel_version", "panel-alternate"),
+        ("scope", "country"),
+        ("data_origin", "demo"),
+        ("history_type", "backfill"),
+        ("extractor_version", "v2"),
+    ],
+)
+def test_forecast_inputs_keep_comparable_series_dimensions_and_readiness(
+    dimension, alternate_value
+):
+    eligible = [
+        _make_obs(id=f"eligible-{period}", period=period)
+        for period in _months_ending_october_2026(24)
+    ]
+    ineligible = [
+        _make_obs(id=f"alternate-{idx}", period=f"2026-{idx:02d}").model_copy(
+            update={dimension: alternate_value}
+        )
+        for idx in (9, 10)
+    ]
+    incomplete_current_period = _make_obs(id="eligible-current", period="2026-11")
+    observations = [*eligible, *ineligible, incomplete_current_period]
+
+    reports = _assess_after_october(
+        observations,
+        min_trend_periods=4,
+        min_forecast_periods=6,
+    )
+    ready_reports = [report for report in reports if report.is_forecast_ready]
+    forecast_inputs = build_forecast_inputs(observations, reports)
+
+    assert len(reports) == 2
+    assert len(ready_reports) == 1
+    assert len(forecast_inputs) == 1
+    forecast_input = forecast_inputs[0]
+    assert forecast_input.readiness_report == ready_reports[0]
+    assert [item.observation_id for item in forecast_input.observations] == [
+        f"eligible-{period}" for period in _months_ending_october_2026(24)
+    ]
+    assert all(item.readiness_state == ready_reports[0].readiness_state for item in forecast_input.observations)
+    assert all(item.location == ready_reports[0].location for item in forecast_input.observations)
+    assert all(item.unit == ready_reports[0].unit for item in forecast_input.observations)
+    assert all(item.denominator_unit == ready_reports[0].denominator_unit for item in forecast_input.observations)
+    assert forecast_input.location == ready_reports[0].location
+    assert forecast_input.unit == ready_reports[0].unit
+    assert forecast_input.denominator_unit == ready_reports[0].denominator_unit
+
+
+def test_forecast_inputs_preserve_single_series_provenance_and_normalized_values():
+    observations = [
+        _make_obs(id=f"single-{period}", period=period, value=idx)
+        for idx, period in enumerate(_months_ending_october_2026(24), start=1)
+    ]
+    reports = _assess_after_october(
+        observations,
+        min_trend_periods=4,
+        min_forecast_periods=6,
+    )
+
+    forecast_inputs = build_forecast_inputs(observations, reports)
+
+    assert len(forecast_inputs) == 1
+    series = forecast_inputs[0]
+    assert series.series_id == "s-default"
+    assert series.query_id == "q-default"
+    assert series.panel_version == "job-demand-v1"
+    assert [item.observation_id for item in series.observations] == [
+        f"single-{period}" for period in _months_ending_october_2026(24)
+    ]
+    assert [item.normalized_value for item in series.observations] == [
+        item.value / item.denominator for item in series.observations
+    ]
 
 
 # M. No null-to-zero conversion
 def test_m_no_null_to_zero_conversion():
     obs = [
-        _make_obs(id=f"a-{idx}", source="adzuna", period=f"2026-0{idx}", denominator=None)
-        for idx in range(1, 7)
+        _make_obs(id=f"a-{period}", source="adzuna", period=period, denominator=None)
+        for period in _months_ending_october_2026(24)
     ]
-    reports = assess_analytical_readiness(obs, min_trend_periods=4, min_forecast_periods=6)
+    reports = _assess_after_october(obs, min_trend_periods=4, min_forecast_periods=6)
     forecast_inputs = build_forecast_inputs(obs, reports, require_forecast_ready=True)
     assert len(forecast_inputs) == 1
     for item in forecast_inputs[0].observations:
@@ -276,7 +441,7 @@ def test_n_no_synthetic_periods():
         _make_obs(id="1", period="2026-07"),
         _make_obs(id="2", period="2026-10"),
     ]
-    reports = assess_analytical_readiness(obs)
+    reports = _assess_after_october(obs)
     assert len(reports) == 1
     rep = reports[0]
     # Missing periods reported as gaps, never fabricated into periods_available
@@ -290,8 +455,8 @@ def test_o_deterministic_readiness():
         _make_obs(id=f"o-{idx}", period=f"2026-0{idx}")
         for idx in range(1, 5)
     ]
-    rep1 = assess_analytical_readiness(obs)
-    rep2 = assess_analytical_readiness(obs)
+    rep1 = _assess_after_october(obs)
+    rep2 = _assess_after_october(obs)
     assert rep1 == rep2
     s1 = summarize_readiness(rep1)
     s2 = summarize_readiness(rep2)
@@ -305,7 +470,7 @@ def test_p_demo_fixture_demand_is_not_forecast_ready():
     assert observations
     assert all(observation.data_origin == "demo" for observation in observations)
 
-    reports = assess_analytical_readiness(observations, min_trend_periods=4, min_forecast_periods=6)
+    reports = _assess_after_october(observations, min_trend_periods=4, min_forecast_periods=6)
     assert len(reports) >= 1
 
     # The generated demo demand fixture contains one current period per provider series.
@@ -314,7 +479,7 @@ def test_p_demo_fixture_demand_is_not_forecast_ready():
         assert rep.consecutive_valid_periods <= 1
         assert rep.is_trend_ready is False
         assert rep.is_forecast_ready is False
-        assert rep.readiness_state in {"not_ready", "blocked_coverage", "blocked_configuration"}
+        assert rep.readiness_state in {"not_ready", "blocked_coverage", "blocked_configuration", "blocked_quality"}
 
     # No series in production is ready for forecast
     for rep in reports:
@@ -327,7 +492,7 @@ def test_p_demo_fixture_demand_is_not_forecast_ready():
     summary = summarize_readiness(reports)
     assert summary.ready_for_forecast_count == 0
     assert summary.overall_readiness_state in {
-        "not_ready", "blocked_coverage", "blocked_configuration", "ready_for_trend"
+        "not_ready", "blocked_coverage", "blocked_configuration", "blocked_quality", "ready_for_trend"
     }
 
 
@@ -413,7 +578,7 @@ def test_t_g1_8_quality_report_compatibility():
     assert q_reports[0].is_analytically_sufficient is True
 
     # Pass directly into G1.9 readiness
-    r_reports = assess_analytical_readiness(obs, quality_reports=q_reports)
+    r_reports = _assess_after_october(obs, quality_reports=q_reports)
     assert len(r_reports) == 1
     assert r_reports[0].quality_state == "valid"
     assert r_reports[0].is_trend_ready is True

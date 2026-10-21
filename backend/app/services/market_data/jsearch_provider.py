@@ -25,6 +25,7 @@ class JSearchProvider(MarketObservationCollector):
         collected_at: datetime,
         fetch_run_id: str | None = None,
         archive_response: Callable[[Any, str | None], Any] | None = None,
+        query: str = "software developer",
     ) -> list[MarketPosting]:
         result = await self.fetch_market_postings_with_stats(
             location=location,
@@ -32,6 +33,7 @@ class JSearchProvider(MarketObservationCollector):
             collected_at=collected_at,
             fetch_run_id=fetch_run_id,
             archive_response=archive_response,
+            query=query,
         )
         return result.postings
 
@@ -43,8 +45,9 @@ class JSearchProvider(MarketObservationCollector):
         collected_at: datetime,
         fetch_run_id: str | None = None,
         archive_response: Callable[[Any, str | None], Any] | None = None,
+        query: str = "software developer",
     ) -> PostingFetchResult:
-        query = "software developer"
+        query = query.strip() or "software developer"
         if location:
             query = f"{query} in {location.strip()}"
         effective_country = country or self.settings.adzuna_country
@@ -96,6 +99,12 @@ class JSearchProvider(MarketObservationCollector):
             records_fetched=len(jobs),
             records_rejected=rejected,
             records_filtered=filtered,
+            requested_page_count=1,
+            page_size_limit=None,
+            provider_total_count=None,
+            pagination_complete=True,
+            zero_results_verified=not jobs,
+            sampling_frame="JSearch date_posted=month, query, country, one requested page",
         )
 
     async def collect_observations(
@@ -104,11 +113,13 @@ class JSearchProvider(MarketObservationCollector):
         location: str | None,
         country: str | None,
         collected_at: datetime,
+        query: str = "software developer",
     ) -> list[MarketObservation]:
         postings = await self.fetch_market_postings(
             location=location,
             country=country,
             collected_at=collected_at,
+            query=query,
         )
         return observations_from_postings(
             postings,
@@ -119,5 +130,6 @@ class JSearchProvider(MarketObservationCollector):
 
 
 def _fallback_id(record: dict[str, Any]) -> str:
+    """Hash title, company, and provider posting time when JSearch omits its ID."""
     content = "|".join(str(record.get(key) or "") for key in ("title", "company_name", "posted_at"))
     return hashlib.sha256(content.encode("utf-8")).hexdigest()

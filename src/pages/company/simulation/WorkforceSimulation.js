@@ -30,6 +30,9 @@ export function renderCompanyWorkforceSimulation() {
 
   return `
     <div class="company-page company-simulation">
+      <aside role="note" class="cmp-card" style="margin-bottom:14px;border-color:#D6C79A;background:#FFF9E8;color:#574817">
+        Prototype only. Scenario cards, workforce figures, strategies, and local calculations are illustrative examples—not HRIS data, forecasts, or outputs from a validated simulation model. No workforce simulation service is connected.
+      </aside>
       <!-- 1. HERO -->
       <section class="cmp-hero">
         <div class="cmp-hero__content">
@@ -39,18 +42,18 @@ export function renderCompanyWorkforceSimulation() {
               STRATEGIC SCENARIO WORKSPACE
             </span>
             <h1>What Happens if the Market Changes?</h1>
-            <p>Model the ripple effects of technology surges, regulatory shifts, and internal automation before allocating capital.</p>
+            <p>Explore illustrative technology, regulatory, and automation scenarios. This prototype does not provide decision-grade workforce analysis.</p>
           </div>
 
           <div class="cmp-hero__context-badge">
             <div class="cmp-hero__company-logo">${esc(p.logoInitials)}</div>
             <div class="cmp-hero__context-info">
               <strong>${esc(p.name)}</strong>
-              <span>Simulation Engine (FY26 Baseline)</span>
+              <span>Illustrative prototype · no validated model</span>
               <div class="cmp-hero__context-meta">
-                <span><i data-lucide="check-circle"></i> Grounded in HRIS Data</span>
+                <span><i data-lucide="info"></i> Not connected to HRIS</span>
                 <span>·</span>
-                <span><i data-lucide="activity"></i> Confidence: 94%</span>
+                <span><i data-lucide="info"></i> No validated confidence score</span>
               </div>
             </div>
           </div>
@@ -61,9 +64,9 @@ export function renderCompanyWorkforceSimulation() {
       <section class="cmp-section">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
           <div>
-            <span class="cmp-eyebrow"><i data-lucide="sliders" class="cmp-icon-inline"></i> PRE-MODELED SCENARIOS</span>
+            <span class="cmp-eyebrow"><i data-lucide="sliders" class="cmp-icon-inline"></i> ILLUSTRATIVE EXAMPLE SCENARIOS</span>
             <h2 class="cmp-title">Select Strategic Scenario</h2>
-            <p class="cmp-subtitle">Choose a market condition to evaluate organizational impact and recommended workforce options.</p>
+            <p class="cmp-subtitle">Choose an illustrative market condition. Displayed impacts and strategy examples are not validated estimates or recommendations.</p>
           </div>
           <button type="button" class="cmp-btn-primary" id="cmpCreateScenarioBtn" style="height: 36px; padding: 0 16px;">
             <i data-lucide="plus"></i>
@@ -96,15 +99,17 @@ export function renderCompanyWorkforceSimulation() {
         <div class="cmp-card" style="border-top: 4px solid var(--cmp-primary);">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; flex-wrap: wrap; gap: 10px;">
             <div>
-              <span class="cmp-badge cmp-badge--accent" style="margin-bottom: 4px;">ACTIVE EVALUATION: ${esc(activeScen.title)}</span>
+              <span class="cmp-badge cmp-badge--accent" style="margin-bottom: 4px;">ILLUSTRATIVE SCENARIO: ${esc(activeScen.title)}</span>
               <h2 class="cmp-title" style="margin-top: 2px;">Workforce Impact & Options Flow</h2>
               <p class="cmp-subtitle">${esc(activeScen.trigger)}</p>
             </div>
             <button type="button" class="cmp-btn-secondary" id="cmpExportScenarioBrief">
               <i data-lucide="file-text"></i>
-              <span>Export Executive Brief</span>
+              <span>Export unavailable (not implemented)</span>
             </button>
           </div>
+
+          <p role="note" class="cmp-subtitle">The figures and strategy below are illustrative demo content only; they are not calculated from company workforce data.</p>
 
           <!-- Scenario Comparison Cards Strip -->
           <div class="cmp-overview-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 20px;">
@@ -127,7 +132,7 @@ export function renderCompanyWorkforceSimulation() {
                 <i data-lucide="check-square" style="width: 18px; height: 18px;"></i>
               </div>
               <div>
-                <strong style="font-size: 14.5px; color: var(--cmp-text-primary); display: block; margin-bottom: 2px;">Recommended Strategy & Options</strong>
+                <strong style="font-size: 14.5px; color: var(--cmp-text-primary); display: block; margin-bottom: 2px;">Illustrative Strategy Example</strong>
                 <p style="font-size: 13px; color: var(--cmp-text-secondary); margin: 0; line-height: 1.45;">${esc(activeScen.recommendedStrategy)}</p>
               </div>
             </div>
@@ -150,9 +155,9 @@ export function renderCompanyWorkforceSimulation() {
       <section class="cmp-section">
         <div class="cmp-card">
           <div style="margin-bottom: 16px;">
-            <span class="cmp-eyebrow"><i data-lucide="sliders-horizontal" class="cmp-icon-inline"></i> WHAT-IF EXPERIMENTATION</span>
-            <h2 class="cmp-title">What-If Sensitivity Sandbox</h2>
-            <p class="cmp-subtitle">Illustrative local scenario model. Adjust inputs to see sample talent deficit and ROI calculations; this is not connected to company workforce data.</p>
+            <span class="cmp-eyebrow"><i data-lucide="sliders-horizontal" class="cmp-icon-inline"></i> ILLUSTRATIVE LOCAL ARITHMETIC · NOT A MODEL</span>
+            <h2 class="cmp-title">Prototype Sensitivity Sandbox</h2>
+            <p class="cmp-subtitle">Adjust inputs to see illustrative arithmetic only. The sample deficit and ROI figures are not connected to company workforce data and are not validated estimates.</p>
           </div>
 
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: stretch;">
@@ -198,8 +203,8 @@ export function renderCompanyWorkforceSimulation() {
             <!-- Output Metric Panel -->
             <div style="background: var(--cmp-very-light); border-radius: var(--cmp-radius-md); border: 1px solid var(--cmp-border); padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
               <div>
-                <span class="cmp-eyebrow" style="color: var(--cmp-deep-primary);"><i data-lucide="calculator" class="cmp-icon-inline"></i> REAL-TIME COMPUTED MODEL</span>
-                <h4 style="font-size: 16px; font-weight: 850; color: var(--cmp-text-primary); margin: 2px 0 12px;">Simulated Operational Outcome</h4>
+                <span class="cmp-eyebrow" style="color: var(--cmp-deep-primary);"><i data-lucide="calculator" class="cmp-icon-inline"></i> ILLUSTRATIVE CALCULATION</span>
+                <h4 style="font-size: 16px; font-weight: 850; color: var(--cmp-text-primary); margin: 2px 0 12px;">Sample Arithmetic · Not an Operational Outcome</h4>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
                   <div style="background: #FFFFFF; padding: 12px; border-radius: 8px; border: 1px solid var(--cmp-border);">
@@ -221,7 +226,7 @@ export function renderCompanyWorkforceSimulation() {
 
               <button type="button" class="cmp-btn-primary" id="cmpSaveParametricModelBtn" style="margin-top: 14px; width: 100%;">
                 <i data-lucide="save"></i>
-                <span>Save Model to Planning Vault</span>
+                <span>Save unavailable (not implemented)</span>
               </button>
             </div>
           </div>
@@ -258,12 +263,12 @@ export function bindCompanySimulationEvents(rerender) {
 
   // Export memo
   document.querySelector('#cmpExportScenarioBrief')?.addEventListener('click', () => {
-    alert('Executive scenario brief exported for Board of Directors talent committee review.');
+    alert('Export is not implemented. No brief was created or saved.');
   });
 
   // Save model
   document.querySelector('#cmpSaveParametricModelBtn')?.addEventListener('click', () => {
-    alert('Parametric model saved to Enterprise Strategic Planning Vault.');
+    alert('Saving is not implemented. No model was saved.');
   });
 
   // Create Custom Scenario Modal
@@ -294,7 +299,7 @@ export function bindCompanySimulationEvents(rerender) {
         </div>
       `,
       cancelText: 'Cancel',
-      confirmText: 'Generate Scenario Model',
+      confirmText: 'Add Illustrative Scenario',
       confirmIcon: 'cpu',
       onConfirm: () => {
         const title = document.querySelector('#newScenTitle')?.value.trim();
@@ -308,19 +313,15 @@ export function bindCompanySimulationEvents(rerender) {
         simulationScenarios.unshift({
           id: newId,
           title,
-          badge: 'Custom Scenario',
+          badge: 'Illustrative Scenario · No Model',
           trigger,
-          impacts: [
-            { metric: 'Projected Headcount Deficit', current: '110 Eng', projected: '240 Eng', delta: '+130' },
-            { metric: 'Upskilling Coverage Target', current: '60 Eng', projected: '145 Eng', delta: '+85' },
-            { metric: 'Recruitment Cost Avoided', current: '$1.4M', projected: '$2.8M', delta: '+$1.4M' }
-          ],
-          recommendedStrategy: 'Accelerate internal upskilling cohorts to absorb 60% of new headcount demand internally.'
+          impacts: [],
+          recommendedStrategy: 'No validated model is available to estimate workforce impact or recommend a strategy.'
         });
 
         activeScenarioId = newId;
         rerender();
-        alert(`Custom scenario "${title}" created and activated!`);
+        alert(`Illustrative scenario "${title}" was added for this session. No workforce estimate was generated or saved.`);
         return true;
       }
     });

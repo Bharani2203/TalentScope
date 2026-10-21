@@ -8,8 +8,16 @@ import pytest
 def live_firestore_store():
     if os.getenv("RUN_LIVE_FIRESTORE_TESTS") != "1":
         pytest.skip("set RUN_LIVE_FIRESTORE_TESTS=1 to opt in to Firestore integration tests")
-    if not os.getenv("FIRESTORE_EMULATOR_HOST"):
-        pytest.skip("Firestore integration tests require FIRESTORE_EMULATOR_HOST to avoid production data")
+    expected_local_config = {
+        "TALENTSCOPE_FIREBASE_MODE": "emulator",
+        "TALENTSCOPE_OFFLINE_TEST_MODE": "1",
+        "ENVIRONMENT": "local-test",
+        "FIREBASE_PROJECT_ID": "demo-talentscope-local",
+        "FIRESTORE_EMULATOR_HOST": "127.0.0.1:8080",
+        "FIREBASE_AUTH_EMULATOR_HOST": "127.0.0.1:9099",
+    }
+    if any(os.getenv(name) != expected for name, expected in expected_local_config.items()):
+        pytest.skip("Firestore integration tests require the complete isolated demo-project emulator configuration")
     from app.core.firebase import get_firestore_client
     from app.storage.firestore_observation_store import FirestoreObservationStore
 

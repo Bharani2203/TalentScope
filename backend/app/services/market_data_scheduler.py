@@ -60,6 +60,7 @@ class MarketDataScheduler:
                 settings=self.settings,
                 location=self.settings.market_collection_target_location,
                 country=self.settings.market_collection_target_country,
+                query=self.settings.market_collection_query,
             )
             self._last_result = result
             self._run_count += 1

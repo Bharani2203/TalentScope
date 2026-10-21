@@ -33,35 +33,50 @@ _DEFINITIONS = (
     SkillDefinition("data_analytics", "Data Analytics", ("data analysis",), category="Data"),
     SkillDefinition("data_engineering", "Data Engineering", (), category="Data"),
     SkillDefinition("data_science", "Data Science", (), category="Data"),
+    SkillDefinition("databricks", "Databricks", (), ("databricks",), ("databricks",), "AI & Data"),
+    SkillDefinition("devops", "DevOps", (), (), ("devops",), "Cloud & Infrastructure"),
     SkillDefinition("django", "Django", (), ("django",), ("django",), "Backend"),
     SkillDefinition("docker", "Docker", (), ("docker",), ("docker",), "Cloud & Infrastructure"),
+    SkillDefinition("excel", "Excel", ("microsoft excel", "ms excel"), (), ("excel",), "Data"),
     SkillDefinition("express_js", "Express.js", ("express", "expressjs", "express js"), ("express",), ("express",), "Backend"),
     SkillDefinition("fastapi", "FastAPI", (), ("fastapi",), ("fastapi",), "Backend"),
+    SkillDefinition("flask", "Flask", (), ("flask",), ("flask",), "Backend"),
     SkillDefinition("generative_ai", "Generative AI", ("gen ai", "genai"), category="AI & Data"),
     SkillDefinition("git", "Git", (), ("git",), ("git",), "Developer Tools"),
     SkillDefinition("github", "GitHub", (), ("github",), ("github",), "Developer Tools"),
     SkillDefinition("go", "Go", ("golang", "go language", "go programming", "go programming language"), ("go", "golang"), ("go",), "Programming", True),
     SkillDefinition("google_cloud", "Google Cloud", ("google cloud platform", "gcp"), ("google-cloud", "gcp"), ("google-cloud-platform",), "Cloud & Infrastructure"),
+    SkillDefinition("graphql", "GraphQL", (), ("graphql",), ("graphql",), "Backend"),
     SkillDefinition("html", "HTML", (), ("html",), ("html",), "Frontend"),
     SkillDefinition("java", "Java", (), ("java",), ("java",), "Programming"),
     SkillDefinition("javascript", "JavaScript", ("java script", "js"), ("javascript",), ("javascript",), "Programming"),
+    SkillDefinition("kotlin", "Kotlin", (), ("kotlin",), ("kotlin",), "Programming"),
     SkillDefinition("kubernetes", "Kubernetes", ("k8s",), ("kubernetes",), ("kubernetes",), "Cloud & Infrastructure"),
+    SkillDefinition("linux", "Linux", (), ("linux",), ("linux",), "Developer Tools"),
+    SkillDefinition("llm", "LLM", ("large language model", "large language models"), ("llm",), ("llm",), "AI & Data"),
     SkillDefinition("machine_learning", "Machine Learning", ("ml",), ("machine-learning",), ("machine-learning",), "AI & Data"),
     SkillDefinition("mongodb", "MongoDB", ("mongo db", "mongo"), ("mongodb",), ("mongodb",), "Database"),
     SkillDefinition("mongodb_atlas", "MongoDB Atlas", ("mongo atlas",), ("mongodb-atlas",), ("mongodb-atlas",), "Database"),
+    SkillDefinition("mysql", "MySQL", (), ("mysql",), ("mysql",), "Database"),
     SkillDefinition("node_js", "Node.js", ("nodejs", "node js", "node.js", "node"), ("nodejs",), ("node.js",), "Backend"),
     SkillDefinition("numpy", "NumPy", (), ("numpy",), ("numpy",), "AI & Data"),
     SkillDefinition("pandas", "Pandas", (), ("pandas",), ("pandas",), "Data"),
     SkillDefinition("postgresql", "PostgreSQL", ("postgres",), ("postgresql",), ("postgresql",), "Database"),
+    SkillDefinition("power_bi", "Power BI", ("powerbi", "power bi"), ("power-bi",), ("powerbi",), "Data"),
     SkillDefinition("pytorch", "PyTorch", (), ("pytorch",), ("pytorch",), "AI & Data"),
     SkillDefinition("python", "Python", ("python 3", "python3"), ("python",), ("python",), "Programming"),
     SkillDefinition("r", "R", ("r language", "r programming", "r programming language", "rstats", "rstudio"), ("rstats", "r-language"), ("r", "rstats"), "Programming", True),
     SkillDefinition("react", "React", ("react.js", "reactjs"), ("react",), ("reactjs",), "Frontend"),
     SkillDefinition("react_native", "React Native", ("react-native",), ("react-native",), ("react-native",), "Frontend"),
     SkillDefinition("redis", "Redis", (), ("redis",), ("redis",), "Database"),
+    SkillDefinition("rust", "Rust", ("rust lang", "rust language", "rust programming"), ("rust",), ("rust",), "Programming"),
+    SkillDefinition("scala", "Scala", (), ("scala",), ("scala",), "Programming"),
+    SkillDefinition("spark", "Apache Spark", ("spark", "pyspark"), ("apache-spark",), ("apache-spark",), "AI & Data"),
     SkillDefinition("spring_framework", "Spring", ("spring framework", "java spring", "spring boot", "springboot"), ("spring", "spring-boot"), ("spring", "spring-boot"), "Backend", True),
     SkillDefinition("sql", "SQL", ("structured query language",), ("sql",), ("sql",), "Database"),
     SkillDefinition("sql_server", "SQL Server", ("microsoft sql server", "ms sql server", "mssql"), ("sql-server", "mssql"), ("sql-server",), "Database"),
+    SkillDefinition("swift", "Swift", (), ("swift",), ("swift",), "Programming", True),
+    SkillDefinition("tableau", "Tableau", (), ("tableau",), ("tableau",), "Data"),
     SkillDefinition("terraform", "Terraform", (), ("terraform",), ("terraform",), "Cloud & Infrastructure"),
     SkillDefinition("typescript", "TypeScript", ("type script", "ts"), ("typescript",), ("typescript",), "Programming"),
     SkillDefinition("ui_ux", "UI/UX", ("uiux", "ui-ux", "ui ux", "user interface", "user experience", "ux design", "ui design", "product design"), ("ui", "ux", "ui-ux"), ("ui", "ux"), "Design & Frontend"),
@@ -69,6 +84,10 @@ _DEFINITIONS = (
 )
 
 SKILLS: tuple[SkillDefinition, ...] = _DEFINITIONS
+# Bump when canonical labels, aliases, or ambiguity rules change. Collection
+# query identity includes this value so snapshots from different registries
+# cannot be silently treated as one comparable series.
+SKILL_REGISTRY_VERSION = "skill-registry-v1"
 BY_ID = {item.skill_id: item for item in SKILLS}
 BY_NAME = {item.name.casefold(): item for item in SKILLS}
 _ALIASES = {

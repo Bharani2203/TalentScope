@@ -65,6 +65,22 @@ test('normalizeTimeRange maps raw frontend ranges to standard keys', () => {
   assert.equal(normalizeTimeRange(null), '30d');
 });
 
+test('12-month aliases retain a 12-month range in dashboard and answer requests', () => {
+  for (const alias of ['12m', '1y', '365d']) {
+    assert.equal(normalizeTimeRange(alias), '12m');
+    assert.equal(buildCoreIntelligenceRequest({ timeRange: alias }).time_range, '12m');
+    assert.equal(buildAnswerRequest({ message: 'Show history', timeRange: alias }).time_range, '12m');
+  }
+  assert.equal(normalizeTimeRange('6m'), '6m');
+  assert.equal(buildCoreIntelligenceRequest({ timeRange: '6m' }).time_range, '6m');
+  assert.equal(normalizeTimeRange('max'), 'max');
+  assert.equal(buildCoreIntelligenceRequest({ timeRange: 'max' }).time_range, 'max');
+  assert.equal(normalizeTimeRange('all'), 'max');
+  assert.equal(buildCoreIntelligenceRequest({ timeRange: 'all' }).time_range, 'max');
+  assert.equal(normalizeTimeRange('3m'), '3m');
+  assert.equal(buildCoreIntelligenceRequest({ timeRange: '3m' }).time_range, '3m');
+});
+
 test('Node callers without an explicit token do not import the browser Firebase SDK', async () => {
   const previousWindow = globalThis.window;
   try {
@@ -536,6 +552,10 @@ test('adaptCoreIntelligenceAnswerResponse adapts all 6 execution statuses correc
       evidence: [{ evidence_id: 'ev_1', source: 'src', signal_type: 'ref', description: 'desc' }],
       limitations: ['Limitation 1'],
       reason_codes: [`REASON_${st.toUpperCase()}`],
+      planned_primary_capability: 'skill_gap_role_fit',
+      executed_primary_capability: st === 'completed' ? 'skill_gap_role_fit' : null,
+      dependency_capabilities: [],
+      planned_capabilities: ['skill_gap_role_fit'],
       follow_up_questions: ['Follow up 1']
     });
 
@@ -544,6 +564,10 @@ test('adaptCoreIntelligenceAnswerResponse adapts all 6 execution statuses correc
     assert.equal(resp.evidence.length, 1);
     assert.equal(resp.limitations.length, 1);
     assert.equal(resp.reason_codes[0], `REASON_${st.toUpperCase()}`);
+    assert.deepEqual(resp.planned_capabilities, ['skill_gap_role_fit']);
+    assert.equal(resp.planned_primary_capability, 'skill_gap_role_fit');
+    assert.equal(resp.executed_primary_capability, st === 'completed' ? 'skill_gap_role_fit' : null);
+    assert.deepEqual(resp.dependency_capabilities, []);
     assert.equal(resp.follow_up_questions[0], 'Follow up 1');
   }
 });

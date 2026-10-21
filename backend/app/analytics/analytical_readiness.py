@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import date, datetime
 from typing import Sequence
 
+from app.analytics.observation_period import is_completed_month
 from app.analytics.series_validation import (
     _find_period_gaps,
     _month_index,
@@ -47,7 +49,8 @@ def assess_analytical_readiness(
     *,
     quality_reports: Sequence[SeriesQualityReport] | None = None,
     min_trend_periods: int = 4,
-    min_forecast_periods: int = 6,
+    min_forecast_periods: int = 24,
+    as_of: date | datetime | None = None,
 ) -> list[AnalyticalReadinessReport]:
     """Assess whether validated market observation series are ready for trend or forecasting.
 
@@ -56,11 +59,13 @@ def assess_analytical_readiness(
     - Never mix signal types (e.g. demand vs adoption).
     - Reuses G1.8 validation results as the quality authority.
     - Requires >=4 consecutive valid periods for trend readiness.
-    - Requires configurable >=6 (or min_forecast_periods) consecutive periods for forecast readiness.
+    - Requires at least 24 (or a larger configured minimum) consecutive periods for forecast readiness.
     - Zero synthetic periods, zero interpolation, zero null-to-zero conversion.
     """
     if not observations:
         return []
+
+    min_forecast_periods = max(24, min_forecast_periods)
 
     # Ensure quality reports are available
     if quality_reports is None:
@@ -133,11 +138,19 @@ def assess_analytical_readiness(
                 )):
                     q_report = legacy_report
 
-        periods_set = {
+        all_periods_set = {
             item.period or item.observed_at.strftime("%Y-%m")
             for item in items
             if item.period or item.observed_at
         }
+        periods_set = set()
+        invalid_periods = set()
+        for period in all_periods_set:
+            try:
+                if is_completed_month(period, as_of=as_of):
+                    periods_set.add(period)
+            except ValueError:
+                invalid_periods.add(period)
         ordered_periods = sorted(periods_set, key=_month_index)
         consecutive_periods = _longest_consecutive_run(ordered_periods)
         coverage_gaps = q_report.coverage_gaps if q_report else _find_period_gaps(ordered_periods)
@@ -153,13 +166,20 @@ def assess_analytical_readiness(
         quality_state = q_report.quality_state if q_report else "insufficient_data"
         comparability = q_report.comparability_status if q_report else "compatible"
         is_sufficient = q_report.is_analytically_sufficient if q_report else False
+        if any(item.data_origin != "real" for item in items):
+            is_sufficient = False
 
         blocking_reasons: list[str] = []
         is_trend_ready = False
         is_forecast_ready = False
 
         # Deterministic readiness gate evaluation
-        if comparability == "drift_detected" or quality_state == "configuration_changed":
+        if any(item.data_origin != "real" for item in items):
+            readiness_state = "blocked_quality"
+            blocking_reasons.append(
+                "OBSERVATION_PROVENANCE_UNAVAILABLE: synthetic, test, demo, or unknown-origin observations are not operational evidence."
+            )
+        elif comparability == "drift_detected" or quality_state == "configuration_changed":
             readiness_state: ReadinessState = "blocked_configuration"
             if q_report and q_report.issues:
                 for issue in q_report.issues:
@@ -179,7 +199,16 @@ def assess_analytical_readiness(
             blocking_reasons.append(f"Series quality validation failed with state '{quality_state}'.")
         elif len(ordered_periods) == 0:
             readiness_state = "not_ready"
-            blocking_reasons.append("No valid observations found for series.")
+            if invalid_periods:
+                blocking_reasons.append(
+                    f"Invalid monthly observation period(s) were excluded: {sorted(invalid_periods)}."
+                )
+            if all_periods_set - periods_set - invalid_periods:
+                blocking_reasons.append(
+                    "Only incomplete current or future monthly observations were retrieved; no completed periods qualify."
+                )
+            if not blocking_reasons:
+                blocking_reasons.append("No valid completed monthly observations found for series.")
         elif consecutive_periods < min_trend_periods:
             readiness_state = "not_ready"
             period_word = "period" if consecutive_periods == 1 else "periods"
@@ -304,31 +333,59 @@ def build_forecast_inputs(
     if not eligible_reports:
         return []
 
-    eligible_map = {
-        (
-            r.provider.casefold().strip(),
-            r.signal_type.strip(),
-            r.canonical_skill_id,
-        ): r
-        for r in eligible_reports
-    }
+    def report_series_key(report: AnalyticalReadinessReport) -> tuple[object, ...]:
+        return comparable_series_key(
+            source=report.provider,
+            signal_type=report.signal_type,
+            canonical_skill_id=report.canonical_skill_id,
+            unit=report.unit,
+            denominator_unit=report.denominator_unit,
+            scope=report.scope,
+            location=report.location,
+            query_id=report.query_id,
+            panel_version=report.panel_version,
+            data_origin=report.data_origin,
+            history_type=report.history_type,
+            extractor_version=report.extractor_version,
+        )
+
+    eligible_map = {report_series_key(report): report for report in eligible_reports}
 
     # Group observations matching eligible reports
-    series_obs_map: dict[tuple[str, str, str | None], list[MarketObservation]] = defaultdict(list)
+    series_obs_map: dict[tuple[object, ...], list[MarketObservation]] = defaultdict(list)
     for obs in observations:
         norm_name = normalize_skill(obs.skill)
         c_id = canonical_skill_id(norm_name)
-        key = (obs.source.casefold().strip(), obs.signal_type.strip(), c_id)
+        key = comparable_series_key(
+            source=obs.source,
+            signal_type=obs.signal_type,
+            canonical_skill_id=c_id,
+            unit=obs.unit,
+            denominator_unit=obs.denominator_unit,
+            scope=obs.scope,
+            location=obs.location,
+            query_id=obs.query_id,
+            panel_version=obs.panel_version,
+            data_origin=obs.data_origin,
+            history_type=obs.history_type,
+            extractor_version=obs.extractor_version,
+        )
         if key in eligible_map:
             series_obs_map[key].append(obs)
 
     results: list[ForecastSeriesInput] = []
     for key, items in series_obs_map.items():
         rep = eligible_map[key]
+        eligible_periods = set(rep.periods_available)
         sorted_items = sorted(
-            items,
+            [
+                item for item in items
+                if (item.period or item.observed_at.strftime("%Y-%m")) in eligible_periods
+            ],
             key=lambda item: _month_index(item.period or item.observed_at.strftime("%Y-%m")),
         )
+        if not sorted_items:
+            continue
         obs_inputs = [
             ForecastObservationInput(
                 canonical_skill_id=rep.canonical_skill_id,
@@ -340,10 +397,13 @@ def build_forecast_inputs(
                 value=item.value,
                 normalized_value=(item.value / item.denominator) if (item.denominator is not None and item.denominator > 0) else None,
                 denominator=item.denominator,
+                unit=item.unit,
+                denominator_unit=item.denominator_unit,
                 series_id=item.series_id,
                 panel_version=item.panel_version,
                 query_id=item.query_id,
                 scope=item.scope,
+                location=item.location,
                 extractor_version=item.extractor_version,
                 data_origin=item.data_origin,
                 history_type=item.history_type,
@@ -359,6 +419,9 @@ def build_forecast_inputs(
             canonical_name=rep.canonical_name,
             provider=rep.provider,
             signal_type=rep.signal_type,
+            unit=rep.unit,
+            denominator_unit=rep.denominator_unit,
+            location=rep.location,
             panel_version=rep.panel_version,
             query_id=rep.query_ids[0] if len(rep.query_ids) == 1 else None,
             scope=rep.scope,

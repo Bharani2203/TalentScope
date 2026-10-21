@@ -14,7 +14,6 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.intent_planner import PlanStatus
-from app.models.capability_registry import CapabilityId
 from app.models.skill_intelligence import MarketObservation
 from app.models.intelligence_contract import IntelligenceMetricResult
 from app.analytics.ai_disruption import AIExposureDatasetProvenance, TaskExposureRecord
@@ -109,6 +108,7 @@ class EvidenceItem(BaseModel):
     supporting_observation_ids: list[str] = Field(default_factory=list)
     supporting_source_urls: list[str] = Field(default_factory=list)
     freshness_state: str | None = None
+    readiness_state: str | None = None
     quality: str = "valid"
     confidence: float | None = None
     description: str
@@ -131,10 +131,13 @@ class CoreIntelligenceAnswerRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     portal_type: Literal["individual", "employee", "company"] | None = None
     domain: Literal["skill", "market", "job"] | None = None
-    capability_id: CapabilityId | None = None
+    capability_id: str | None = None
     location: str | None = None
     time_range: str = Field(default="30d", max_length=32)
     target_role: str | None = None
+    current_role: str | None = None
+    technology: str | None = None
+    occupation: str | None = None
     selected_skills: list[str] = Field(default_factory=list)
     selected_roles: list[str] = Field(default_factory=list)
     selected_companies: list[str] = Field(default_factory=list)
@@ -278,6 +281,11 @@ class CoreIntelligenceAnswerResponse(BaseModel):
     status: Literal["ready", "partial", "insufficient_data", "unavailable", "error", "not_applicable"] = "insufficient_data"
     answer: str
     answer_origin: Literal["deterministic", "gemini"] = "deterministic"
+    answer_title: str | None = None
+    answer_type: Literal["explanation", "comparison", "recommendations", "roadmap", "other"] = "other"
+    source_mode: Literal["platform_data", "ai_general_guidance", "mixed"] = "platform_data"
+    visualization: dict[str, Any] | None = None
+    next_actions: list[str] = Field(default_factory=list)
     conversation_id: str | None = None
     client_message_id: str | None = None
     resolved_entity: str | None = None
@@ -292,6 +300,10 @@ class CoreIntelligenceAnswerResponse(BaseModel):
     facts: list[StructuredFact] = Field(default_factory=list)
     evidence: list[EvidenceItem] = Field(default_factory=list)
     metric_results: list[IntelligenceMetricResult] = Field(default_factory=list)
+    planned_primary_capability: str | None = None
+    executed_primary_capability: str | None = None
+    dependency_capabilities: list[str] = Field(default_factory=list)
+    planned_capabilities: list[str] = Field(default_factory=list)
     capabilities_used: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     reason_codes: list[str] = Field(default_factory=list)

@@ -154,14 +154,14 @@ class MockCollection:
 
 class MockBatch:
     def __init__(self) -> None:
-        self._ops: list[tuple[MockDocRef, dict[str, Any]]] = []
+        self._ops: list[tuple[MockDocRef, dict[str, Any], bool]] = []
 
-    def set(self, reference: MockDocRef, payload: dict[str, Any]) -> None:
-        self._ops.append((reference, payload))
+    def set(self, reference: MockDocRef, payload: dict[str, Any], merge: bool = False) -> None:
+        self._ops.append((reference, payload, merge))
 
     def commit(self) -> None:
-        for ref, payload in self._ops:
-            ref.set(payload)
+        for ref, payload, merge in self._ops:
+            ref.set(payload, merge=merge)
         self._ops.clear()
 
 

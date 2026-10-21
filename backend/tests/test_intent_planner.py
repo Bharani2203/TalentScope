@@ -140,6 +140,118 @@ def test_representative_conversational_questions_route_to_existing_capabilities(
     assert expected_capability in response.selected_capabilities
 
 
+def test_selected_feature_executes_when_question_matches():
+    response = IntentPlannerService().create_plan(IntelligencePlanRequest(
+        message="What demand trend is observed for Python?",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+    ))
+    assert response.intent == "analyze_trend"
+    assert response.selected_capabilities == ["trend_velocity_analysis"]
+    assert response.primary_capability == "trend_velocity_analysis"
+    assert response.dependency_capabilities == []
+    assert not response.clarification_required
+
+
+def test_selected_feature_is_used_when_question_intent_is_ambiguous():
+    response = IntentPlannerService().create_plan(IntelligencePlanRequest(
+        message="Can you look at Python?",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+    ))
+    assert response.selected_capabilities == ["trend_velocity_analysis"]
+    assert response.primary_capability == "trend_velocity_analysis"
+    assert not response.clarification_required
+
+
+@pytest.mark.parametrize(
+    ("message", "domain", "selected"),
+    [
+        ("Show the canonical definition and category for Python.", "skill", "trend_velocity_analysis"),
+        ("What demand trend is observed for Python?", "skill", "skill_technology_reference"),
+        ("Which companies are hiring Python developers?", "job", "trend_velocity_analysis"),
+        ("What are the latest UI/UX design trends?", "skill", "trend_velocity_analysis"),
+    ],
+)
+def test_conflicting_question_clarifies_without_substituting_selected_feature(message, domain, selected):
+    response = IntentPlannerService().create_plan(IntelligencePlanRequest(
+        message=message,
+        domain=domain,
+        capability_id=selected,
+    ))
+    assert response.intent == "unsupported_or_unclear"
+    assert response.selected_capabilities == []
+    assert response.primary_capability is None
+    assert response.clarification_required
+    assert response.plan_status == "requires_clarification"
+
+
+def test_explicit_entity_switch_does_not_reuse_prior_entity_context():
+    from app.storage.conversation_store import ConversationStore
+
+    store = ConversationStore.get_instance()
+    conversation_id = "r1-entity-switch-test"
+    user_id = "r1-entity-switch-user"
+    try:
+        store.create_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            portal_type="individual",
+            domain="skill",
+        )
+        store.save_turn(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            portal_type="individual",
+            domain="skill",
+            user_message="What demand trend is observed for Python?",
+            intent="analyze_trend",
+            primary_entity="Python",
+            resolved_entities=["Python"],
+            comparison_entities=[],
+            target_role=None,
+            time_range="max_available",
+            selected_skills=[],
+            selected_companies=[],
+            filters={},
+            execution_status="completed",
+            answer_summary="Prior Python result",
+        )
+
+        switched_domain = store.resolve_follow_up(
+            "What about this?",
+            conversation_id,
+            user_id=user_id,
+            domain="job",
+            portal_type="individual",
+        )
+        assert switched_domain == (None, [], None, None)
+
+        response = IntentPlannerService().create_plan(IntelligencePlanRequest(
+            message="What demand trend is observed for Java?",
+            conversation_id=conversation_id,
+            domain="skill",
+        ), authenticated_user=AuthenticatedUser(uid=user_id, email="r1@example.com"))
+
+        names = [item.canonical_entity.canonical_name for item in response.entities if item.canonical_entity]
+        assert "Java" in names
+        assert response.context_summary.get("primary_entity") != "Python"
+    finally:
+        with store._access_lock:
+            store._conversations.pop(conversation_id, None)
+
+
+def test_explicit_employer_question_outside_skill_domain_requests_clarification():
+    response = IntentPlannerService().create_plan(IntelligencePlanRequest(
+        message="Which companies are hiring Python developers?",
+        domain="skill",
+        capability_id="skill_health_analysis",
+    ))
+    assert response.plan_status == "requires_clarification"
+    assert response.selected_capabilities == []
+    assert response.clarification_questions
+
+
 # =============================================================================
 # 3. FORECASTING & SIMULATION STRICT GATING
 # =============================================================================
@@ -396,3 +508,83 @@ def test_active_domain_routes_terse_entity_prompt_and_is_recorded():
     assert "job_posting_search" in job_plan.selected_capabilities
     assert market_plan.context_summary["domain"] == "market"
     assert job_plan.context_summary["domain"] == "job"
+
+
+@pytest.mark.parametrize(
+    ("message", "domain", "intent", "capability"),
+    [
+        ("What is Python used for?", "skill", "general_explanation", None),
+        ("Explain UI/UX trends in simple terms", "skill", "general_explanation", None),
+        ("What is the difference between Java and Python?", "skill", "general_explanation", None),
+        ("Show the canonical definition and category for Python", "skill", "lookup_skill_reference", "skill_technology_reference"),
+        ("What demand trend is observed for Python?", "skill", "analyze_trend", "trend_velocity_analysis"),
+        ("Which companies are hiring Python developers?", "skill", "unsupported_or_unclear", None),
+        ("What skills should I learn for a backend developer role?", "skill", "synthesize_actions", "action_recommendations"),
+        ("Which skills am I missing for a backend developer job?", "skill", "analyze_skill_gap", "skill_gap_role_fit"),
+        ("Create a learning path for Python backend development", "skill", "synthesize_actions", "action_recommendations"),
+    ],
+)
+def test_r1_4_intent_paraphrases(message, domain, intent, capability):
+    plan = IntentPlannerService().create_plan(IntelligencePlanRequest(message=message, domain=domain))
+    assert plan.intent == intent
+    if capability:
+        assert capability in plan.selected_capabilities
+    if message.startswith("Which companies"):
+        assert any("Switch to the Job domain" in q and message in q for q in plan.clarification_questions)
+
+
+def test_learning_intent_conflicts_with_selected_trend_feature_and_clarifies():
+    plan = IntentPlannerService().create_plan(IntelligencePlanRequest(
+        message="What skills should I learn for a backend developer role?",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+    ))
+    assert plan.intent == "unsupported_or_unclear"
+    assert plan.selected_capabilities == []
+    assert plan.clarification_required
+
+
+def test_explicit_learning_intent_conflicts_with_selected_trend_after_prior_context():
+    from app.storage.conversation_store import ConversationStore
+
+    store = ConversationStore.get_instance()
+    conversation_id = "r14-learning-after-trend"
+    user_id = "r14-learning-user"
+    try:
+        store.create_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            portal_type="individual",
+            domain="skill",
+        )
+        store.save_turn(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            portal_type="individual",
+            domain="skill",
+            user_message="What demand trend is observed for Python?",
+            intent="analyze_trend",
+            primary_entity="Python",
+            resolved_entities=["Python"],
+            comparison_entities=[],
+            target_role=None,
+            time_range="max",
+            selected_skills=[],
+            selected_companies=[],
+            filters={},
+            execution_status="completed",
+            answer_summary="Prior trend result",
+        )
+        plan = IntentPlannerService().create_plan(IntelligencePlanRequest(
+            message="What skills should I learn for a backend developer role?",
+            conversation_id=conversation_id,
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+        ), authenticated_user=AuthenticatedUser(uid=user_id, email="r14@example.com"))
+        assert plan.intent == "unsupported_or_unclear"
+        assert plan.selected_capabilities == []
+        assert plan.clarification_required
+        assert plan.context_summary.get("primary_entity") != "Python"
+    finally:
+        with store._access_lock:
+            store._conversations.pop(conversation_id, None)

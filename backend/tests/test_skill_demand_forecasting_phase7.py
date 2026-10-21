@@ -305,6 +305,46 @@ def test_rejection_fewer_than_24_periods():
     assert not any(f.fact_type == "skill_forecast_point" for f in resp.facts)
 
 
+def test_23_months_cannot_lower_operational_minimum_with_argument():
+    from app.analytics.forecasting import forecast_signal_series
+    from app.analytics.signal_aggregation import aggregate_market_signals
+
+    observations = make_forecasting_observations(count=23)
+    result = forecast_signal_series(
+        aggregate_market_signals(observations), canonical_skill_id="python",
+        canonical_name="Python", provider="adzuna", min_periods=3,
+    )
+    assert result.status == "insufficient_data"
+    assert result.required_min_periods == 24
+    assert result.forecasts == []
+
+
+def test_24_month_result_records_chronological_baseline_evaluation():
+    from app.analytics.forecasting import forecast_signal_series
+    from app.analytics.signal_aggregation import aggregate_market_signals
+
+    result = forecast_signal_series(
+        aggregate_market_signals(make_forecasting_observations(count=24)),
+        canonical_skill_id="python", canonical_name="Python", provider="adzuna",
+    )
+    assert result.status == "ready"
+    assert result.backtest_sample_size > 0
+    assert result.backtest_periods
+    methods = {score.method for score in result.backtest_scores}
+    # seasonal_naive is always present as the baseline.
+    assert "seasonal_naive" in methods
+    # "naive" (lag-1) is no longer scored as a separate method; it was replaced by
+    # the ETS challenger design. With only 24 observations the ETS challenger may not
+    # be fully evaluated (holdout_start=16 obs < 24 required per ETS split), so
+    # only seasonal_naive appears. Larger histories may include "es_smoothing".
+    assert "naive" not in methods
+    assert methods.issubset({"seasonal_naive", "es_smoothing"})
+    assert all(score.rmse >= 0 and score.mae >= 0 for score in result.backtest_scores)
+    # The baseline (seasonal_naive) must never report beats_naive=True.
+    sn_scores = [s for s in result.backtest_scores if s.method == "seasonal_naive"]
+    assert all(not s.beats_naive for s in sn_scores)
+
+
 def test_rejection_non_consecutive_periods_gaps():
     """Series with missing period gaps is rejected with INSUFFICIENT_FORECAST_HISTORY without zero-filling."""
     obs = make_forecasting_observations(count=24, consecutive=False)

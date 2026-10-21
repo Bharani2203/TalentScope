@@ -25,6 +25,7 @@ PlanStatus = Literal[
 ]
 
 IntentCategory = Literal[
+    "general_explanation",
     "explain_concept",
     "resolve_entity",
     "lookup_skill_reference",
@@ -119,6 +120,8 @@ class IntelligencePlanResponse(BaseModel):
     intent_explanation: str
     conversation_id: str | None = None
     entities: list[ResolvedEntityItem] = Field(default_factory=list)
+    primary_capability: str | None = None
+    dependency_capabilities: list[str] = Field(default_factory=list)
     selected_capabilities: list[str] = Field(default_factory=list)
     context_summary: dict[str, Any] = Field(default_factory=dict)
     missing_context: list[str] = Field(default_factory=list)

@@ -49,6 +49,29 @@ def test_conversation_store_isolates_conversations_by_domain() -> None:
     assert job_list[0]["filters"]["scope"] == "Favourite Companies"
 
 
+def test_conversation_store_rejects_cross_user_access() -> None:
+    store = ConversationStore()
+    owner = store.create_conversation(
+        user_id="assistant-owner-a",
+        portal_type="individual",
+        domain="job",
+        title="Private job search",
+    )
+
+    assert store.get_conversation(
+        owner.conversation_id,
+        user_id="assistant-owner-b",
+        domain="job",
+        portal_type="individual",
+    ) is None
+    allowed, reason = store.check_conversation_access(
+        owner.conversation_id,
+        user_id="assistant-owner-b",
+    )
+    assert not allowed
+    assert "different user" in reason
+
+
 def test_domain_specific_scope_validation_and_empty_scope_handling() -> None:
     svc = ExecutionOrchestratorService()
     auth_user = AuthenticatedUser(uid="user_test_scope", email="user@example.com")
@@ -99,7 +122,8 @@ def test_job_domain_favourites_scope_honestly_filters_by_saved_companies() -> No
     auth_user = AuthenticatedUser(uid="user_test_job_favs", email="user@example.com")
 
     # When Favourites scope has a company with 0 matching postings in the store,
-    # it must return 0 matching postings with insufficient_data rather than falling back to unrelated companies.
+    # it must report a successful zero-result search, with insufficient data
+    # status, rather than falling back to unrelated companies.
     req_unmatched_co = CoreIntelligenceAnswerRequest(
         message="Search stored job postings for Python",
         portal_type="individual",
@@ -109,10 +133,12 @@ def test_job_domain_favourites_scope_honestly_filters_by_saved_companies() -> No
         filters={"domain": "job", "scope": "Favourites", "scope_empty": False},
     )
     res = svc.answer(req_unmatched_co, authenticated_user=auth_user)
-    assert res.execution_status == "insufficient_data"
+    assert res.execution_status == "completed"
+    assert res.status == "insufficient_data"
+    assert "stored_postings_found" in [fact.metric_name for fact in res.facts]
     assert "NonExistentFavouriteCompanyXYZ" in res.answer
 
-    # When Favourites scope is empty (0 saved companies), it must also return insufficient_data honestly.
+    # An explicitly empty Favourites scope is rejected before the search runs.
     req_empty_favs = CoreIntelligenceAnswerRequest(
         message="Search stored job postings for Python",
         portal_type="individual",
@@ -123,6 +149,8 @@ def test_job_domain_favourites_scope_honestly_filters_by_saved_companies() -> No
     )
     res_empty = svc.answer(req_empty_favs, authenticated_user=auth_user)
     assert res_empty.execution_status == "insufficient_data"
+    assert res_empty.capabilities_used == []
+    assert res_empty.status == "insufficient_data"
     assert any("0 saved items" in lim or "0 saved favourite companies" in lim for lim in res_empty.limitations)
 
 

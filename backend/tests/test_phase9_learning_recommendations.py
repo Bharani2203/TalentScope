@@ -163,6 +163,22 @@ def test_action_request_uses_only_authenticated_users_own_saved_profile(
         if fact.fact_type == "learning_recommendation_summary"
     )
     assert summary.details["profile_skill_source"] == "authenticated_individual_profile"
+    assert summary.details["role_associated_skill_overlap"]["score_pct"] == 50.0
+    assert summary.details["role_associated_skill_overlap"]["formula"] == (
+        "matched canonical O*NET mappings / resolved O*NET mappings * 100"
+    )
+    assert [item["skill"] for item in summary.details["matched_associated_skills"]] == ["Python"]
+    assert [item["skill"] for item in summary.details["missing_associated_skills"]] == ["SQL"]
+    assert [item["label"] for item in summary.details["unresolved_requirements"]] == ["Example Design Suite"]
+    assert summary.details["level_gaps"]["status"] == "unavailable"
+    assert all(fact.details["market_evidence_references"] == [] for fact in candidates)
+    assert all(fact.details["market_evidence_limitation"] for fact in candidates)
+    assert all("no eligible market demand evidence" in fact.details["reason"].lower() for fact in candidates)
+    repeated_summary = next(
+        fact for fact in repeated_response.facts
+        if fact.fact_type == "learning_recommendation_summary"
+    )
+    assert summary.details["role_associated_skill_overlap"] == repeated_summary.details["role_associated_skill_overlap"]
     assert not any(
         fact.fact_type in {"task_exposure_summary", "workforce_impact"}
         for fact in response.facts
@@ -210,6 +226,39 @@ def test_deterministic_rank_reuses_onet_flags_then_name_without_numeric_scores(
     assert candidates[1].details["ranking_method"] == candidates[2].details["ranking_method"]
     assert "no numeric score or weights" in candidates[0].details["ranking_method"].lower()
     assert not candidates[0].details["market_trend_used_for_ranking"]
+
+
+def test_request_supplied_skills_are_not_mislabeled_as_saved_profile_skills(tmp_path, monkeypatch):
+    db_path = tmp_path / "reference.sqlite3"
+    _seed_role(ReferenceDataStore(db_path))
+    monkeypatch.setattr(
+        "app.services.onboarding_service.get_individual_profile",
+        lambda _uid: _profile(roles=["Software Developers"], skills=["Python"]),
+    )
+    service = ExecutionOrchestratorService(
+        settings=Settings(
+            _env_file=None,
+            skill_intelligence_db_path=str(db_path),
+            skill_intelligence_read_backend="firestore",
+        ),
+        db_path=db_path,
+        observation_store=EmptyObservationStore(),
+    )
+    response = service.answer(
+        CoreIntelligenceAnswerRequest(
+            message="Which skill should I learn next?",
+            portal_type="individual",
+            selected_skills=["SQL"],
+        ),
+        authenticated_user=AuthenticatedUser(uid="request-skill-person"),
+    )
+    summary = next(
+        fact for fact in response.facts
+        if fact.fact_type == "learning_recommendation_summary"
+    )
+    assert summary.details["profile_skill_source"] == "request_supplied_skills"
+    assert [item["skill"] for item in summary.details["matched_associated_skills"]] == ["SQL"]
+    assert summary.details["matched_associated_skills"][0]["profile_evidence"] == "request_supplied_skills"
 
 
 def test_missing_self_reported_proficiency_does_not_invent_skill_depth_or_resources(

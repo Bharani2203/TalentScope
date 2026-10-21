@@ -141,6 +141,14 @@ def aggregate_market_signals(
             raw_value = sum(item.value for item in skill_obs)
             obs_count = len(skill_obs)
             warnings: list[str] = []
+            incomplete_collection = any(
+                isinstance(getattr(item, "quality", None), dict)
+                and (
+                    item.quality.get("collection_complete") is False
+                    or item.quality.get("pagination_complete") is False
+                )
+                for item in skill_obs
+            )
 
             # Metric determination
             if signal_type == "adoption":
@@ -168,6 +176,12 @@ def aggregate_market_signals(
                 normalized_value = None
                 data_state = "insufficient_data"
                 warnings.append("raw count; platform volume changes may affect it")
+
+            if incomplete_collection:
+                data_state = "incomplete"
+                warnings.append(
+                    "COLLECTION_INCOMPLETE: coverage is incomplete; this period is not completed evidence"
+                )
 
             results.append(AggregatedMarketSignal(
                 canonical_skill_id=canon_id,

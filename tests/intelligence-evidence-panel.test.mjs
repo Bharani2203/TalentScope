@@ -52,13 +52,41 @@ assert.doesNotThrow(() => {
       answer: 'Python is relevant to the role.\n\nforecast_readiness: ready\nskill_health_component_readiness: unknown\n### Evidence Highlights\nObserved details\nSources:\n{\n"taxonomy_category": "synthetic"\n}',
       explanation: 'This is based on the selected role requirements.'
     });
-    assert.ok(html.includes('AI explanation'));
+    assert.ok(html.includes('AI explanation of evidence'));
     assert.ok(html.includes('Python is relevant to the role.'));
     assert.ok(html.includes('What this means'));
     assert.ok(renderConversationNextAction('Review the cited skill mapping.', escapedMarkdown).includes('Next step'));
     for (const internal of ['forecast_readiness', 'skill_health_component_readiness', 'Evidence Highlights', 'Observed details', 'taxonomy_category', '{']) {
       assert.ok(!html.includes(internal));
     }
+  }
+
+  {
+    const unavailable = renderConversationAnswer({
+      intent: 'general_explanation',
+      status: 'unavailable',
+      execution_status: 'unsupported',
+      answer_origin: 'deterministic'
+    }, value => `<p>${value}</p>`, { answer: 'No explanation was returned.' });
+    assert.ok(unavailable.includes('General explanation unavailable'));
+    assert.ok(!unavailable.includes('Platform-generated answer'));
+    const reference = renderConversationAnswer({
+      intent: 'lookup_skill_reference',
+      status: 'insufficient_data',
+      execution_status: 'insufficient_data'
+    }, value => `<p>${value}</p>`, { answer: 'No reference record was found.' });
+    assert.ok(reference.includes('Reference information unavailable'));
+    assert.ok(!reference.includes('Not enough data'));
+    const clarification = renderConversationAnswer({
+      intent: 'lookup_skill_reference',
+      status: 'requires_clarification',
+      execution_status: 'requires_clarification'
+    }, value => `<p>${value}</p>`, { answer: 'Which ESCO skill did you mean?' });
+    assert.ok(clarification.includes('Which ESCO skill did you mean?'));
+    const error = renderConversationAnswer({
+      intent: 'lookup_skill_reference', status: 'error', execution_status: 'failed'
+    }, value => `<p>${value}</p>`, { answer: 'Reference lookup failed. Reference: req-test.' });
+    assert.ok(error.includes('Reference lookup failed. Reference: req-test.'));
   }
 
   {
@@ -96,7 +124,84 @@ assert.doesNotThrow(() => {
     'obs-1', 'run-1', 'https://provider.example/jobs/1', 'ready_for_trend'
   ]) assert.ok(html.includes(expected), `expected panel to contain ${expected}`);
   assert.ok(!html.includes('global market total'));
+
+{
+  const adoption = renderIntelligenceEvidencePanel({
+    status: 'completed',
+    execution_status: 'completed',
+    evidence: [{
+      evidence_id: 'github:record-1',
+      source: 'ref_github_topic_adoption',
+      signal_type: 'developer_adoption_observation',
+      measured_signal_type: 'adoption',
+      period: '2025-Q4',
+      unit: 'unique developers per quarter',
+      data_origin: 'real',
+      history_type: 'backfill',
+      series_id: 'github_innovation_graph:topic_pushers:IN:python',
+      location: 'IN',
+      scope: 'country',
+      provenance_id: 'record-1',
+      description: 'GitHub Innovation Graph topic pushers in IN; developer activity, not hiring demand.'
+    }]
+  }, { compact: true });
+  for (const value of [
+    'ref_github_topic_adoption', 'Developer adoption/activity', '2025-Q4',
+    'unique developers per quarter', 'real', 'backfill',
+    'github_innovation_graph:topic_pushers:IN:python', 'IN', 'record-1',
+    'not hiring demand'
+  ]) assert.ok(adoption.includes(value), `expected rendered adoption evidence to include ${value}`);
+}
 });
+
+{
+  const escoUri = 'http://data.europa.eu/esco/skill/example-uri';
+  const evidenceId = 'ev_esco_skill_example';
+  const adapted = adaptCoreIntelligenceAnswerResponse({
+    request_id: 'ans_esco_frontend',
+    user_message: 'Find an ESCO skill',
+    portal_type: 'individual',
+    intent: 'lookup_skill_reference',
+    plan_status: 'ready_to_execute',
+    execution_status: 'completed',
+    status: 'ready',
+    answer: 'ESCO v1.2.1 reference entry.',
+    facts: [{
+      fact_type: 'canonical_reference',
+      entity_name: 'Example skill',
+      canonical_entity_id: `skill:esco:${escoUri}`,
+      metric_name: 'taxonomy_category',
+      metric_value: 'knowledge',
+      source: 'ref_esco_skills',
+      history_type: 'reference_taxonomy',
+      quality_state: 'valid',
+      provenance_id: escoUri,
+      evidence_reference: evidenceId,
+      details: { esco_uri: escoUri, source_version: 'v1.2.1' }
+    }],
+    evidence: [{
+      evidence_id: evidenceId,
+      source: 'ref_esco_skills',
+      signal_type: 'taxonomy_lookup',
+      provenance_id: escoUri,
+      description: 'ESCO v1.2.1 skill taxonomy entry: Example skill.'
+    }],
+    limitations: [
+      'ESCO taxonomy does not prove individual qualifications.',
+      'ESCO taxonomy is not current hiring demand.'
+    ]
+  });
+  assert.equal(adapted.facts[0].details.esco_uri, escoUri);
+  assert.equal(adapted.facts[0].details.source_version, 'v1.2.1');
+  assert.equal(adapted.facts[0].evidence_reference, evidenceId);
+  assert.equal(adapted.evidence[0].provenance_id, escoUri);
+  const html = renderIntelligenceEvidencePanel(adapted, { compact: true });
+  assert.ok(html.includes('ref_esco_skills'));
+  assert.ok(html.includes(evidenceId));
+  assert.ok(html.includes(escoUri));
+  assert.ok(html.includes('ESCO taxonomy does not prove individual qualifications.'));
+  assert.ok(html.includes('ESCO taxonomy is not current hiring demand.'));
+}
 
 {
   const html = renderIntelligenceEvidencePanel({
@@ -342,6 +447,64 @@ assert.doesNotThrow(() => {
 }
 
 {
+  const skill = adaptSkillIntelligenceResponse({
+    data_status: 'available',
+    data_state: 'ready',
+    sources_used: ['jsearch'],
+    personal_top_skills: [{
+      skill: 'Python',
+      trend: 'Growing',
+      readiness_state: 'ready_for_trend',
+      source: 'jsearch',
+      series: [
+        { period: '2026-07', value: 0.1 },
+        { period: '2026-08', value: 0.12 },
+        { period: '2026-09', value: 0.14 },
+        { period: '2026-10', value: 0.16 }
+      ]
+    }],
+    market_top_skills: [{
+      skill: 'Python',
+      trend: 'Growing',
+      growth_pct: 60,
+      readiness_state: 'ready_for_trend',
+      source: 'jsearch',
+      series: [
+        { period: '2026-07', value: 0.1 },
+        { period: '2026-08', value: 0.12 },
+        { period: '2026-09', value: 0.14 },
+        { period: '2026-10', value: 0.16 }
+      ]
+    }],
+    selected_skill: {
+      skill: 'Python',
+      trend: 'Growing',
+      source: 'jsearch',
+      series: [
+        { period: '2026-07', value: 0.1 },
+        { period: '2026-08', value: 0.12 },
+        { period: '2026-09', value: 0.14 },
+        { period: '2026-10', value: 0.16 }
+      ]
+    }
+  }, 'Python');
+
+  assert.deepEqual(skill.sources_used, ['jsearch']);
+  assert.equal(skill.market_top_skills[0].is_trend_ready, true);
+  assert.equal(skill.personal_top_skills[0].series.length, 4);
+  assert.equal(skill.selected_skill.skill, 'Python');
+  assert.equal(skill.selected_skill.trend, 'Growing');
+
+  const noPersonalTrends = adaptSkillIntelligenceResponse({
+    data_status: 'available',
+    personal_top_skills: [],
+    market_top_skills: skill.market_top_skills
+  });
+  assert.deepEqual(noPersonalTrends.personal_top_skills, []);
+  assert.equal(noPersonalTrends.market_top_skills.length, 1);
+}
+
+{
   const response = adaptCoreIntelligenceResponse({
     intelligence_type: 'market',
     metric_results: [metric],
@@ -416,6 +579,17 @@ assert.doesNotThrow(() => {
   assert.ok(individualAssistant.includes('data-feedback="up"'));
   assert.ok(individualAssistant.includes('executeAiQuery(fu'));
   assert.ok(individualAssistant.includes('requestContext: turn.requestContext'));
+  const careerPage = await readFile(new URL(pagePaths[2], import.meta.url), 'utf8');
+  assert.ok(careerPage.includes('Illustrative prototype only:'));
+  assert.ok(careerPage.includes('title="Illustrative prototype; not live job-market data"'));
+  assert.ok(careerPage.includes('This prototype does not include verified citations.'));
+  assert.ok(careerPage.includes('Sample fixture only; not verified, API-backed, or externally sourced.'));
+  assert.ok(careerPage.includes('Waiting for the job-intelligence API response...'));
+  assert.ok(!careerPage.includes('Methodology: Core Intelligence market collection'));
+  assert.ok(!careerPage.includes('42,000+ active requisitions'));
+  assert.ok(!careerPage.includes('analysisStep'));
+  assert.ok(!careerPage.includes('getScanningStageText'));
+  assert.ok(!careerPage.includes('tickSimulation'));
   const assistantStyles = await readFile(new URL('../src/pages/individual/ai-assistant/ai-assistant.css', import.meta.url), 'utf8');
   assert.ok(assistantStyles.includes('max-width: 1200px;'));
   const employeeAssistant = await readFile(new URL(pagePaths[4], import.meta.url), 'utf8');

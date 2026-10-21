@@ -320,8 +320,8 @@ def test_real_sqlite_related_occupations(local_reference_database):
 
 
 @pytest.mark.integration
-def test_real_sqlite_github_technology_series(local_reference_database):
-    """Verify GitHub Innovation Graph technology adoption lookup from SQLite."""
+def test_generic_skill_concept_does_not_attach_unrequested_github_adoption(local_reference_database):
+    """A generic concept query must not implicitly become a GitHub adoption claim."""
     orchestrator = ExecutionOrchestratorService()
     req = CoreIntelligenceAnswerRequest(
         message="What is Python?",
@@ -330,8 +330,8 @@ def test_real_sqlite_github_technology_series(local_reference_database):
     resp = orchestrator.answer(req, authenticated_user=USER_ALICE)
     assert resp.execution_status == "completed"
     assert resp.intent == "explain_concept"
-    assert any(f.source.startswith("ref_github_") for f in resp.facts)
-    assert any("open-source developer activity" in lim.lower() for lim in resp.limitations)
+    assert not any(f.source and f.source.startswith("ref_github_") for f in resp.facts)
+    assert not any(item.signal_type == "adoption" for item in resp.evidence)
 
 
 # =============================================================================
@@ -380,9 +380,11 @@ def test_snapshot_observations_without_origin_do_not_compute_a_measured_trend():
         portal_type="individual",
     )
     resp = orchestrator.answer(req, authenticated_user=USER_ALICE)
-    assert resp.execution_status == "completed"
+    # Readiness rejected missing provenance before the trend capability handler ran.
+    assert resp.execution_status == "insufficient_data"
     assert resp.status == "insufficient_data"
     assert resp.intent == "analyze_trend"
+    assert resp.capabilities_used == []
     assert not any(f.fact_type == "trend_analysis" for f in resp.facts)
     assert resp.reason_codes == ["OBSERVATION_PROVENANCE_UNAVAILABLE"]
 
@@ -518,7 +520,9 @@ def test_fastapi_endpoints_plan_and_answer(local_reference_database):
     assert follow_resp.status_code == 200
     follow_data = follow_resp.json()
     assert follow_data["intent"] == "synthesize_actions"
-    assert follow_data["execution_status"] == "completed"
+    assert follow_data["execution_status"] == "insufficient_data"
+    assert "target role" in follow_data["answer"].lower()
+    assert not any(fact["fact_type"] == "action_recommendation" for fact in follow_data["facts"])
 
     # 4. /entities/resolve endpoint
     res_resp = client.post(

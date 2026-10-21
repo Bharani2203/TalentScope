@@ -310,6 +310,19 @@ def test_rejection_fewer_than_36_periods():
     assert any("at least 36 consecutive completed monthly periods" in lim.lower() for lim in resp.limitations)
 
 
+def test_half_life_cannot_lower_operational_minimum_with_argument():
+    from app.analytics.skill_half_life import calculate_skill_half_life
+    from app.analytics.signal_aggregation import aggregate_market_signals
+
+    observations = make_skill_half_life_observations(count=35, decay_rate=0.02)
+    result = calculate_skill_half_life(
+        aggregate_market_signals(observations), canonical_skill_id="python", min_periods=3,
+    )
+    assert result.status == "insufficient_data"
+    assert result.required_min_periods == 36
+    assert result.half_life_months is None
+
+
 def test_rejection_non_consecutive_periods():
     """36 observations with skipped months rejects with INSUFFICIENT_HALF_LIFE_HISTORY."""
     obs = make_skill_half_life_observations(count=36, decay_rate=0.02, consecutive=False)

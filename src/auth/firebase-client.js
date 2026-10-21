@@ -1,6 +1,7 @@
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import {
   createUserWithEmailAndPassword,
+  connectAuthEmulator,
   getAuth,
   GoogleAuthProvider,
   fetchSignInMethodsForEmail,
@@ -13,8 +14,21 @@ import {
   signInWithPopup,
   signOut
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import {
+  resolveFirebaseEmulatorConfig,
+  verifyFirebaseEmulator
+} from './firebase-emulator-config.js';
 
-const firebaseConfig = window.TALENTSCOPE_FIREBASE_CONFIG || {
+const emulatorConfig = resolveFirebaseEmulatorConfig(window.location);
+if (emulatorConfig) await verifyFirebaseEmulator(emulatorConfig);
+
+const firebaseConfig = emulatorConfig ? {
+  apiKey: 'local-emulator-only',
+  authDomain: `${emulatorConfig.projectId}.firebaseapp.com`,
+  projectId: emulatorConfig.projectId,
+  messagingSenderId: '000000000000',
+  appId: '1:000000000000:web:local-emulator'
+} : window.TALENTSCOPE_FIREBASE_CONFIG || {
   apiKey: 'AIzaSyD5h3VUZkFevzyFfh9DO6TBK8nfTkCoQqA',
   authDomain: 'skill-demand-forecasting.firebaseapp.com',
   projectId: 'skill-demand-forecasting',
@@ -23,7 +37,13 @@ const firebaseConfig = window.TALENTSCOPE_FIREBASE_CONFIG || {
 };
 
 const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+if (emulatorConfig && firebaseApp.options.projectId !== emulatorConfig.projectId) {
+  throw new Error('Firebase Emulator mode rejected an already initialized non-emulator project.');
+}
 export const auth = getAuth(firebaseApp);
+if (emulatorConfig) {
+  connectAuthEmulator(auth, emulatorConfig.authUrl, { disableWarnings: true });
+}
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 

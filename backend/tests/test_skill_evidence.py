@@ -29,6 +29,7 @@ class FakeDocument:
 class FakeCollection:
     def __init__(self, data=None):
         self._items = dict(data or {})
+        self.stream_calls = 0
 
     def document(self, doc_id):
         return FakeDocument(doc_id, self._items.get(doc_id))
@@ -44,6 +45,7 @@ class FakeCollection:
         return self
 
     def stream(self):
+        self.stream_calls += 1
         for k, v in self._items.items():
             yield FakeDocument(k, v)
 
@@ -304,6 +306,51 @@ def test_github_evidence_retrieval():
     assert item.signal_type == "adoption"
     assert item.raw_value == 925221.0
     assert item.metric == "adoption_snapshot"
+
+
+def test_evidence_reuses_calculation_record_query_for_source_period():
+    observed_at = datetime(2026, 10, 6, tzinfo=timezone.utc)
+    observations = {
+        "demand-observation": {
+            "observation_id": "demand-observation",
+            "source": "jsearch",
+            "signal_type": "demand",
+            "observed_at": observed_at,
+            "period": "2026-10",
+            "scope": "country",
+            "skill": "Python",
+            "skill_id": "python",
+            "value": 3,
+            "unit": "job_postings",
+            "data_origin": "real",
+            "history_type": "platform_collected",
+        },
+        "adoption-observation": {
+            "observation_id": "adoption-observation",
+            "source": "jsearch",
+            "signal_type": "adoption",
+            "observed_at": observed_at,
+            "period": "2026-10",
+            "scope": "country",
+            "skill": "Python",
+            "skill_id": "python",
+            "value": 5,
+            "unit": "job_postings",
+            "data_origin": "real",
+            "history_type": "platform_collected",
+        },
+    }
+    calculation_records = FakeCollection()
+    client = FakeFirestoreClient({
+        "skill_market_signals": FakeCollection(observations),
+        "calculation_records": calculation_records,
+    })
+
+    evidence = get_skill_evidence("Python", client=client)
+
+    assert evidence is not None
+    assert len(evidence.items) == 2
+    assert calculation_records.stream_calls == 1
 
 
 # 10 & 11. Source and Signal Separation

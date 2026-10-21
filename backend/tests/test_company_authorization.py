@@ -50,6 +50,14 @@ class FakeFirestore:
         return Collection(self, name)
 
 
+@pytest.fixture(autouse=True)
+def isolate_application_dependency_overrides():
+    """Prevent overrides leaked by other modules from bypassing real auth dependencies."""
+    app.dependency_overrides.clear()
+    yield
+    app.dependency_overrides.clear()
+
+
 @pytest.fixture
 def firestore(monkeypatch):
     database = FakeFirestore({
@@ -102,6 +110,16 @@ def test_company_owner_membership_is_resolved_from_firestore_not_token_claims(fi
     assert authorized_request.company_id == "company-a"
     assert authorized_user.company_id == "company-a"
     assert authorized_user.role == "company_admin"
+
+
+def test_company_request_without_membership_is_denied(firestore):
+    user = AuthenticatedUser(uid="user-without-company")
+    request = CoreIntelligenceRequest(portal_type="company")
+
+    with pytest.raises(HTTPException) as error:
+        core_intelligence._authorized_company_context(request, user)
+
+    assert error.value.status_code == 403
 
 
 def test_approved_employee_can_use_only_its_connected_company_context(firestore):
@@ -328,6 +346,7 @@ def test_company_id_spoof_is_denied_consistently_across_routes(
         )
 
     assert response.status_code == 403
+    assert "company-b" not in response.text
 
 
 @pytest.mark.parametrize(
@@ -394,8 +413,13 @@ def test_inactive_or_ambiguous_employee_membership_is_denied(
 
 
 @pytest.mark.parametrize("authorization", [None, "Basic not-a-token"])
-def test_company_endpoint_rejects_missing_or_malformed_authentication(authorization):
+def test_company_endpoint_rejects_missing_or_malformed_authentication(authorization, monkeypatch):
     headers = {"Authorization": authorization} if authorization else {}
+    monkeypatch.setattr(
+        dependencies,
+        "get_firestore_client",
+        lambda: pytest.fail("membership storage must not be read before authentication"),
+    )
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/intelligence/core",
@@ -412,6 +436,11 @@ def test_company_endpoint_rejects_invalid_firebase_token(monkeypatch):
         dependencies.auth,
         "verify_id_token",
         lambda token, **kwargs: (_ for _ in ()).throw(auth.InvalidIdTokenError("invalid token")),
+    )
+    monkeypatch.setattr(
+        dependencies,
+        "get_firestore_client",
+        lambda: pytest.fail("membership storage must not be read for an invalid token"),
     )
     with TestClient(app) as client:
         response = client.post(

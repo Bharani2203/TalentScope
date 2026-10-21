@@ -104,9 +104,15 @@ def test_scenario_4_evidence_and_provenance_retrieval(client):
         })
         assert resp.status_code == 200
         data = resp.json()
-        assert data["execution_status"] == "completed"
-        assert len(data["evidence"]) > 0
-        assert all(e["data_origin"] == "real" for e in data["evidence"])
+        assert data["execution_status"] == "insufficient_data"
+        assert data["status"] == "insufficient_data"
+        assert data["reason_codes"] == ["NO_VERIFIED_EVIDENCE"]
+        assert data["evidence"] == []
+        summary = next(f for f in data["facts"] if f["fact_type"] == "evidence_summary")
+        assert summary["metric_value"] == 0
+        assert summary["data_origin"] == "unavailable"
+        assert summary["readiness_state"] == "insufficient_data"
+        assert "No matching stored observation" in summary["details"]["reason"]
     finally:
         app.dependency_overrides.clear()
 
@@ -158,7 +164,7 @@ def test_scenario_6_search_stored_job_postings(client):
         app.dependency_overrides.clear()
 
 
-def test_scenario_7_action_recommendations(client):
+def test_scenario_7_action_recommendations_require_skill_labels_supported_by_role_relationships(client):
     app.dependency_overrides[dependencies.get_current_user] = lambda: USER_INDIVIDUAL
     try:
         resp = client.post("/api/v1/intelligence/answer", json={
@@ -175,7 +181,12 @@ def test_scenario_7_action_recommendations(client):
             fact["fact_type"] == "action_recommendation"
             for fact in data["facts"]
         )
-        assert "no exact o*net occupation match" in data["answer"].lower()
+        assert "do not match" in data["answer"].lower()
+        assert any(
+            fact["fact_type"] == "learning_recommendation_readiness"
+            and fact["details"]["reason_code"] == "UNRESOLVED_USER_SKILL"
+            for fact in data["facts"]
+        )
     finally:
         app.dependency_overrides.clear()
 

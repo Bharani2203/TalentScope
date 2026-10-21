@@ -87,8 +87,8 @@ def test_skill_gap_respects_explicit_query_target_role(local_reference_database)
     assert "Data Scientists" in resp.answer
 
 
-def test_job_search_zero_stored_postings_provides_onet_baseline_alternative():
-    """Verify that zero stored job postings provides an honest disclosure with O*NET alternative."""
+def test_job_search_zero_stored_postings_does_not_substitute_onet_taxonomy():
+    """An empty job sample is not supplemented with taxonomy as hiring evidence."""
     service = ExecutionOrchestratorService()
     req = CoreIntelligenceAnswerRequest(
         message="Find jobs for Cloud Architect",
@@ -106,7 +106,8 @@ def test_job_search_zero_stored_postings_provides_onet_baseline_alternative():
     assert job_fact is not None
     assert job_fact.metric_value == 0
     assert "bounded recent stored search" in resp.answer
-    assert "O*NET taxonomy baseline" in resp.answer
+    assert "O*NET taxonomy baseline" not in resp.answer
+    assert "does not establish hiring demand" in resp.answer
     assert len(resp.follow_up_questions) > 0
 
 

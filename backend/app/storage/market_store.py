@@ -12,16 +12,32 @@ logger = logging.getLogger(__name__)
 
 
 class MarketDataStore:
-    def __init__(self, database_path: str | Path | None = None):
+    def __init__(self, database_path: str | Path | None = None, *, read_only: bool = False):
         if database_path is None:
             from app.core.config import get_settings
-            database_path = get_settings().database_path
+            settings = get_settings()
+            if settings.reference_database_path.is_file():
+                database_path = settings.reference_database_path
+            else:
+                database_path = settings.database_path
         self.database_path = Path(database_path)
-        self.database_path.parent.mkdir(parents=True, exist_ok=True)
-        self._initialize()
+        self.read_only = read_only
+        if self.read_only:
+            if not self.database_path.is_file():
+                raise FileNotFoundError(f"Market database not found: {self.database_path}")
+        else:
+            self.database_path.parent.mkdir(parents=True, exist_ok=True)
+            self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path, timeout=15)
+        if self.read_only:
+            connection = sqlite3.connect(
+                self.database_path.resolve().as_uri() + "?mode=ro",
+                timeout=15,
+                uri=True,
+            )
+        else:
+            connection = sqlite3.connect(self.database_path, timeout=15)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA busy_timeout = 15000")
         return connection
@@ -34,6 +50,7 @@ class MarketDataStore:
                     source TEXT NOT NULL,
                     signal_type TEXT NOT NULL,
                     observed_at TEXT NOT NULL,
+                    provider_posted_at TEXT,
                     period TEXT NOT NULL,
                     location TEXT,
                     scope TEXT NOT NULL,
@@ -81,6 +98,44 @@ class MarketDataStore:
                     sources_succeeded_json TEXT NOT NULL DEFAULT '[]',
                     sources_failed_json TEXT NOT NULL DEFAULT '{}'
                 );
+                CREATE TABLE IF NOT EXISTS market_fetch_runs (
+                    run_id TEXT PRIMARY KEY,
+                    collection_run_id TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT,
+                    status TEXT NOT NULL,
+                    record_json TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_market_fetch_runs_source_started
+                    ON market_fetch_runs(source, started_at);
+                CREATE TABLE IF NOT EXISTS market_fixture_postings (
+                    source TEXT NOT NULL,
+                    posting_id TEXT NOT NULL,
+                    data_origin TEXT NOT NULL CHECK(data_origin = 'test'),
+                    record_json TEXT NOT NULL,
+                    PRIMARY KEY (source, posting_id)
+                );
+                CREATE TABLE IF NOT EXISTS historical_job_postings (
+                    source TEXT NOT NULL,
+                    posting_id TEXT NOT NULL,
+                    posted_date TEXT NOT NULL,
+                    period TEXT NOT NULL,
+                    title TEXT,
+                    company TEXT,
+                    role TEXT,
+                    category TEXT,
+                    city TEXT,
+                    region TEXT,
+                    country TEXT NOT NULL,
+                    skills_json TEXT NOT NULL,
+                    salary_annual_usd REAL,
+                    raw_json TEXT,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (source, posting_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_historical_postings_country_period
+                    ON historical_job_postings(country, period);
             """)
             observation_columns = {
                 row["name"] for row in connection.execute("PRAGMA table_info(market_observations)")
@@ -103,6 +158,7 @@ class MarketDataStore:
                 "unit": "TEXT",
                 "denominator_unit": "TEXT",
                 "source_url": "TEXT",
+                "provider_posted_at": "TEXT",
             }
             for column, column_type in observation_migrations.items():
                 if column not in observation_columns:
@@ -114,7 +170,15 @@ class MarketDataStore:
     def _stable_id(observation: MarketObservation) -> str:
         return stable_observation_id(observation)
 
-    def insert_observations(self, observations: list[MarketObservation]) -> int:
+    def insert_observations(
+        self,
+        observations: list[MarketObservation],
+        *,
+        provenance_by_observation_id: dict[str, dict[str, str | None]] | None = None,
+    ) -> int:
+        # The shared collector applies run/query/panel provenance to each model
+        # before persistence; accepting this argument keeps the SQLite and
+        # Firestore observation-store interfaces interchangeable.
         if not observations:
             return 0
         records = []
@@ -127,6 +191,10 @@ class MarketDataStore:
                 observation.source.casefold(),
                 observation.signal_type,
                 observed_at.astimezone(timezone.utc).isoformat(),
+                observation.provider_posted_at.astimezone(timezone.utc).isoformat()
+                if observation.provider_posted_at and observation.provider_posted_at.tzinfo
+                else observation.provider_posted_at.replace(tzinfo=timezone.utc).isoformat()
+                if observation.provider_posted_at else None,
                 observation.period or observed_at.strftime("%Y-%m"),
                 observation.location,
                 observation.scope,
@@ -160,17 +228,118 @@ class MarketDataStore:
             before = connection.total_changes
             connection.executemany("""
                 INSERT OR IGNORE INTO market_observations
-                (id, source, signal_type, observed_at, period, location, scope,
+                (id, source, signal_type, observed_at, provider_posted_at, period, location, scope,
                  skill, value, unit, denominator_unit, source_url, posting_id, metadata_json, history_type, data_origin,
                  skill_id, denominator, fetch_run_id, series_id, query_id,
                  panel_version, quality_json, confidence, observation_count,
                  extractor_version, annotations_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, records)
             inserted = connection.total_changes - before
             if inserted:
                 connection.execute("DELETE FROM market_calculation_cache")
             return inserted
+
+    def persist_fixture_postings(
+        self,
+        postings: list[Any],
+        *,
+        fetched_at: datetime,
+        fetch_run_id: str | None = None,
+    ) -> int:
+        """Persist only explicitly test-labelled fixture postings in this SQLite file."""
+        identified: dict[tuple[str, str], dict[str, Any]] = {}
+        for posting in postings:
+            posting_id = posting.provider_job_id or posting.posting_id
+            if not posting_id:
+                continue
+            source = posting.source.casefold()
+            record = posting.model_dump(mode="json")
+            record.update({
+                "fetch_run_id": fetch_run_id,
+                "fetched_at": fetched_at.isoformat(),
+                "data_origin": "test",
+            })
+            identity = (source, posting_id)
+            prior = identified.get(identity)
+            if prior is not None and prior != record:
+                raise ValueError("Conflicting fixture postings share a provider identity.")
+            identified[identity] = record
+        with self._connect() as connection:
+            for (source, posting_id), record in identified.items():
+                payload = json.dumps(record, sort_keys=True, separators=(",", ":"))
+                connection.execute(
+                    "INSERT INTO market_fixture_postings (source, posting_id, data_origin, record_json) "
+                    "VALUES (?, ?, 'test', ?) ON CONFLICT(source, posting_id) "
+                    "DO UPDATE SET record_json = excluded.record_json",
+                    (source, posting_id, payload),
+                )
+                stored = connection.execute(
+                    "SELECT data_origin, record_json FROM market_fixture_postings "
+                    "WHERE source = ? AND posting_id = ?", (source, posting_id),
+                ).fetchone()
+                if stored is None or stored["data_origin"] != "test" or stored["record_json"] != payload:
+                    raise RuntimeError("Fixture posting read-back verification failed.")
+        return len(identified)
+
+    def insert_historical_postings(
+        self,
+        postings: list[dict[str, Any]],
+    ) -> int:
+        """Insert historical job postings idempotently with PRIMARY KEY (source, posting_id)."""
+        if not postings:
+            return 0
+        records = []
+        now_iso = datetime.now(timezone.utc).isoformat()
+        for p in postings:
+            skills = p.get("skills") or []
+            skills_json = json.dumps(skills, sort_keys=True, separators=(",", ":")) if isinstance(skills, list) else str(skills)
+            raw_json = json.dumps(p.get("raw") or {}, sort_keys=True, separators=(",", ":"))
+            records.append((
+                (p.get("source") or "fliarbi").casefold(),
+                str(p["posting_id"]),
+                str(p["posted_date"]),
+                str(p.get("period") or p["posted_date"][:7]),
+                p.get("title"),
+                p.get("company"),
+                p.get("role"),
+                p.get("category"),
+                p.get("city"),
+                p.get("region"),
+                str(p.get("country") or "IN").upper(),
+                skills_json,
+                p.get("salary_annual_usd"),
+                raw_json,
+                now_iso,
+            ))
+        with self._connect() as connection:
+            before = connection.total_changes
+            connection.executemany("""
+                INSERT OR IGNORE INTO historical_job_postings
+                (source, posting_id, posted_date, period, title, company, role,
+                 category, city, region, country, skills_json, salary_annual_usd, raw_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, records)
+            return connection.total_changes - before
+
+    def get_historical_postings_count(
+        self,
+        *,
+        country: str | None = None,
+        period: str | None = None,
+    ) -> int:
+        clauses = []
+        params: list[Any] = []
+        if country:
+            clauses.append("country = ?")
+            params.append(country.upper())
+        if period:
+            clauses.append("period = ?")
+            params.append(period)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        with self._connect() as connection:
+            row = connection.execute(f"SELECT COUNT(*) as cnt FROM historical_job_postings {where}", params).fetchone()
+            return int(row["cnt"] or 0) if row else 0
 
     def get_observations(
         self,
@@ -178,6 +347,7 @@ class MarketDataStore:
         location: str | None = None,
         cutoff: datetime | None = None,
         skill: str | None = None,
+        include_test: bool = False,
     ) -> list[MarketObservation]:
         clauses = []
         params: list[Any] = []
@@ -202,7 +372,10 @@ class MarketDataStore:
         for row in rows:
             if row["history_type"] not in {"backfill", "platform_collected", "snapshot", "static_dataset", None}:
                 continue
-            if row["data_origin"] not in {"real", "demo", None}:
+            allowed_origins = {"real", "demo", None}
+            if include_test:
+                allowed_origins.add("test")
+            if row["data_origin"] not in allowed_origins:
                 continue
             try:
                 results.append(MarketObservation(
@@ -210,6 +383,7 @@ class MarketDataStore:
                     source=row["source"],
                     signal_type=row["signal_type"],
                     observed_at=datetime.fromisoformat(row["observed_at"]),
+                    provider_posted_at=datetime.fromisoformat(row["provider_posted_at"]) if row["provider_posted_at"] else None,
                     period=row["period"],
                     location=row["location"],
                     scope=row["scope"],

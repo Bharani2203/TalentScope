@@ -1,8 +1,13 @@
 from functools import lru_cache
+import os
 from pathlib import Path
 from typing import Literal
-from pydantic import Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+LOCAL_TEST_FIREBASE_PROJECT_ID = "demo-talentscope-local"
+LOCAL_TEST_FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080"
+LOCAL_TEST_AUTH_EMULATOR_HOST = "127.0.0.1:9099"
 
 
 class Settings(BaseSettings):
@@ -10,6 +15,21 @@ class Settings(BaseSettings):
     firebase_project_id: str = "skill-demand-forecasting"
     google_application_credentials: str | None = None
     gemini_api_key: SecretStr | None = None
+    # Separate, opt-in provider for general guidance when a V2 result is unavailable.
+    gemini_b_api_key: SecretStr | None = None
+    gemini_b_model: str = "gemini-3.8-flash"
+    gemini_b_backup_model: str | None = None
+    gemini_b_request_timeout_seconds: float = Field(
+        default=5,
+        ge=1,
+        le=15,
+        validation_alias=AliasChoices("GEMINI_B_REQUEST_TIMEOUT_SECONDS", "GEMINI_B_TIMEOUT_SECONDS"),
+    )
+    gemini_b_max_calls_per_minute: int = Field(default=10, ge=0)
+    gemini_b_max_calls_per_day: int = Field(default=100, ge=0)
+    gemini_b_max_calls_per_user_per_hour: int = Field(default=10, ge=0)
+    gemini_b_max_input_chars: int = Field(default=3000, ge=500, le=6000)
+    gemini_b_max_output_tokens: int = Field(default=512, ge=64, le=1024)
     gemini_max_calls_per_minute: int = Field(default=60, ge=0)
     gemini_max_calls_per_day: int = Field(default=1500, ge=0)
     gemini_max_calls_per_user_per_hour: int = Field(default=30, ge=0)
@@ -27,6 +47,9 @@ class Settings(BaseSettings):
     adzuna_country: str = "in"
     adzuna_timeout_seconds: float = Field(default=12.0, gt=0, le=120)
     adzuna_max_retries: int = Field(default=1, ge=0, le=3)
+    adzuna_intelligence_api_key: str | None = None
+    # On-demand assistant searches are opt-in; scheduled/admin collection is unchanged.
+    job_search_live_enabled: bool = False
     github_token: str | None = None
     github_topic: str = "python"
     github_timeout_seconds: float = Field(default=12.0, gt=0, le=120)
@@ -58,9 +81,27 @@ class Settings(BaseSettings):
     @property
     def database_path(self) -> Path:
         configured = Path(self.skill_intelligence_db_path)
-        if (Path("backend") / configured).exists():
-            return Path("backend") / configured
-        return configured
+        if configured.is_absolute():
+            return configured
+        # Anchor relative paths at the repository root; resolving against the
+        # current working directory could select a different developer DB.
+        repository_root = Path(__file__).resolve().parents[3]
+        return repository_root / configured
+
+    @property
+    def reference_database_path(self) -> Path:
+        """Path to the checked-in local reference taxonomy database.
+
+        Market observations retain ``database_path`` and its configured write
+        destination. Only the default reference store uses this local path.
+        """
+        configured = Path(self.skill_intelligence_db_path)
+        if configured.is_absolute():
+            return configured
+        repository_root = Path(__file__).resolve().parents[3]
+        if self.skill_intelligence_db_path == "data/skill_intelligence.sqlite3":
+            return repository_root / "backend" / "data" / "skill_intelligence.sqlite3"
+        return repository_root / configured
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[2] / ".env",
@@ -71,4 +112,25 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    firebase_mode = os.getenv("TALENTSCOPE_FIREBASE_MODE", "").strip().lower()
+    offline_mode = os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE", "")
+    local_mode_requested = offline_mode == "1" or firebase_mode not in {"", "production"}
+    if local_mode_requested:
+        # Never read backend/.env after local/offline mode is requested. That
+        # file may contain production credentials and must not fill missing
+        # local settings.
+        settings = Settings(_env_file=None)
+        if firebase_mode != "emulator" or offline_mode != "1":
+            raise RuntimeError(
+                "Offline test mode requires explicit Firebase Emulator mode and TALENTSCOPE_OFFLINE_TEST_MODE=1."
+            )
+        if settings.environment != "local-test":
+            raise RuntimeError("Firebase Emulator mode requires ENVIRONMENT=local-test.")
+        if settings.firebase_project_id != LOCAL_TEST_FIREBASE_PROJECT_ID:
+            raise RuntimeError("Firebase Emulator mode requires the dedicated local demo project ID.")
+        if os.getenv("FIRESTORE_EMULATOR_HOST", "").strip() != LOCAL_TEST_FIRESTORE_EMULATOR_HOST:
+            raise RuntimeError("Firebase Emulator mode requires the configured loopback Firestore host.")
+        if os.getenv("FIREBASE_AUTH_EMULATOR_HOST", "").strip() != LOCAL_TEST_AUTH_EMULATOR_HOST:
+            raise RuntimeError("Firebase Emulator mode requires the configured loopback Auth host.")
+        return settings
     return Settings()

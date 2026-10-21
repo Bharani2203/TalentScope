@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sqlite3
 from pathlib import Path
@@ -52,7 +53,11 @@ class EntityRegistryService:
     def _connect_db(self) -> sqlite3.Connection | None:
         if not self.db_path.exists():
             return None
-        connection = sqlite3.connect(self.db_path, timeout=5)
+        connection = sqlite3.connect(
+            self.db_path.resolve().as_uri() + "?mode=ro",
+            timeout=5,
+            uri=True,
+        )
         connection.row_factory = sqlite3.Row
         return connection
 
@@ -96,6 +101,12 @@ class EntityRegistryService:
         if normalized.startswith("occupation:soc:"):
             entity = self._resolve_onet_occupation(identifier[len("occupation:soc:"):])
             return entity if entity and (filter_type is None or filter_type == "occupation") else None
+
+        if normalized.startswith("occupation:esco:"):
+            return self._resolve_esco_occupation(identifier[len("occupation:esco:"):]) if filter_type in (None, "occupation") else None
+
+        if normalized.startswith("skill:esco:"):
+            return self._resolve_esco_skill(identifier[len("skill:esco:"):]) if filter_type in (None, "skill") else None
 
         if normalized.startswith("skill:onet:"):
             if filter_type not in (None, "skill"):
@@ -199,8 +210,11 @@ class EntityRegistryService:
             # Check context keys and values for software disambiguation
             context_tokens = {
                 str(k).casefold() for k in context.keys()
+                if str(k).casefold() not in {"entity_type", "taxonomy_entity_type"}
             } | {
-                str(v).casefold() for v in context.values() if isinstance(v, (str, int))
+                str(v).casefold() for k, v in context.items()
+                if str(k).casefold() not in {"entity_type", "taxonomy_entity_type"}
+                and isinstance(v, (str, int))
             }
             has_code_context = bool(
                 context_tokens.intersection({
@@ -233,6 +247,31 @@ class EntityRegistryService:
                     candidates=[candidate],
                     confidence=0.50,
                     source_provenance={"ambiguity": ambig_desc},
+                )
+
+        requested_taxonomy = str(context.get("taxonomy") or context.get("source") or "").casefold()
+        if requested_taxonomy == "esco":
+            requested_type = filter_type or context.get("taxonomy_entity_type")
+            esco_entity = None
+            if requested_type == "occupation":
+                esco_entity = self._resolve_esco_occupation(raw_name)
+            elif requested_type in {"skill", "technology"}:
+                esco_entity = self._resolve_esco_skill(raw_name)
+            if esco_entity:
+                return EntityResolutionResponse(
+                    name=raw_name,
+                    status="resolved",
+                    entity=esco_entity,
+                    match_method="exact" if esco_entity.canonical_name.casefold() == casefolded else "normalized",
+                    confidence=0.98,
+                    source_provenance={"source": esco_entity.source, "concept_uri": esco_entity.source_record_id},
+                )
+            if requested_type in {"occupation", "skill", "technology"}:
+                return EntityResolutionResponse(
+                    name=raw_name,
+                    status="not_found",
+                    confidence=0.0,
+                    source_provenance={"source": "ref_esco_occupations" if requested_type == "occupation" else "ref_esco_skills", "reason": "No exact ESCO taxonomy entry matched."},
                 )
 
         # ---------------------------------------------------------------------
@@ -283,6 +322,16 @@ class EntityRegistryService:
         # 3. O*NET Occupation Resolution
         # ---------------------------------------------------------------------
         if filter_type in (None, "occupation"):
+            requested_taxonomy = str(context.get("taxonomy") or context.get("source") or "").casefold()
+            if requested_taxonomy == "esco":
+                esco_entity = self._resolve_esco_occupation(raw_name)
+                if esco_entity:
+                    return EntityResolutionResponse(
+                        name=raw_name, status="resolved", entity=esco_entity,
+                        match_method="exact" if esco_entity.canonical_name.casefold() == casefolded else "normalized",
+                        confidence=0.98,
+                        source_provenance={"source": "ref_esco_occupations", "concept_uri": esco_entity.source_record_id},
+                    )
             occ_entity = self._resolve_onet_occupation(raw_name)
             if occ_entity:
                 return EntityResolutionResponse(
@@ -292,6 +341,14 @@ class EntityRegistryService:
                     match_method="exact" if occ_entity.canonical_name.casefold() == casefolded else "normalized",
                     confidence=1.0 if occ_entity.canonical_name.casefold() == casefolded else 0.95,
                     source_provenance={"source": "ref_onet_occupations", "soc_code": occ_entity.source_record_id},
+                )
+            esco_entity = self._resolve_esco_occupation(raw_name)
+            if esco_entity:
+                return EntityResolutionResponse(
+                    name=raw_name, status="resolved", entity=esco_entity,
+                    match_method="exact" if esco_entity.canonical_name.casefold() == casefolded else "normalized",
+                    confidence=0.98,
+                    source_provenance={"source": "ref_esco_occupations", "concept_uri": esco_entity.source_record_id},
                 )
 
         # ---------------------------------------------------------------------
@@ -319,6 +376,14 @@ class EntityRegistryService:
                     match_method="exact",
                     confidence=0.95,
                     source_provenance={"source": "ref_onet_essential_skills", "element": ess_entity.canonical_name},
+                )
+            esco_skill = self._resolve_esco_skill(raw_name)
+            if esco_skill:
+                return EntityResolutionResponse(
+                    name=raw_name, status="resolved", entity=esco_skill,
+                    match_method="exact" if esco_skill.canonical_name.casefold() == casefolded else "normalized",
+                    confidence=0.95,
+                    source_provenance={"source": "ref_esco_skills", "concept_uri": esco_skill.source_record_id},
                 )
 
         # ---------------------------------------------------------------------
@@ -356,6 +421,86 @@ class EntityRegistryService:
     # -------------------------------------------------------------------------
     # SQLite Reference Query Helpers
     # -------------------------------------------------------------------------
+
+    def _resolve_esco_occupation(self, text: str) -> CanonicalEntity | None:
+        conn = self._connect_db()
+        if not conn:
+            return None
+        try:
+            row = conn.execute(
+                "SELECT * FROM ref_esco_occupations WHERE concept_uri = ? OR lower(preferred_label) = lower(?) LIMIT 1",
+                (text.strip(), text.strip()),
+            ).fetchone()
+            if not row:
+                rows = conn.execute("SELECT * FROM ref_esco_occupations").fetchall()
+                row = next((
+                    item for item in rows
+                    if text.casefold() in {
+                        alias.strip().casefold()
+                        for group in json.loads(item["alt_labels"] or "[]")
+                        for alias in re.split(r"[\r\n]+", str(group))
+                        if alias.strip()
+                    }
+                ), None)
+            if row:
+                aliases = [
+                    alias.strip()
+                    for group in json.loads(row["alt_labels"] or "[]")
+                    for alias in re.split(r"[\r\n]+", str(group))
+                    if alias.strip()
+                ]
+                return CanonicalEntity(
+                    entity_id=f"occupation:esco:{row['concept_uri']}", entity_type="occupation",
+                    canonical_name=row["preferred_label"], aliases=aliases,
+                    category="ESCO occupation taxonomy", source="ref_esco_occupations",
+                    source_record_id=row["concept_uri"], status="active",
+                    metadata={"esco_uri": row["concept_uri"], "isco_group": row["isco_group"], "code": row["code"], "description": row["description"], "source_version": row["source_version"]},
+                )
+        except (sqlite3.OperationalError, ValueError, TypeError):
+            return None
+        finally:
+            conn.close()
+        return None
+
+    def _resolve_esco_skill(self, text: str) -> CanonicalEntity | None:
+        conn = self._connect_db()
+        if not conn:
+            return None
+        try:
+            row = conn.execute(
+                "SELECT * FROM ref_esco_skills WHERE concept_uri = ? OR lower(preferred_label) = lower(?) LIMIT 1",
+                (text.strip(), text.strip()),
+            ).fetchone()
+            if not row:
+                rows = conn.execute("SELECT * FROM ref_esco_skills").fetchall()
+                row = next((
+                    item for item in rows
+                    if text.casefold() in {
+                        alias.strip().casefold()
+                        for group in json.loads(item["alt_labels"] or "[]")
+                        for alias in re.split(r"[\r\n]+", str(group))
+                        if alias.strip()
+                    }
+                ), None)
+            if row:
+                aliases = [
+                    alias.strip()
+                    for group in json.loads(row["alt_labels"] or "[]")
+                    for alias in re.split(r"[\r\n]+", str(group))
+                    if alias.strip()
+                ]
+                return CanonicalEntity(
+                    entity_id=f"skill:esco:{row['concept_uri']}", entity_type="skill",
+                    canonical_name=row["preferred_label"], aliases=aliases,
+                    category=row["skill_type"] or "ESCO skill taxonomy", source="ref_esco_skills",
+                    source_record_id=row["concept_uri"], status="active",
+                    metadata={"esco_uri": row["concept_uri"], "reuse_level": row["reuse_level"], "description": row["description"], "source_version": row["source_version"]},
+                )
+        except (sqlite3.OperationalError, ValueError, TypeError):
+            return None
+        finally:
+            conn.close()
+        return None
 
     def _resolve_onet_occupation(self, text: str) -> CanonicalEntity | None:
         conn = self._connect_db()
@@ -581,6 +726,14 @@ class EntityRegistryService:
         finally:
             conn.close()
         return entities
+
+    def get_esco_occupation_skills(self, occupation_uri: str, *, limit: int = 50) -> list[dict[str, Any]]:
+        """Return ESCO taxonomy relations without mapping them to O*NET skills."""
+        try:
+            from app.storage.reference_store import ReferenceDataStore
+            return ReferenceDataStore(self.db_path, read_only=True).get_esco_occupation_skills(occupation_uri, limit=limit)
+        except (OSError, sqlite3.Error):
+            return []
 
     def get_related_occupations(self, soc_code: str) -> list[CanonicalEntity]:
         """Retrieve crosswalk occupations linked to a given occupation."""

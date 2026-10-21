@@ -21,12 +21,15 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
+from urllib.parse import urlparse
 
 from app.analytics.skill_normalization import canonical_skill_id, normalize_skill
 from app.models.skill_intelligence import MarketObservation
 
 WIKIPEDIA_MIN_PERIOD = "2015-08"
 MAX_EXECUTE_OBSERVATIONS = 450
+WIKIPEDIA_PROVIDER_PANEL_VERSION = "wikipedia-pageviews-v1"
+WIKIPEDIA_PROVIDER_EXTRACTOR_VERSION = "wikimedia-pageviews-monthly-v1"
 
 # Unambiguous canonical skill -> Wikipedia article allowlist
 CANONICAL_WIKIPEDIA_ALLOWLIST: dict[str, str] = {
@@ -215,6 +218,166 @@ def run_loader(
         "fetch_run_id": run_id,
         "input_sha256": content_hash,
         "warnings": warnings,
+    }
+
+
+def transfer_reviewed_wikipedia_sqlite_observations(
+    *,
+    database_path: str | Path,
+    observation_store: Any,
+    review_approved: bool = False,
+    skill: str | None = None,
+    as_of: datetime | None = None,
+) -> dict[str, Any]:
+    """Copy validated provider backfill rows from SQLite to the approved store.
+
+    This is deliberately an explicit library operation: callers must provide an
+    observation store (there is no implicit Firebase client fallback) and attest
+    that the bounded input was reviewed. SQLite is opened read-only. Existing
+    SQLite rows and stable observation IDs are never rewritten.
+    """
+    if not review_approved:
+        raise ValueError("Explicit review approval is required before SQLite transfer.")
+    if observation_store is None:
+        raise ValueError("An explicitly injected observation store is required.")
+    if getattr(observation_store, "client", object()) is None:
+        raise ValueError("Injected Firestore repository must have an explicit client; implicit initialization is disabled.")
+
+    from app.services.market_data.wikipedia_provider import resolve_wikipedia_article_for_skill
+    from app.storage.market_store import MarketDataStore
+
+    clock = as_of or datetime.now(timezone.utc)
+    if clock.tzinfo is None:
+        raise ValueError("as_of must include a timezone.")
+    clock = clock.astimezone(timezone.utc)
+    requested_definition = None
+    if skill:
+        requested_definition, _ = resolve_wikipedia_article_for_skill(skill)
+
+    source_store = MarketDataStore(database_path, read_only=True)
+    rows = source_store.get_observations(
+        skill=requested_definition.name if requested_definition else None,
+        include_test=True,
+    )
+    candidates = [item for item in rows if item.source.casefold() == "wikipedia"]
+    if requested_definition:
+        candidates = [item for item in candidates if item.skill_id == requested_definition.skill_id]
+
+    approved: list[MarketObservation] = []
+    rejected: list[dict[str, str]] = []
+    seen_periods: set[tuple[str, str]] = set()
+    for item in candidates:
+        label = item.id or f"{item.skill_id}:{item.period}"
+        try:
+            definition, article = resolve_wikipedia_article_for_skill(item.skill_id or item.skill)
+            metadata = item.metadata or {}
+            quality = item.quality or {}
+            raw_collected_at = metadata.get("collection_timestamp_utc")
+            collected_at = datetime.fromisoformat(raw_collected_at) if isinstance(raw_collected_at, str) else None
+            period_match = re.fullmatch(r"(\d{4})-(0[1-9]|1[0-2])", item.period or "")
+            if (
+                item.signal_type != "interest" or item.data_origin != "real"
+                or item.history_type != "backfill" or item.scope != "global" or item.location
+                or not period_match or item.period >= clock.strftime("%Y-%m")
+                or item.observed_at.tzinfo is None
+                or item.observed_at.astimezone(timezone.utc).strftime("%Y-%m") != item.period
+                or collected_at is None or collected_at.tzinfo is None or collected_at > clock
+                or item.created_at is None or item.created_at.tzinfo is None
+                or item.created_at.astimezone(timezone.utc) != collected_at.astimezone(timezone.utc)
+                or item.unit != "pageviews" or item.panel_version != WIKIPEDIA_PROVIDER_PANEL_VERSION
+                or item.extractor_version != WIKIPEDIA_PROVIDER_EXTRACTOR_VERSION
+                or item.series_id != f"wikipedia:pageviews:{definition.skill_id}:v1"
+                or not item.fetch_run_id or not item.query_id or not item.id or not item.source_url
+                or metadata.get("metric") != "wikipedia_monthly_pageviews"
+                or metadata.get("project") != "en.wikipedia"
+                or metadata.get("access") != "all-access" or metadata.get("agent") != "user"
+                or metadata.get("granularity") != "monthly" or metadata.get("article") != article
+                or quality.get("measure") != "Wikimedia pageviews REST API"
+                or quality.get("verified_article") != article
+                or urlparse(item.source_url).hostname not in {"wikimedia.org", "www.wikimedia.org"}
+                or not math.isfinite(float(item.value)) or item.value < 0
+            ):
+                raise ValueError("row does not match the completed Wikimedia monthly backfill contract")
+            if item.denominator is not None and (
+                not math.isfinite(float(item.denominator)) or item.denominator <= 0
+                or item.denominator_unit != "pageviews"
+            ):
+                raise ValueError("row has an invalid pageview denominator")
+            period_key = (definition.skill_id, item.period)
+            if period_key in seen_periods:
+                raise ValueError("duplicate skill-period row in SQLite input")
+            seen_periods.add(period_key)
+            reviewed_metadata = dict(metadata)
+            reviewed_metadata["sqlite_transfer_review"] = {
+                "status": "approved",
+                "reviewed_at": clock.isoformat(),
+                "review_scope": "Wikimedia monthly pageviews provider provenance and completed-period schema",
+            }
+            approved.append(item.model_copy(update={"metadata": reviewed_metadata}))
+        except (TypeError, ValueError, OverflowError) as exc:
+            rejected.append({"observation_id": label, "reason": str(exc)})
+
+    # Refuse a partial series transfer: a single rejected Wikipedia row means
+    # the SQLite selection needs review before it can become V2-readable.
+    if rejected:
+        return {
+            "status": "rejected", "review_approved": True,
+            "candidate_count": len(candidates), "accepted_count": 0,
+            "rejected": rejected, "inserted_count": 0,
+        }
+
+    if not approved:
+        return {
+            "status": "no_data", "review_approved": True,
+            "candidate_count": 0, "accepted_count": 0,
+            "rejected": [], "inserted_count": 0,
+        }
+
+    readback: dict[str, MarketObservation] = {}
+    for skill_name in sorted({item.skill for item in approved}):
+        for item in observation_store.get_observations_by_skill(
+            skill_name, cutoff=datetime(2000, 1, 1, tzinfo=timezone.utc),
+            source="wikipedia", signal_type="interest",
+        ):
+            if item.id:
+                readback[item.id] = item
+    preexisting_unreviewed = [
+        item.id for item in approved
+        if item.id in readback
+        and (readback[item.id].metadata or {}).get("sqlite_transfer_review", {}).get("status") != "approved"
+    ]
+    if preexisting_unreviewed:
+        return {
+            "status": "rejected", "review_approved": True,
+            "candidate_count": len(candidates), "accepted_count": 0,
+            "rejected": [{"observation_id": item_id, "reason": "stable ID already exists without reviewed-transfer provenance"}
+                         for item_id in preexisting_unreviewed],
+            "inserted_count": 0,
+        }
+
+    inserted = observation_store.insert_observations(approved)
+    readback = {}
+    for skill_name in sorted({item.skill for item in approved}):
+        for item in observation_store.get_observations_by_skill(
+            skill_name, cutoff=datetime(2000, 1, 1, tzinfo=timezone.utc),
+            source="wikipedia", signal_type="interest",
+        ):
+            if item.id:
+                readback[item.id] = item
+    missing = [item.id for item in approved if item.id not in readback]
+    unmarked = [
+        item.id for item in approved
+        if item.id in readback
+        and (readback[item.id].metadata or {}).get("sqlite_transfer_review", {}).get("status") != "approved"
+    ]
+    if missing or unmarked:
+        raise RuntimeError("Approved-store read-back verification failed for the reviewed Wikipedia transfer.")
+    return {
+        "status": "ready", "review_approved": True,
+        "candidate_count": len(candidates), "accepted_count": len(approved),
+        "inserted_count": inserted, "rejected": [],
+        "observation_ids": [item.id for item in approved],
+        "readback_verified": True,
     }
 
 

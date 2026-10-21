@@ -52,6 +52,27 @@ def mock_company_user(company_id: str = "comp_alpha") -> UserProfile:
     )
 
 
+@pytest.mark.parametrize("question", [
+    "What is Python used for?",
+    "Explain UI/UX trends in simple terms",
+])
+def test_general_explanations_do_not_route_to_reference_or_market_trend(question: str) -> None:
+    service = ExecutionOrchestratorService()
+    plan = service.intent_planner.create_plan(CoreIntelligenceAnswerRequest(message=question))
+    assert plan.intent == "general_explanation"
+    assert "skill_technology_reference" not in plan.selected_capabilities
+    assert "trend_velocity_analysis" not in plan.selected_capabilities
+
+
+def test_explicit_demand_trend_remains_an_operational_trend_request() -> None:
+    service = ExecutionOrchestratorService()
+    plan = service.intent_planner.create_plan(
+        CoreIntelligenceAnswerRequest(message="Explain Python demand trends in simple terms")
+    )
+    assert plan.intent == "analyze_trend"
+    assert "trend_velocity_analysis" in plan.selected_capabilities
+
+
 def _make_obs(
     *,
     source: str = "jsearch",
@@ -487,8 +508,11 @@ def test_safe_failure_responses_when_validation_fails(monkeypatch, local_referen
 
     assert resp.execution_status == "failed"
     assert "VALIDATION_ERROR_UNGROUNDED_QUANTITATIVE_CLAIM" in resp.reason_codes
-    assert "could not be verified against the structured evidence facts" in resp.answer
+    assert "couldn't verify this analysis" in resp.answer
     assert "777777" not in resp.answer
+    assert resp.facts == []
+    assert resp.evidence == []
+    assert resp.capabilities_used == []
 
 
 # =============================================================================

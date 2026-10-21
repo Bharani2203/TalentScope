@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import re
 from time import perf_counter
 
@@ -12,7 +14,7 @@ settings = get_settings()
 
 def cors_header_configuration(environment: str) -> tuple[list[str], list[str]]:
     diagnostic_request_headers = (
-        ["X-Auth-Diagnostic-Id"] if environment == "development" else []
+        ["X-Auth-Diagnostic-Id"] if environment in {"development", "local-test"} else []
     )
     diagnostic_response_headers = (
         ["X-Auth-Diagnostic-Id", "X-Auth-Profile-Status"]
@@ -28,6 +30,22 @@ app = FastAPI(
     description="Backend API for the individual workforce skill-demand forecasting portal.",
     version="0.1.0",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(request: Request, exc: RequestValidationError):
+    """Return validation locations without reflecting submitted private payload values."""
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": [
+                {"loc": error.get("loc", ()), "msg": error.get("msg", "Invalid input"), "type": error.get("type", "value_error")}
+                for error in exc.errors()
+            ]
+        },
+    )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allowed_origins,

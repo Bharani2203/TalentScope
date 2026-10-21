@@ -61,6 +61,7 @@ class MarketObservation(SkillModel):
     skill: str = Field(min_length=1, max_length=160)
     location: str | None = None
     observed_at: datetime
+    provider_posted_at: datetime | None = None
     period: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
     scope: Literal["city", "country", "global"] = "global"
     posting_id: str | None = None
@@ -72,7 +73,7 @@ class MarketObservation(SkillModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     skill_id: str | None = None
     history_type: Literal["backfill", "backfilled", "platform_collected", "snapshot", "static_dataset"] | None = None
-    data_origin: Literal["real", "demo"] | None = None
+    data_origin: Literal["real", "demo", "synthetic", "test"] | None = None
     fetch_run_id: str | None = None
     series_id: str | None = None
     query_id: str | None = None
@@ -96,6 +97,19 @@ class MarketObservation(SkillModel):
         registered_skill_id = canonical_skill_id(self.skill)
         if registered_skill_id is not None:
             self.skill_id = registered_skill_id
+        else:
+            # A caller-supplied ID must not turn an unresolved label into a guessed mapping.
+            self.skill_id = None
+        if self.signal_type == "demand" and self.value == 0:
+            quality = self.quality if isinstance(self.quality, dict) else {}
+            if (
+                quality.get("collection_complete") is not True
+                or not str(quality.get("sampling_frame") or "").strip()
+                or quality.get("pagination_complete") is False
+            ):
+                raise ValueError(
+                    "UNVERIFIED_ZERO_DEMAND: complete collection coverage for a named sampling frame is required."
+                )
         if self.period is None:
             return self
         observed_at = self.observed_at
@@ -160,7 +174,7 @@ class SkillTrend(SkillModel):
     blocking_reasons: list[str] = Field(default_factory=list)
     periods_used: list[str] = Field(default_factory=list)
     series_id: str | None = None
-    data_origin: Literal["real", "demo"] | None = None
+    data_origin: Literal["real", "demo", "synthetic", "test"] | None = None
     series_provenance: dict[str, Any] | None = None
 
 
@@ -196,28 +210,65 @@ class ProviderCollectionResult(SkillModel):
     fetch_run_id: str
     provider: str
     status: str
-    records_fetched: int = 0
-    records_rejected: int = 0
-    observations_created: int = 0
+    records_fetched: int | None = None
+    records_validated: int | None = None
+    records_rejected: int | None = None
+    records_duplicate: int | None = None
+    records_filtered: int | None = None
+    records_unmatched: int | None = None
+    postings_persisted_count: int | None = Field(
+        default=None,
+        description="Provider postings whose storage upsert completed successfully; null means unknown or not attempted.",
+    )
+    postings_persistence_unconfirmed_count: int | None = None
+    postings_persistence_status: Literal["confirmed", "not_attempted", "unknown"] = "not_attempted"
+    status_reasons: list[str] = Field(default_factory=list)
+    observations_created: int = Field(
+        default=0,
+        description="In-memory validated observation candidates; persistence is reported separately.",
+    )
     period: str
-    data_origin: Literal["real", "demo"] = "real"
+    data_origin: Literal["real", "demo", "synthetic", "test"] = "real"
     history_type: Literal["platform_collected", "backfill", "backfilled", "snapshot"] = "platform_collected"
     error: str | None = None
     error_category: str | None = None
+    lifecycle_state: Literal["started", "completed", "partial", "failed", "blocked"] | None = None
+    coverage_status: str | None = None
+    requested_page_count: int | None = None
+    page_size_limit: int | None = None
+    sampling_frame: str | None = None
+    zero_results_verified: bool = False
 
 
 class MarketCollectionResponse(SkillModel):
     run_id: str
-    status: Literal["success", "partial_failure", "error", "pending_source_data"]
+    status: Literal["success", "partial_failure", "error", "pending_source_data", "dry_run"]
+    dry_run: bool = False
     location: str | None = None
     country: str | None = None
     observations_inserted: int = 0
+    observations_validated: int = 0
+    postings_validated: int = 0
+    postings_duplicate_count: int = 0
+    postings_persisted_count: int | None = None
+    postings_readback_verified_count: int | None = None
+    postings_persistence_unconfirmed_count: int | None = None
+    postings_persistence_status: Literal["confirmed", "not_attempted", "unknown"] = "not_attempted"
+    observations_persisted_count: int | None = Field(
+        default=None,
+        description="New observation documents inserted by this call; existing idempotent records are not included.",
+    )
+    observations_persistence_unconfirmed_count: int | None = None
+    observations_persistence_status: Literal["confirmed", "not_attempted", "unknown"] = "not_attempted"
+    observations_readback_verified_count: int | None = None
+    observation_storage_backend: Literal["firestore", "sqlite", "injected", "dry_run"] | None = None
+    status_reasons: list[str] = Field(default_factory=list)
     sources_succeeded: list[str] = Field(default_factory=list)
     sources_failed: dict[str, str] = Field(default_factory=dict)
     sources_pending: list[str] = Field(default_factory=list)
     providers: list[ProviderCollectionResult] = Field(default_factory=list)
     period: str | None = None
-    data_origin: Literal["real", "demo"] | None = "real"
+    data_origin: Literal["real", "demo", "synthetic", "test"] | None = "real"
     history_type: Literal["platform_collected", "backfill", "backfilled", "snapshot"] | None = "platform_collected"
 
 
@@ -237,6 +288,15 @@ class ProviderCollectionStatus(SkillModel):
     data_origin: str | None = None
     quality_status: str | None = None
     readiness_status: str | None = None
+    lifecycle_state: Literal["started", "completed", "partial", "failed", "blocked"] | None = None
+    coverage_status: str | None = None
+    collection_window_start: datetime | None = None
+    collection_window_end: datetime | None = None
+    geography: dict[str, Any] | None = None
+    requested_page_count: int | None = None
+    page_size_limit: int | None = None
+    sampling_frame: str | None = None
+    zero_results_verified: bool = False
 
 
 class MarketCollectionStatusResponse(SkillModel):
@@ -254,7 +314,7 @@ class SkillIntelligenceResponse(SkillModel):
         "ready", "partial", "fresh", "stale", "insufficient_data", "building", "unavailable", "error",
         "incomparable", "configuration_changed", "incomplete", "low_coverage"
     ] | None = None
-    data_origin: Literal["real", "demo", "mixed", "unavailable"] | None = None
+    data_origin: Literal["real", "demo", "synthetic", "test", "mixed", "unavailable"] | None = None
     history_type: Literal["platform_collected", "backfill", "backfilled", "snapshot", "mixed", "unavailable"] | None = None
     quality_summary: dict[str, Any] | None = None
     analytical_readiness: dict[str, Any] | None = None
@@ -274,7 +334,7 @@ class SkillIntelligenceResponse(SkillModel):
     sources_pending: list[str] = Field(default_factory=list)
     observations_count: int = 0
     historical_periods_count: int = 0
-    calculation_version: str = "demand-theil-sen-v3-comparable-series"
+    calculation_version: str = "demand-theil-sen-v4-backfill-consistent"
     calculation: dict[str, Any] | None = None
     provenance: dict[str, Any] | None = None
     error_message: str | None = None

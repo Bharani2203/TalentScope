@@ -725,12 +725,16 @@ def get_skill_catalog(uid: str) -> dict[str, Any]:
     reference_store = ReferenceDataStore()
     reference_counts = reference_store.get_table_counts()
     esco_archive = reference_store.database_path.resolve().parent / "reference" / _REFERENCE_SOURCE_FILES["esco"]
+    esco_directory = reference_store.database_path.resolve().parent / "reference" / "ESCO dataset - v1.2.1 - classification - en - csv"
     data["reference_data"] = {
         "storage": "local SQLite reference data; not Firestore market observations",
         "onet_software_rows": reference_counts["ref_onet_software_skills"],
         "onet_essential_rows": reference_counts["ref_onet_essential_skills"],
         "esco_archive_available_locally": esco_archive.is_file(),
+        "esco_extracted_directory_available_locally": esco_directory.is_dir(),
+        "esco_source_available_locally": esco_archive.is_file() or esco_directory.is_dir(),
         "esco_skills_ingested_locally": reference_counts["ref_esco_skills"],
+        "esco_occupations_ingested_locally": reference_counts.get("ref_esco_occupations", 0),
     }
     return data
 

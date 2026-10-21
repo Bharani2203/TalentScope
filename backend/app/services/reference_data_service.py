@@ -449,7 +449,7 @@ def inspect_esco_archive(zip_path: str | Path) -> EscoArchiveManifest:
 
 
 def ingest_esco_archive(zip_path: str | Path, store: ReferenceDataStore, *, source_version: str = "v1.2.1") -> dict[str, int]:
-    """Stream the ESCO skill and occupation-skill tables into local SQLite."""
+    """Import the supported English ESCO tables from a verified archive."""
     path = Path(zip_path)
     if not path.is_file():
         raise FileNotFoundError(f"ESCO ZIP archive not found: {path}")
@@ -462,39 +462,164 @@ def ingest_esco_archive(zip_path: str | Path, store: ReferenceDataStore, *, sour
             if actual_hash.casefold() != str(entry.get("sha256") or "").casefold():
                 raise ValueError("ESCO archive hash does not match the local dataset manifest.")
             source_version = str(entry.get("version") or source_version)
-    skill_rows: list[dict[str, Any]] = []
-    relation_rows: list[dict[str, Any]] = []
     with zipfile.ZipFile(path) as archive:
-        with archive.open("skills_en.csv") as raw:
-            for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")):
-                uri, label = (row.get("conceptUri") or "").strip(), (row.get("preferredLabel") or "").strip()
-                if not uri or not label or (row.get("status") or "").strip().casefold() not in {"", "released"}:
-                    continue
-                aliases = [v.strip() for v in (row.get("altLabels") or "").split("|") if v.strip()]
-                skill_rows.append({
-                    "concept_uri": uri, "preferred_label": label,
-                    "alt_labels": json.dumps(aliases, ensure_ascii=False),
-                    "skill_type": row.get("skillType"), "reuse_level": row.get("reuseLevel"),
-                    "description": row.get("description") or row.get("definition"),
-                    "modified_date": row.get("modifiedDate"), "source_version": source_version,
-                })
-        with archive.open("occupationSkillRelations_en.csv") as raw:
-            for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")):
-                occupation_uri = (row.get("occupationUri") or "").strip()
-                skill_uri = (row.get("skillUri") or "").strip()
-                if not occupation_uri or not skill_uri:
-                    continue
-                relation_rows.append({
-                    "occupation_uri": occupation_uri, "occupation_label": row.get("occupationLabel"),
-                    "relation_type": row.get("relationType"), "skill_uri": skill_uri,
-                    "skill_type": row.get("skillType"), "skill_label": row.get("skillLabel"),
-                })
-    return {
-        "esco_skills": store.upsert_esco_skills(skill_rows),
-        "esco_occupation_skill_relations": store.upsert_esco_occupation_skill_relations(relation_rows),
-        "esco_skill_rows_valid": len(skill_rows),
-        "esco_relation_rows_valid": len(relation_rows),
+        names = set(archive.namelist())
+        required = ("skills_en.csv", "occupations_en.csv", "occupationSkillRelations_en.csv")
+        if not set(required).issubset(names):
+            raise ValueError("ESCO archive is missing required English taxonomy tables.")
+        tables = {
+            name: list(csv.DictReader(io.StringIO(archive.read(name).decode("utf-8-sig"), newline="")))
+            for name in required
+        }
+    return _ingest_esco_tables(tables, store, source_version=source_version)
+
+
+def _ingest_esco_tables(
+    tables: dict[str, list[dict[str, Any]]],
+    store: ReferenceDataStore,
+    *,
+    source_version: str,
+) -> dict[str, int]:
+    """Validate and idempotently import ESCO English skills, occupations and links."""
+    required_columns = {
+        "skills_en.csv": {"conceptUri", "preferredLabel", "status", "skillType", "reuseLevel", "altLabels", "description", "modifiedDate"},
+        "occupations_en.csv": {"conceptUri", "preferredLabel", "status", "altLabels", "description", "modifiedDate", "code", "iscoGroup"},
+        "occupationSkillRelations_en.csv": {"occupationUri", "occupationLabel", "relationType", "skillType", "skillUri", "skillLabel"},
     }
+    # The extracted-directory and ZIP paths provide rows through the same CSV contract.
+    for filename, columns in required_columns.items():
+        rows = tables.get(filename)
+        if not rows:
+            raise ValueError(f"ESCO source is missing required file: {filename}")
+        if not columns.issubset(rows[0].keys()):
+            raise ValueError(f"ESCO source has an incompatible header: {filename}")
+
+    def parse_entities(filename: str, *, occupation: bool) -> tuple[dict[str, dict[str, Any]], int, int]:
+        entities: dict[str, dict[str, Any]] = {}
+        rejected = duplicates = 0
+        for row in tables[filename]:
+            uri = (row.get("conceptUri") or "").strip()
+            label = (row.get("preferredLabel") or "").strip()
+            status = (row.get("status") or "").strip().casefold()
+            if not uri or not label or status != "released":
+                rejected += 1
+                continue
+            aliases = {value.strip() for value in (row.get("altLabels") or "").split("|") if value.strip()}
+            if occupation:
+                candidate = {
+                    "concept_uri": uri, "preferred_label": label,
+                    "alt_labels": aliases, "description": (row.get("description") or "").strip() or None,
+                    "code": (row.get("code") or "").strip() or None,
+                    "isco_group": (row.get("iscoGroup") or "").strip() or None,
+                    "modified_date": (row.get("modifiedDate") or "").strip() or None,
+                    "source_version": source_version,
+                }
+            else:
+                candidate = {
+                    "concept_uri": uri, "preferred_label": label,
+                    "alt_labels": aliases,
+                    "skill_type": (row.get("skillType") or "").strip() or None,
+                    "reuse_level": (row.get("reuseLevel") or "").strip() or None,
+                    "description": (row.get("description") or row.get("definition") or "").strip() or None,
+                    "modified_date": (row.get("modifiedDate") or "").strip() or None,
+                    "source_version": source_version,
+                }
+            previous = entities.get(uri)
+            if previous:
+                duplicates += 1
+                for field in candidate.keys() - {"alt_labels", "modified_date"}:
+                    if candidate[field] != previous[field]:
+                        raise ValueError(f"Conflicting duplicate ESCO identifier in {filename}.")
+                previous["alt_labels"].update(aliases)
+                if candidate["modified_date"] and (
+                    not previous["modified_date"] or candidate["modified_date"] > previous["modified_date"]
+                ):
+                    previous["modified_date"] = candidate["modified_date"]
+            else:
+                entities[uri] = candidate
+        for entity in entities.values():
+            entity["alt_labels"] = json.dumps(sorted(entity["alt_labels"], key=str.casefold), ensure_ascii=False)
+        return entities, rejected, duplicates
+
+    skills, rejected_skills, duplicate_skills = parse_entities("skills_en.csv", occupation=False)
+    occupations, rejected_occupations, duplicate_occupations = parse_entities("occupations_en.csv", occupation=True)
+    skill_ids, occupation_ids = set(skills), set(occupations)
+    relation_map: dict[tuple[str, str, str], dict[str, Any]] = {}
+    rejected_relations = duplicate_relations = 0
+    for row in tables["occupationSkillRelations_en.csv"]:
+        occupation_uri = (row.get("occupationUri") or "").strip()
+        skill_uri = (row.get("skillUri") or "").strip()
+        relation_type = (row.get("relationType") or "").strip().casefold()
+        if (
+            not occupation_uri or not skill_uri or relation_type not in {"essential", "optional"}
+            or occupation_uri not in occupation_ids or skill_uri not in skill_ids
+        ):
+            rejected_relations += 1
+            continue
+        key = (occupation_uri, skill_uri, relation_type)
+        candidate = {
+            "occupation_uri": occupation_uri,
+            "occupation_label": (row.get("occupationLabel") or "").strip() or occupations[occupation_uri]["preferred_label"],
+            "relation_type": relation_type,
+            "skill_uri": skill_uri,
+            "skill_type": (row.get("skillType") or "").strip() or skills[skill_uri]["skill_type"],
+            "skill_label": (row.get("skillLabel") or "").strip() or skills[skill_uri]["preferred_label"],
+        }
+        previous = relation_map.get(key)
+        if previous:
+            duplicate_relations += 1
+            if previous != candidate:
+                raise ValueError("Conflicting duplicate ESCO occupation-skill relationship.")
+            continue
+        if (
+            candidate["occupation_label"] != occupations[occupation_uri]["preferred_label"]
+            or candidate["skill_label"] != skills[skill_uri]["preferred_label"]
+        ):
+            rejected_relations += 1
+            continue
+        relation_map[key] = candidate
+
+    skill_records = list(skills.values())
+    occupation_records = list(occupations.values())
+    relation_records = list(relation_map.values())
+    return {
+        "esco_skills": store.upsert_esco_skills(skill_records),
+        "esco_occupations": store.upsert_esco_occupations(occupation_records),
+        "esco_occupation_skill_relations": store.upsert_esco_occupation_skill_relations(relation_records),
+        "esco_skill_rows_read": len(tables["skills_en.csv"]),
+        "esco_skill_rows_valid": len(skill_records),
+        "esco_skill_rows_rejected": rejected_skills,
+        "esco_skill_rows_duplicate": duplicate_skills,
+        "esco_occupation_rows_read": len(tables["occupations_en.csv"]),
+        "esco_occupation_rows_valid": len(occupation_records),
+        "esco_occupation_rows_rejected": rejected_occupations,
+        "esco_occupation_rows_duplicate": duplicate_occupations,
+        "esco_relation_rows_read": len(tables["occupationSkillRelations_en.csv"]),
+        "esco_relation_rows_valid": len(relation_records),
+        "esco_relation_rows_rejected": rejected_relations,
+        "esco_relation_rows_duplicate": duplicate_relations,
+    }
+
+
+def ingest_esco_extracted_directory(
+    source_dir: str | Path, store: ReferenceDataStore, *, source_version: str = "v1.2.1"
+) -> dict[str, int]:
+    """Import only the validated English ESCO tables from an extracted release."""
+    path = Path(source_dir)
+    if not path.is_dir():
+        raise FileNotFoundError(f"Extracted ESCO directory not found: {path}")
+    if source_version not in path.name:
+        raise ValueError("ESCO directory name does not match the declared release version.")
+    required = ("skills_en.csv", "occupations_en.csv", "occupationSkillRelations_en.csv")
+    tables: dict[str, list[dict[str, Any]]] = {}
+    for filename in required:
+        source = path / filename
+        if not source.is_file():
+            raise FileNotFoundError(f"ESCO source is missing required English file: {filename}")
+        with source.open("r", encoding="utf-8-sig", newline="") as stream:
+            reader = csv.DictReader(stream)
+            tables[filename] = list(reader)
+    return _ingest_esco_tables(tables, store, source_version=source_version)
 
 
 # -----------------------------------------------------------------------------
@@ -509,21 +634,33 @@ def ingest_all_reference_datasets(
     summaries: list[ReferenceIngestionSummary] = []
 
     esco_archive = ref_path / "ESCO dataset - v1.2.1 - classification - en - csv.zip"
-    if esco_archive.is_file():
+    esco_extracted = ref_path / "ESCO dataset - v1.2.1 - classification - en - csv"
+    if esco_archive.is_file() and esco_extracted.is_dir():
+        raise ValueError("Both archived and extracted ESCO releases are present; select one explicitly.")
+    if esco_archive.is_file() or esco_extracted.is_dir():
         t0 = time.perf_counter()
-        counts = ingest_esco_archive(esco_archive, store)
+        source = esco_archive if esco_archive.is_file() else esco_extracted
+        counts = (
+            ingest_esco_archive(source, store)
+            if source.is_file()
+            else ingest_esco_extracted_directory(source, store)
+        )
         duration = time.perf_counter() - t0
-        for dataset, source_file, valid_key, inserted_key in (
-            ("esco_skills", esco_archive.name + "!skills_en.csv", "esco_skill_rows_valid", "esco_skills"),
-            ("esco_occupation_skill_relations", esco_archive.name + "!occupationSkillRelations_en.csv", "esco_relation_rows_valid", "esco_occupation_skill_relations"),
+        for dataset, member, valid_key, inserted_key, read_key, rejected_key, duplicate_key in (
+            ("esco_skills", "skills_en.csv", "esco_skill_rows_valid", "esco_skills", "esco_skill_rows_read", "esco_skill_rows_rejected", "esco_skill_rows_duplicate"),
+            ("esco_occupations", "occupations_en.csv", "esco_occupation_rows_valid", "esco_occupations", "esco_occupation_rows_read", "esco_occupation_rows_rejected", "esco_occupation_rows_duplicate"),
+            ("esco_occupation_skill_relations", "occupationSkillRelations_en.csv", "esco_relation_rows_valid", "esco_occupation_skill_relations", "esco_relation_rows_read", "esco_relation_rows_rejected", "esco_relation_rows_duplicate"),
         ):
-            valid, inserted = counts[valid_key], counts[inserted_key]
-            store.log_ingestion(dataset=dataset, source_file=source_file, rows_read=valid, rows_valid=valid,
-                                rows_inserted=inserted, rows_skipped_or_duplicate=valid-inserted,
+            valid, changed = counts[valid_key], counts[inserted_key]
+            source_file = source.name + ("!" + member if source.is_file() else "/" + member)
+            rows_read = counts.get(read_key, valid)
+            skipped = counts.get(rejected_key, 0) + counts.get(duplicate_key, 0)
+            store.log_ingestion(dataset=dataset, source_file=source_file, rows_read=rows_read, rows_valid=valid,
+                                rows_inserted=changed, rows_skipped_or_duplicate=skipped,
                                 duration_seconds=duration)
             summaries.append(ReferenceIngestionSummary(
-                dataset=dataset, source_file=source_file, rows_read=valid, rows_valid=valid,
-                rows_inserted=inserted, rows_skipped_or_duplicate=valid-inserted,
+                dataset=dataset, source_file=source_file, rows_read=rows_read, rows_valid=valid,
+                rows_inserted=changed, rows_skipped_or_duplicate=skipped,
                 errors=[], duration_seconds=duration,
             ))
 

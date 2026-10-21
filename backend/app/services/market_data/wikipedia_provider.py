@@ -226,6 +226,10 @@ class WikipediaPageviewsProvider:
                     history_type="backfill",
                     data_origin="real",
                     series_id=f"wikipedia:pageviews:{definition.skill_id}:v1",
+                    query_id=(
+                        f"wikipedia:pageviews:{definition.skill_id}:"
+                        f"{start_period}:{end_period}:v1"
+                    ),
                     panel_version=self.panel_version,
                     observation_count=int(views),
                     extractor_version=self.extractor_version,

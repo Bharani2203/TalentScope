@@ -33,7 +33,7 @@ DataState = Literal[
     "unavailable",
     "error",
 ]
-DataOrigin = Literal["real", "demo", "mixed", "unavailable"]
+DataOrigin = Literal["real", "demo", "synthetic", "test", "mixed", "unavailable"]
 HistoryType = Literal["platform_collected", "backfill", "snapshot", "mixed", "unavailable"]
 
 

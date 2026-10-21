@@ -181,7 +181,8 @@ def validate_series_observations(
         # 3. Duplicate detection
         posting_ids = [item.posting_id for item in items if item.posting_id]
         obs_ids = [item.id for item in items if item.id]
-        if len(obs_ids) != len(set(obs_ids)):
+        duplicate_observation_ids = len(obs_ids) != len(set(obs_ids))
+        if duplicate_observation_ids:
             issues.append("Duplicate observation IDs detected in series batch.")
 
         # 4. Coverage analysis
@@ -229,6 +230,8 @@ def validate_series_observations(
         # 6. Quality state determination
         if drift_detected:
             quality_state: SeriesQualityState = "configuration_changed"
+        elif duplicate_observation_ids:
+            quality_state = "incomplete"
         elif coverage_gaps and len(ordered_periods) >= min_periods:
             quality_state = "incomplete"
         elif sample_classification == "minimal" and not has_denom and signal_type == "demand":

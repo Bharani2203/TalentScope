@@ -11,7 +11,7 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 import pytest
 
 from app.analytics.analytical_readiness import assess_analytical_readiness, summarize_readiness
@@ -167,7 +167,9 @@ def test_transition_6_periods_forecast_ready():
         for m in range(5, 11)
     ]
     q_reports = validate_series_observations(obs)
-    r_reports = assess_analytical_readiness(obs, quality_reports=q_reports)
+    r_reports = assess_analytical_readiness(
+        obs, quality_reports=q_reports, as_of=date(2026, 11, 1)
+    )
 
     assert len(r_reports) == 1
     report = r_reports[0]
@@ -225,7 +227,9 @@ def test_blocker_6_periods_across_incompatible_signals_partitioned():
         _make_test_obs(signal_type="adoption", period="2026-10"),
     ]
     q_reports = validate_series_observations(obs)
-    r_reports = assess_analytical_readiness(obs, quality_reports=q_reports)
+    r_reports = assess_analytical_readiness(
+        obs, quality_reports=q_reports, as_of=date(2026, 11, 1)
+    )
 
     # Must be partitioned into 2 independent series, each with 3 periods
     assert len(r_reports) == 2
@@ -286,8 +290,9 @@ def test_integrity_c_legacy_github_queries_remain_isolated():
 
     r_reports = assess_analytical_readiness(gh_obs, quality_reports=q_reports)
     assert len(r_reports) == 3
-    assert all(report.readiness_state == "not_ready" for report in r_reports)
+    assert all(report.readiness_state == "blocked_quality" for report in r_reports)
     assert all(not report.is_forecast_ready and not report.is_trend_ready for report in r_reports)
+    assert all(any("demo" in reason.lower() or "synthetic" in reason.lower() for reason in report.blocking_reasons) for report in r_reports)
 
 
 def test_integrity_d_same_period_repeated_collection_idempotent():
@@ -410,8 +415,8 @@ def test_collection_health_exposes_quality_and_readiness_for_demo_fixture():
 
     # Live store observations populate quality and readiness status
     assert provider_map["github"].quality_status == "insufficient_data"
-    assert provider_map["github"].readiness_status == "not_ready"
-    assert provider_map["jsearch"].readiness_status in {"blocked_coverage", "not_ready"}
+    assert provider_map["github"].readiness_status == "blocked_quality"
+    assert provider_map["jsearch"].readiness_status == "blocked_quality"
 
 
 def test_collection_health_does_not_assess_truncated_observation_history():

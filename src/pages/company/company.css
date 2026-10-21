@@ -1377,3 +1377,74 @@
     grid-template-columns: 1fr;
   }
 }
+
+.market-query-card {
+  display: grid;
+  gap: 10px;
+}
+.market-query-card label {
+  color: var(--cmp-text-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+.market-query-control {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--cmp-border, #d0d5dd);
+  border-radius: 8px;
+  background: var(--cmp-surface, #fff);
+  color: var(--cmp-text-primary, #1d2939);
+  font: inherit;
+  padding: 10px 12px;
+}
+.market-query-control:focus-visible {
+  outline: 2px solid var(--cmp-primary, #874fff);
+  outline-offset: 2px;
+}
+.market-query-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+}
+.market-query-location {
+  flex: 1;
+  display: grid;
+  gap: 6px;
+}
+.market-answer-state {
+  padding: 14px 16px;
+  color: var(--cmp-text-secondary, #475467);
+}
+.market-answer {
+  display: grid;
+  gap: 14px;
+}
+.market-answer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.market-answer__header h2 {
+  margin: 4px 0 0;
+  color: var(--cmp-text-primary);
+}
+.market-answer-followups {
+  display: grid;
+  gap: 8px;
+}
+.market-answer-followups .cmp-btn-secondary {
+  justify-self: start;
+  height: auto;
+  min-height: 34px;
+  padding: 8px 12px;
+  text-align: left;
+}
+@media (max-width: 600px) {
+  .market-query-row,
+  .market-answer__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

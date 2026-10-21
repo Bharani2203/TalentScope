@@ -274,6 +274,7 @@ def test_stored_job_search_uses_country_filter_and_bounded_recent_query(monkeypa
             "company_name": "Example",
             "country_code": "in",
             "fetched_at": fetched_at,
+            "fetch_run_id": "provider-run-1",
             "source_url": "https://jobs.example/1",
         }),
         FakeJobSnapshot("jsearch:other", {
@@ -309,6 +310,11 @@ def test_stored_job_search_uses_country_filter_and_bounded_recent_query(monkeypa
 
     assert len(jobs) == 1
     assert jobs[0].title == "Data Engineer"
+    assert jobs[0].job_id == "python-1"
+    assert jobs[0].source == "jsearch"
+    assert jobs[0].fetch_run_id == "provider-run-1"
+    assert jobs[0].fetched_at == fetched_at
+    assert jobs[0].source_url == "https://jobs.example/1"
     assert query.ordering == ("fetched_at", "DESCENDING")
     assert query.limit_value == 500
     assert len(query.filters) == 1
@@ -421,7 +427,7 @@ def test_shared_answer_route_requires_auth_and_preserves_canonical_contract(monk
         app.dependency_overrides.clear()
 
 
-def test_shared_answer_uses_local_quarterly_series_without_monthly_conversion(
+def test_skill_reference_does_not_run_github_trend_analysis(
     tmp_path, monkeypatch
 ):
     service = ExecutionOrchestratorService(
@@ -457,22 +463,13 @@ def test_shared_answer_uses_local_quarterly_series_without_monthly_conversion(
     plan = SimpleNamespace(
         entities=[SimpleNamespace(canonical_entity=resolved.entity)],
         context_summary={"primary_entity": "Python"},
+        intent="lookup_skill_reference",
     )
-    request = CoreIntelligenceAnswerRequest(message="Analyze Python trend", domain="skill")
+    request = CoreIntelligenceAnswerRequest(message="Show the canonical definition and category for Python.", domain="skill")
 
     facts, evidence, _ = service._handle_skill_technology_reference(request, plan)
-    trend = next(fact for fact in facts if fact.fact_type == "trend_analysis")
-    answer = service._synthesize_answer("analyze_trend", facts, evidence, [], request, plan)
-
-    assert trend.source == "github_innovation_graph"
-    assert trend.metric_value == "Rising"
-    assert trend.unit == "unique developers per quarter"
-    assert trend.details["period_grain"] == "quarter"
-    assert trend.details["latest_period_change"] == 12
-    assert trend.period == "2025-Q2_to_2026-Q1"
-    assert "quarter periods" in answer
-    assert "monthly periods" not in answer
-    assert "Latest comparable-period change is **12**" in answer
+    assert not any(fact.fact_type in {"trend_analysis", "analysis_readiness"} for fact in facts)
+    assert not any(item.signal_type in {"derived_developer_activity_trend", "analysis_readiness"} for item in evidence)
 
 
 def test_market_snapshot_returns_structured_insufficient_evidence(tmp_path):
@@ -489,7 +486,8 @@ def test_market_snapshot_returns_structured_insufficient_evidence(tmp_path):
     assert readiness.metric_value == "insufficient_data"
     assert readiness.details["reference_data_is_not_market_evidence"] is True
     assert readiness.period is None
-    assert evidence[0].quality == "unavailable"
+    # Empty retrieval has a readiness explanation, but no source record to cite.
+    assert evidence == []
 
 
 def test_core_market_aggregation_is_reused_and_custom_history_is_bounded(monkeypatch):
@@ -658,16 +656,16 @@ def test_answer_reuses_trends_and_preserves_observation_provenance(monkeypatch):
     )
     plan = SimpleNamespace(context_summary={"primary_entity": "Python"})
 
-    _, historical_evidence, _ = service._handle_historical_signal_retrieval(request, plan)
+    historical_facts, historical_evidence, historical_limitations = service._handle_historical_signal_retrieval(request, plan)
     _, trend_evidence, _ = service._handle_trend_velocity_analysis(request, plan)
     analysis = service._shared_market_analysis(request, plan)
 
     assert aggregate_calls == 1
     assert trend_calls == 1
     assert len(analysis.observations) == 4
-    assert historical_evidence[0].unit == "job_postings"
-    assert historical_evidence[0].source_url
-    assert historical_evidence[0].fetch_run_id == "run-1"
+    assert not any(item.signal_type == "historical_observation" for item in historical_evidence)
+    assert not any(fact.fact_type == "historical_observation" for fact in historical_facts)
+    assert historical_limitations
     assert trend_evidence[0].source == "jsearch"
     assert trend_evidence[0].unit
     assert set(trend_evidence[0].supporting_observation_ids) == {
@@ -765,13 +763,10 @@ def test_truncated_observation_history_is_explicit_in_answer_readiness(monkeypat
     assert response.freshness["history_completeness_reason"] in response.limitations
     assert response.status == "partial"
     assert "OBSERVATION_HISTORY_INCOMPLETE" in response.reason_codes
-    assert any(
-        result.capability == "forecast"
-        and result.metric_kind == "readiness"
-        and result.status == "unavailable"
-        and result.readiness_state == "incomplete_history"
+    assert not any(
+        result.capability in {"forecast", "skill_health", "skill_half_life_analysis"}
         for result in response.metric_results
-    )
+    ), "trend requests must not attach readiness projections for other capabilities"
     assert analysis_calls == 1
 
     class TruncatedCoreStore:

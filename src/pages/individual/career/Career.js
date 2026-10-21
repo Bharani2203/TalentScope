@@ -1,5 +1,5 @@
 import { dashboardState, dedicatedJobState, intelligenceExplorerState, roadmapState } from '../../../app/state.js';
-import { queryJobIntelligence } from '../../../api/core-intelligence-client.js';
+import { queryJobIntelligence, queryCoreIntelligenceAnswer } from '../../../api/core-intelligence-client.js';
 import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
 import {
   dedicatedJobRoles,
@@ -30,8 +30,6 @@ const esc = val => String(val ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[c]);
 
-const clamp = (val, min, max) => Math.min(max, Math.max(min, val));
-
 // Component UI State
 let ui = {
   collection: dedicatedJobState?.roleScope || 'My Roles',
@@ -41,23 +39,51 @@ let ui = {
   addModalOpen: false,
   evidenceModalData: null,
   isAnalyzing: false,
-  analysisStep: 0,
   hasAnalyzed: true,
+  jobApiResponse: null,
+  jobApiError: '',
+  roleAssociationResponse: null,
+  roleAssociationError: '',
   queryText: '',
   location: dashboardState?.market || 'Bangalore',
   timeRange: dashboardState?.timeRange || '30D',
   categoryFilter: 'All Categories',
   typeFilter: 'All Types',
   selectedCompanyContext: dedicatedJobState?.selectedCompanyContext || ['NVIDIA', 'Microsoft'],
-  selectedSignalId: null,
-  simTick: 0
+  selectedSignalId: null
 };
-
-let simTimer = null;
 
 function getSelectedRoleData() {
   const roleName = dedicatedJobState?.selectedRole || dashboardState?.selectedRole || 'AI Engineer';
   return getRoleJobDetails(roleName, ui.location, ui.timeRange, ui.selectedCompanyContext);
+}
+
+export function renderRoleAssociationComparison(response) {
+  const summary = (response?.facts || []).find(
+    fact => fact.fact_type === 'learning_recommendation_summary'
+  );
+  if (!summary) return '';
+  const details = summary.details || {};
+  const overlap = details.role_associated_skill_overlap || {};
+  const profileSkillLabel = details.profile_skill_source === 'authenticated_individual_profile'
+    ? 'declared profile skills'
+    : details.profile_skill_source === 'request_supplied_skills'
+      ? 'request-supplied skills'
+      : 'compared skills';
+  const list = items => Array.isArray(items) && items.length
+    ? `<ul>${items.map(item => `<li>${esc(item.skill || item.label || 'Unresolved mapping')}${item.profile_evidence ? ` <small>(${esc(item.profile_evidence.replaceAll('_', ' '))})</small>` : ''}</li>`).join('')}</ul>`
+    : '<p>None reported.</p>';
+  const overlapText = overlap.score_pct == null
+    ? 'Unavailable: a comparable skill list or resolved mappings were insufficient.'
+    : `${esc(overlap.score_pct)}% overlap across ${esc(overlap.matched_count)} of ${esc(overlap.resolved_mapping_count)} resolved occupation-associated mappings.`;
+  return `<section class="ji-role-fit-summary" aria-label="Role-associated skill comparison">
+    <h3>Role-associated skill comparison</h3>
+    <p>${overlapText} This measures overlap with O*NET technology associations, not role fit, required qualifications, or employability.</p>
+    <div><strong>Matched ${esc(profileSkillLabel)}</strong>${list(details.matched_associated_skills)}</div>
+    <div><strong>Unmatched associated skills</strong>${list(details.missing_associated_skills)}</div>
+    <div><strong>Unresolved role mappings</strong>${list(details.unresolved_requirements)}</div>
+    <p><strong>Proficiency gaps:</strong> unavailable. ${esc(details.level_gaps?.reason || 'Required proficiency levels are not provided by this reference mapping.')}</p>
+  </section>`;
 }
 
 function getVisibleRoles() {
@@ -223,12 +249,11 @@ function renderJobIntelligenceHTML() {
             INDIVIDUAL INTELLIGENCE
           </span>
           <h1>Job Intelligence</h1>
-          <p>Explore role momentum, track company hiring signals, analyze required skills, and discover targeted career opportunities.</p>
+          <p>Illustrative prototype only: role scores, trends, hiring counts, employers, requisitions, skills, compensation, and citations below are not live or validated. API-backed results appear separately when available.</p>
         </div>
         <div class="ji-page-heading-actions">
-          <div class="ji-demo-badge" title="Job market intelligence baseline">
-            <span class="ji-live-dot"></span>
-            <span>Job intelligence baseline</span>
+          <div class="ji-demo-badge" title="Illustrative prototype; not live job-market data">
+            <span>Illustrative prototype</span>
           </div>
         </div>
       </header>
@@ -538,17 +563,14 @@ function renderJobIntelligenceHTML() {
           </button>
         </div>
 
-        <!-- 3-Stage Scanning Animation State (Step 26) -->
+        <!-- API request state -->
         ${ui.isAnalyzing ? `
           <div class="ji-analysis-state" aria-live="polite">
             <div class="ji-analysis-orb">
               <i data-lucide="sparkles"></i>
             </div>
-            <strong>${getScanningStageText(ui.analysisStep, role.name)}</strong>
-            <small>Correlating regional requisitions, employer signals, and skill graph trajectories...</small>
-            <div class="ji-analysis-progress-bar">
-              <div class="ji-analysis-progress-fill"></div>
-            </div>
+            <strong>Waiting for the job-intelligence API response...</strong>
+            <small>Results and evidence will be shown only if returned by the API.</small>
           </div>
         ` : ''}
       </section>
@@ -608,6 +630,8 @@ function renderJobIntelligenceHTML() {
             loading: ui.isAnalyzing,
             error: ui.jobApiError
           })}
+          ${renderRoleAssociationComparison(ui.roleAssociationResponse)}
+          ${ui.roleAssociationError ? `<p class="intel-evidence-panel__message" role="status">${esc(ui.roleAssociationError)}</p>` : ''}
           <p class="intel-evidence-panel__message" role="note">
             This role dashboard also contains illustrative baseline values. Only metrics shown with structured evidence above are API-backed.
           </p>
@@ -1050,45 +1074,13 @@ function renderSkillRequirementsTabHTML(role) {
 
 // 6. EVIDENCE TAB
 function renderEvidenceTabHTML(role) {
-  const evList = role.evidence || [];
-
   return `
     <div class="ji-tab-pane">
       <div style="margin-bottom: 20px;">
-        <h4 style="margin: 0 0 4px; font-size: 16px; color: var(--ji-deep);">Requisition Examples & Research</h4>
+        <h4 style="margin: 0 0 4px; font-size: 16px; color: var(--ji-deep);">Evidence for ${esc(role.name)}</h4>
         <p style="color: var(--ji-muted); font-size: 13px; margin: 0;">
-          All telemetry insights for <strong>${esc(role.name)}</strong> are corroborated by authoritative workforce publications and raw requisition feeds.
+          This prototype does not include verified citations. API-backed evidence, when returned, appears in the Job intelligence evidence panel above.
         </p>
-      </div>
-
-      <div class="ji-evidence-list">
-        ${evList.map((item, idx) => `
-          <div class="ji-evidence-row">
-            <div style="flex: 1; min-width: 0;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <strong style="font-size: 14.5px; color: var(--ji-deep);">${esc(item.source)}</strong>
-                <span class="ji-evidence-badge">${esc(item.type)}</span>
-                <span style="font-size: 12px; color: var(--ji-muted);">• ${esc(item.date)}</span>
-              </div>
-              <p style="margin: 6px 0 4px; font-size: 13px; font-weight: 600; color: var(--ji-purple);">
-                "${esc(item.signal)}"
-              </p>
-              <p style="margin: 0; font-size: 12.5px; color: var(--ji-muted);">
-                ${esc(item.supports)}
-              </p>
-            </div>
-            <button
-              type="button"
-              class="ji-btn-secondary"
-              data-action="view-evidence"
-              data-evidence-index="${idx}"
-              aria-label="View citation details"
-            >
-              <i data-lucide="file-text"></i>
-              <span>View Citation</span>
-            </button>
-          </div>
-        `).join('')}
       </div>
     </div>
   `;
@@ -1361,21 +1353,21 @@ function renderEvidenceModalHTML() {
 
   return `
     <div class="ji-modal-backdrop" id="jiEvidenceModalBackdrop">
-      <div class="ji-modal-window" role="dialog" aria-modal="true" aria-label="Evidence Citation Details">
+      <div class="ji-modal-window" role="dialog" aria-modal="true" aria-label="Illustrative Sample Details">
         <div class="ji-modal-header">
-          <span class="ji-evidence-badge">${esc(ev.type)}</span>
+          <span class="ji-evidence-badge">Illustrative sample</span>
           <button type="button" class="ji-modal-close" id="btnCloseEvidenceModal" aria-label="Close citation">
             <i data-lucide="x"></i>
           </button>
         </div>
         <h3 style="margin: 0 0 6px; font-size: 18px; color: var(--ji-deep);">${esc(ev.source)}</h3>
         <span style="font-size: 12px; color: var(--ji-muted); display: block; margin-bottom: 16px;">
-          Published: ${esc(ev.date)} • Methodology: Core Intelligence market collection
+          Sample fixture only; not verified, API-backed, or externally sourced.
         </span>
 
         <div style="padding: 16px; background: var(--ji-wash); border-radius: 10px; border: 1px solid var(--ji-border); margin-bottom: 16px;">
           <strong style="color: var(--ji-purple); font-size: 14px; display: block; margin-bottom: 6px;">
-            Key Finding
+            Illustrative example
           </strong>
           <p style="margin: 0; font-size: 13.5px; color: var(--ji-ink); line-height: 1.5;">
             "${esc(ev.signal)}"
@@ -1383,11 +1375,11 @@ function renderEvidenceModalHTML() {
         </div>
 
         <p style="font-size: 13px; color: var(--ji-muted); line-height: 1.5; margin: 0 0 20px;">
-          <strong>Corroboration:</strong> ${esc(ev.supports)}
+          <strong>Sample context (not corroboration):</strong> ${esc(ev.supports)}
         </p>
 
         <div style="display: flex; justify-content: flex-end;">
-          <button type="button" class="ji-btn-primary" id="btnDismissEvidence">Close Citation</button>
+          <button type="button" class="ji-btn-primary" id="btnDismissEvidence">Close</button>
         </div>
       </div>
     </div>
@@ -1425,19 +1417,6 @@ function getSuggestedQuestionsForRole(roleName) {
         `Which top employers have open requisitions for ${roleName}?`,
         `What is the projected 6-month demand trajectory for ${roleName}?`
       ];
-  }
-}
-
-function getScanningStageText(step, roleName) {
-  switch (step) {
-    case 0:
-      return 'Scanning 42,000+ active requisitions...';
-    case 1:
-      return `Correlating employer hiring velocity and skill requirements for ${roleName}...`;
-    case 2:
-      return 'Synthesizing career progression pathways and recommendations...';
-    default:
-      return 'Finalizing intelligence assessment...';
   }
 }
 
@@ -1838,30 +1817,42 @@ async function runAnalysis() {
   ui.isAnalyzing = true;
   ui.jobApiResponse = null;
   ui.jobApiError = null;
-  ui.analysisStep = 0;
+  ui.roleAssociationResponse = null;
+  ui.roleAssociationError = null;
   rerender();
-
-  const stepInterval = setInterval(() => {
-    ui.analysisStep = Math.min(ui.analysisStep + 1, 2);
-    rerender();
-  }, 450);
 
   const roleName = dedicatedJobState?.selectedRole || dashboardState?.selectedRole || 'AI Engineer';
   try {
-    const res = await queryJobIntelligence({
-      portalType: 'individual',
-      location: ui.location === 'Global' ? undefined : ui.location,
-      timeRange: ({ '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' })[ui.timeRange] || '30d',
-      selectedRoles: [roleName],
-      targetRole: roleName,
-      query: ui.queryText || undefined
-    });
-    ui.jobApiResponse = res;
-    ui.jobApiError = null;
-  } catch (err) {
-    ui.jobApiError = err.message || 'Job intelligence could not be loaded.';
+    const timeRange = ({ '7 Days': '7d', '30 Days': '30d', '3 Months': '3m', '6 Months': '6m' })[ui.timeRange] || '30d';
+    const [marketResult, roleResult] = await Promise.allSettled([
+      queryJobIntelligence({
+        portalType: 'individual',
+        location: ui.location === 'Global' ? undefined : ui.location,
+        timeRange,
+        selectedRoles: [roleName],
+        targetRole: roleName,
+        query: ui.queryText || undefined
+      }),
+      queryCoreIntelligenceAnswer({
+        message: `Which skills should I learn for my target role of ${roleName}?`,
+        portalType: 'individual',
+        domain: 'skill',
+        targetRole: roleName,
+        timeRange
+      })
+    ]);
+    if (marketResult.status === 'fulfilled') {
+      ui.jobApiResponse = marketResult.value;
+      ui.jobApiError = '';
+    } else {
+      ui.jobApiError = 'Market intelligence could not be loaded. Please try again.';
+    }
+    if (roleResult.status === 'fulfilled') {
+      ui.roleAssociationResponse = roleResult.value;
+    } else {
+      ui.roleAssociationError = 'Role-associated skill comparison is unavailable. Please try again.';
+    }
   } finally {
-    clearInterval(stepInterval);
     ui.isAnalyzing = false;
     ui.hasAnalyzed = true;
     rerender();
@@ -1887,33 +1878,16 @@ function rerender(options = {}) {
   }
 }
 
-function tickSimulation() {
-  ui.simTick++;
-  const role = getSelectedRoleData();
-  if (role && role.history) {
-    const drift = Math.sin(ui.simTick * 0.8) * 0.35;
-    const lastIdx = role.history.length - 1;
-    role.history[lastIdx] = clamp(Math.round(role.history[lastIdx] + drift), 50, 99);
-  }
-  const badge = document.querySelector('.job-intelligence-page .ji-demo-badge');
-  if (badge) {
-    badge.classList.add('is-pulsing');
-    setTimeout(() => badge.classList.remove('is-pulsing'), 600);
-  }
-}
-
 // ============================================================================
 // EXPORT ENTRY POINTS
 // ============================================================================
 
 export function renderDedicatedJobPage() {
-  if (simTimer) clearInterval(simTimer);
   const main = document.getElementById('mainContent');
   if (!main) return;
   main.innerHTML = renderJobIntelligenceHTML();
   window.lucide?.createIcons();
   bindEvents();
-  simTimer = window.setInterval(tickSimulation, 4200);
 }
 
 // Retain alias for existing imports / router references

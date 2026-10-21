@@ -38,391 +38,175 @@ from app.storage.reference_store import ReferenceDataStore
 # =============================================================================
 
 CAPABILITY_CATALOG: dict[str, CapabilityRecord] = {
-    "entity_resolution": CapabilityRecord(
-        capability_id="entity_resolution",
-        name="Entity Name Resolution",
-        description="Resolves raw user language or source names into canonical entities across skills, technologies, occupations, and companies.",
-        supported_intent="resolve_entity",
-        supported_entity_types=["skill", "technology", "occupation", "company"],
-        required_inputs=["entity_name"],
-        required_signals=["context"],
-        required_sources=["internal_registry", "onet"],
-        min_readiness_periods=None,
-        global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.services.entity_registry_service.EntityRegistryService.resolve",
-        limitations=[
-            "Single-token polysemous keywords require context to resolve without ambiguity.",
-            "Raw names without match return not_found without guessing.",
-        ],
-        provenance_requirements=["canonical_id", "source_taxonomy"],
-    ),
-    "skill_technology_reference": CapabilityRecord(
-        capability_id="skill_technology_reference",
-        name="Skill and Technology Reference Lookup",
-        description="Retrieves canonical taxonomy definitions, categories, and developer adoption reference context.",
-        supported_intent="lookup_skill_reference",
+    "skill_future_relevance_score": CapabilityRecord(
+        capability_id="skill_future_relevance_score",
+        name="Skill Future Relevance Score",
+        description="Assess a skill's potential future relevance using available historical and technology-adoption signals.",
+        supported_domains=["skill"],
+        supported_intent="assess_skill_future_relevance",
         supported_entity_types=["skill", "technology"],
-        required_inputs=["canonical_name_or_id"],
-        required_signals=["adoption", "context"],
-        required_sources=["internal_registry", "github_innovation_graph", "onet"],
+        required_inputs=["skill_name"],
+        optional_inputs=["target_role"],
+        required_signals=["historical_observations", "technology_adoption"],
+        required_sources=["internal_registry", "github_innovation_graph", "historical_observations"],
         min_readiness_periods=None,
         global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.analytics.skill_registry.get_skill",
+        implementation_status="pending",
+        reason_code="CAPABILITY_ACTIVE",
+        handler=None,
         limitations=[
-            "GitHub Innovation Graph measures open-source developer activity, not employer hiring demand.",
+            "Requires verified historical signals and adoption data; predictions are bounded by observable data.",
+            "Analytical engine is pending implementation in Phase 2; not execution-ready.",
         ],
-        provenance_requirements=["registry_version", "source_dataset"],
+        provenance_requirements=["canonical_skill_id", "source_dataset"],
     ),
-    "occupation_lookup": CapabilityRecord(
-        capability_id="occupation_lookup",
-        name="Occupation Reference Lookup",
-        description="Retrieves standardized O*NET 2018 SOC occupation metadata, titles, and descriptions.",
-        supported_intent="lookup_occupation",
-        supported_entity_types=["occupation"],
-        required_inputs=["soc_code_or_title"],
-        required_signals=["context"],
-        required_sources=["onet"],
+    "skill_change_alert": CapabilityRecord(
+        capability_id="skill_change_alert",
+        name="Skill Change Alert",
+        description="Identify supported increases, decreases, or stable patterns in comparable skill signals.",
+        supported_domains=["skill"],
+        supported_intent="detect_skill_change_alert",
+        supported_entity_types=["skill", "technology"],
+        required_inputs=["skill_name"],
+        required_signals=["historical_observations", "developer_adoption"],
+        required_sources=["github_innovation_graph", "historical_observations"],
+        min_readiness_periods=4,
+        global_status="available",
+        implementation_status="pending",
+        reason_code="CAPABILITY_ACTIVE",
+        handler=None,
+        limitations=[
+            "Requires comparable historical periods without synthetic interpolation.",
+            "Analytical engine is pending implementation in Phase 2; not execution-ready.",
+        ],
+        provenance_requirements=["canonical_skill_id", "period_granularity"],
+    ),
+    "adaptive_skill_roadmap": CapabilityRecord(
+        capability_id="adaptive_skill_roadmap",
+        name="Adaptive Skill Roadmap",
+        description="Recommend an ordered learning plan based on current skills, a target role, and available skill relationships.",
+        supported_domains=["skill"],
+        supported_intent="generate_adaptive_skill_roadmap",
+        supported_entity_types=["occupation", "skill"],
+        required_inputs=["target_role"],
+        optional_inputs=["current_skills"],
+        required_signals=["reference_taxonomy", "curriculum_structure"],
+        required_sources=["onet", "esco"],
         min_readiness_periods=None,
         global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.storage.reference_store.ReferenceDataStore.get_occupation",
+        implementation_status="pending",
+        reason_code="CAPABILITY_ACTIVE",
+        handler=None,
         limitations=[
-            "O*NET is an occupational taxonomy baseline, not real-time labor market hiring demand.",
+            "Based on standardized occupational taxonomy and reference curricula, not guaranteed placement.",
+            "Analytical engine is pending implementation in Phase 2; not execution-ready.",
         ],
         provenance_requirements=["onet_soc_code", "taxonomy_version"],
     ),
-    "occupation_software_skills": CapabilityRecord(
-        capability_id="occupation_software_skills",
-        name="Occupation-to-Software-Skill Crosswalk",
-        description="Maps canonical occupations to workplace software tools and technologies with Hot Tech flags.",
-        supported_intent="crosswalk_occupation_software",
-        supported_entity_types=["occupation"],
-        required_inputs=["soc_code"],
-        required_signals=["context"],
-        required_sources=["onet"],
-        min_readiness_periods=None,
-        global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.services.entity_registry_service.EntityRegistryService.get_occupation_skills",
-        limitations=[
-            "Software tool lists represent workplace survey baselines; tool frequency varies by employer.",
-        ],
-        provenance_requirements=["onet_soc_code", "hot_technology_flag"],
-    ),
-    "related_occupations": CapabilityRecord(
-        capability_id="related_occupations",
-        name="Related Occupations Crosswalk",
-        description="Traverses career mobility pathways and related occupations based on shared work activities.",
-        supported_intent="crosswalk_related_occupations",
-        supported_entity_types=["occupation"],
-        required_inputs=["soc_code"],
-        required_signals=["context"],
-        required_sources=["onet"],
-        min_readiness_periods=None,
-        global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.services.entity_registry_service.EntityRegistryService.get_related_occupations",
-        limitations=[
-            "Occupational relatedness does not guarantee identical compensation or hiring volume.",
-        ],
-        provenance_requirements=["onet_soc_code", "relatedness_type"],
-    ),
-    "market_snapshot": CapabilityRecord(
-        capability_id="market_snapshot",
-        name="Current Market Snapshot Retrieval",
-        description="Extracts latest point-in-time observations, posting counts, and demand shares for entities.",
-        supported_intent="retrieve_snapshot",
-        supported_entity_types=["skill", "technology", "role", "company"],
-        required_inputs=["entity_name"],
-        required_signals=["demand", "adoption", "interest"],
-        required_sources=["jsearch", "adzuna", "github", "wikipedia"],
-        min_readiness_periods=1,
-        global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.services.core_intelligence_service.CoreIntelligenceService.get_intelligence",
-        limitations=[
-            "Snapshots represent samples observed through provider queries, not total universe of postings.",
-        ],
-        provenance_requirements=["observation_id", "fetch_run_id", "observed_at"],
-    ),
-    "historical_signal_retrieval": CapabilityRecord(
-        capability_id="historical_signal_retrieval",
-        name="Historical Signal Retrieval",
-        description="Retrieves multi-period historical observation time-series without synthetic imputation.",
-        supported_intent="retrieve_history",
-        supported_entity_types=["skill", "technology", "role"],
-        required_inputs=["entity_name", "time_range"],
-        required_signals=["demand", "adoption", "interest"],
-        required_sources=["jsearch", "adzuna", "github", "wikipedia", "stackexchange"],
+    "technology_adoption_shift_detector": CapabilityRecord(
+        capability_id="technology_adoption_shift_detector",
+        name="Technology Adoption Shift Detector",
+        description="Compare supported technology-adoption signals over comparable periods and identify meaningful changes.",
+        supported_domains=["market"],
+        supported_intent="detect_technology_adoption_shift",
+        supported_entity_types=["technology", "skill"],
+        required_inputs=["technologies"],
+        required_signals=["developer_adoption", "public_interest"],
+        required_sources=["github_innovation_graph", "stack_exchange", "wikipedia"],
         min_readiness_periods=2,
         global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.services.core_intelligence_service.CoreIntelligenceService.get_intelligence",
-        limitations=[
-            "Only verified empirical periods are returned; zero interpolation across missing periods.",
-        ],
-        provenance_requirements=["period_identifiers", "history_type", "data_origin"],
-    ),
-    "trend_velocity_analysis": CapabilityRecord(
-        capability_id="trend_velocity_analysis",
-        name="Theil-Sen Trend and Velocity Analysis",
-        description="Computes robust median slopes, monthly velocity, and direction classification across comparable periods.",
-        supported_intent="analyze_trend",
-        supported_entity_types=["skill", "technology"],
-        required_inputs=["entity_name", "historical_observations"],
-        required_signals=["demand", "adoption", "interest"],
-        required_sources=["jsearch", "adzuna", "github", "wikipedia"],
-        min_readiness_periods=4,
-        global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.analytics.trend.calculate_trend_and_velocity",
-        limitations=[
-            "Requires >=4 strictly consecutive monthly periods; blocked on panel drift or missing periods.",
-        ],
-        provenance_requirements=["calculation_version", "consecutive_valid_periods", "quality_report"],
-    ),
-    "skill_health_analysis": CapabilityRecord(
-        capability_id="skill_health_analysis",
-        name="Skill Health Relative Momentum Analysis",
-        description="Evaluates relative-momentum category and deterministic 0-100 score from consecutive normalized share series.",
-        supported_intent="analyze_skill_health",
-        supported_entity_types=["skill", "technology"],
-        required_inputs=["entity_name", "normalized_observations"],
-        required_signals=["demand", "adoption", "interest"],
-        required_sources=["jsearch", "adzuna", "github", "wikipedia", "stackexchange"],
-        min_readiness_periods=4,
-        global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.analytics.skill_health.evaluate_skill_health",
-        limitations=[
-            "Requires >= 4 strictly consecutive completed monthly periods with valid positive denominators.",
-            "Relative-momentum indicator; not a proof of absolute hiring volume or future success.",
-        ],
-        provenance_requirements=["calculation_version", "score_formula", "component_table"],
-    ),
-    "skill_half_life_analysis": CapabilityRecord(
-        capability_id="skill_half_life_analysis",
-        name="Skill Half-Life Analysis",
-        description="Estimates empirical half-life decay rate from consecutive completed normalized share observations.",
-        supported_intent="estimate_skill_half_life",
-        supported_entity_types=["skill", "technology"],
-        required_inputs=["entity_name"],
-        required_signals=["demand", "interest", "adoption"],
-        required_sources=["jsearch", "adzuna", "github_innovation_graph"],
-        min_readiness_periods=36,
-        global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.analytics.skill_half_life.calculate_skill_half_life",
-        limitations=[
-            "Empirical decay estimate under an exponential decay model (ln(2) / |b|); not an obsolescence guarantee.",
-            "Requires >= 36 strictly consecutive completed monthly periods with valid positive denominators.",
-            "Non-declining, stable, or growing series return not applicable.",
-        ],
-        provenance_requirements=["calculation_version", "theil_sen_slope", "kendall_tau", "observation_ids"],
-    ),
-    "evidence_provenance_retrieval": CapabilityRecord(
-        capability_id="evidence_provenance_retrieval",
-        name="Traceable Evidence and Provenance Retrieval",
-        description="Retrieves verifiable citations, raw archive identifiers, fetch runs, and quality reports.",
-        supported_intent="retrieve_evidence",
-        supported_entity_types=["skill", "technology"],
-        required_inputs=["entity_name"],
-        required_signals=["demand", "adoption", "interest"],
-        required_sources=["raw_archive", "fetch_run", "calculation_record"],
-        min_readiness_periods=1,
-        global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.services.evidence_service.get_skill_evidence",
-        limitations=[
-            "Evidence strictly mirrors stored artifacts; zero simulated or placeholder provenance.",
-        ],
-        provenance_requirements=["raw_archive_id", "fetch_run_id", "calculation_version"],
-    ),
-    "skill_gap_role_fit": CapabilityRecord(
-        capability_id="skill_gap_role_fit",
-        name="Skill Gap and Role Alignment Analysis",
-        description="Evaluates alignment between user/workforce skill inventory and target occupation requirements.",
-        supported_intent="analyze_skill_gap",
-        supported_entity_types=["skill", "role", "occupation"],
-        required_inputs=["selected_skills", "target_role"],
-        required_signals=["context"],
-        required_sources=["onet", "onboarding_profile"],
-        min_readiness_periods=None,
-        global_status="partial",
-        reason_code="HEURISTIC_ALIGNMENT_ONLY",
-        handler="app.services.action_recommendation_service.build_action_recommendations",
-        limitations=[
-            "Currently provides heuristic crosswalk and action prioritization; dedicated quantitative fit scoring engine is under development.",
-        ],
-        provenance_requirements=["onet_soc_code", "selected_skill_list"],
-    ),
-    "action_recommendations": CapabilityRecord(
-        capability_id="action_recommendations",
-        name="Contextual Action Recommendations",
-        description="Synthesizes deterministic, portal-specific next steps (learn, upskill, reskill, monitor) from verified data.",
-        supported_intent="synthesize_actions",
-        supported_entity_types=["skill", "role", "company"],
-        required_inputs=["portal_type", "core_intelligence_response"],
-        required_signals=["demand", "adoption", "interest", "context"],
-        required_sources=["core_intelligence_engine"],
-        min_readiness_periods=None,
-        global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.services.action_recommendation_service.build_action_recommendations",
-        limitations=[
-            "Actions are advisory guidance based on empirical signals; future career/salary outcomes not guaranteed.",
-        ],
-        provenance_requirements=["action_id", "priority", "target_id"],
-    ),
-    "job_posting_search": CapabilityRecord(
-        capability_id="job_posting_search",
-        name="Job Postings Search",
-        description="Searches normalized, previously collected job postings matching keywords and country codes.",
-        supported_intent="search_jobs",
-        supported_entity_types=["skill", "role", "technology"],
-        required_inputs=["query"],
-        required_signals=["demand"],
-        required_sources=["jsearch"],
-        min_readiness_periods=1,
-        global_status="partial",
-        reason_code="STORED_DATA_ONLY",
-        handler="app.api.routes.market.search_market_jobs",
-        limitations=[
-            "Read-only search against stored collection runs; does not execute live external crawler queries.",
-        ],
-        provenance_requirements=["job_id", "source_url", "posted_at"],
-    ),
-    "company_intelligence": CapabilityRecord(
-        capability_id="company_intelligence",
-        name="Company Workforce and Market Intelligence",
-        description="Aggregates tenant-scoped connected employee membership and self-reported workforce skill records.",
-        supported_intent="analyze_company_workforce",
-        supported_entity_types=["company"],
-        required_inputs=["company_id"],
-        required_signals=["context"],
-        required_sources=["company_relationships", "employee_onboarding_profiles"],
-        min_readiness_periods=None,
-        global_status="partial",
-        reason_code="AUTHENTICATED_WORKFORCE_RECORDS_REQUIRED",
-        handler="app.services.execution_orchestrator_service.ExecutionOrchestratorService._handle_company_intelligence",
-        limitations=[
-            "Company aggregates require a verified company owner/admin and connected employee records.",
-            "Employee skill domains and company priority domains are self-reported; no verified proficiency or approved role requirements are available.",
-        ],
-        provenance_requirements=["company_id", "invitation_or_membership_record"],
-    ),
-    "skill_forecasting_half_life": CapabilityRecord(
-        capability_id="skill_forecasting_half_life",
-        name="Skill Demand Forecasting",
-        description="Forecasts future monthly skill demand trajectories using a seasonal-naive baseline evaluated on chronological holdouts.",
-        supported_intent="forecast_future_demand",
-        supported_entity_types=["skill", "technology"],
-        required_inputs=["entity_name", "consecutive_historical_series"],
-        required_signals=["demand"],
-        required_sources=["jsearch", "adzuna"],
-        min_readiness_periods=24,
-        global_status="available",
-        reason_code="CAPABILITY_IMPLEMENTED",
-        handler="app.analytics.forecasting.forecast_signal_series",
-        limitations=[
-            "Requires at least 24 valid consecutive monthly observations; gaps or truncated history block forecasting.",
-            "Forecast horizon is capped at min(6, history_length // 3) months.",
-            "Uses a seasonal-naive model (12-month seasonal carry-forward) evaluated against a simple naive baseline.",
-            "Prediction intervals are omitted until horizon-specific holdout coverage is sufficient.",
-            "Future predictions are non-guaranteed estimates and must not be treated as deterministic hiring outcomes.",
-        ],
-        provenance_requirements=[
-            "calculation_version",
-            "selected_method",
-            "backtest_scores",
-            "first_history_period",
-            "latest_history_period",
-        ],
-    ),
-    "ai_task_exposure": CapabilityRecord(
-        capability_id="ai_task_exposure",
-        name="AI Task Exposure and Disruption Intelligence",
-        description="Evaluates source-rated task-level AI exposure only when an approved dataset, methodology, and canonical task mappings are available.",
-        supported_intent="analyze_ai_task_exposure",
-        supported_entity_types=["occupation", "role", "skill", "technology"],
-        required_inputs=["entity_name"],
-        required_signals=["task_exposure"],
-        required_sources=["licensed_ai_exposure_reference", "onet_reference"],
-        min_readiness_periods=None,
-        global_status="blocked",
-        reason_code="NO_LICENSED_EXPOSURE_DATASET",
+        implementation_status="pending",
+        reason_code="CAPABILITY_ACTIVE",
         handler=None,
         limitations=[
-            "No approved task-exposure dataset, documented exposure methodology, or task-to-occupation/skill mapping is configured.",
-            "Task exposure, technical automation potential, job displacement, and workforce impact are separate concepts.",
-            "A task-exposure assessment must never be interpreted as a job-loss or headcount-reduction estimate.",
+            "Preserves each source's native metric and provenance; developer activity is not conflated with employer demand.",
+            "Analytical engine is pending implementation in Phase 2; not execution-ready.",
         ],
-        provenance_requirements=[
-            "approved_dataset_identity",
-            "license_and_permitted_use",
-            "source_methodology",
-            "dataset_version",
-            "canonical_task_occupation_mapping",
-            "evidence_date",
-            "evidence_source_id",
-        ],
+        provenance_requirements=["source_dataset", "period_granularity"],
     ),
-    "workforce_what_if_simulation": CapabilityRecord(
-        capability_id="workforce_what_if_simulation",
-        name="Company Workforce What-If Simulation",
-        description="Simulates enterprise reskilling scenarios, attrition shock impact, and organizational skill migration.",
-        supported_intent="simulate_workforce_scenarios",
-        supported_entity_types=["company", "workforce"],
-        required_inputs=["company_id", "simulation_parameters"],
-        required_signals=["context", "demand"],
-        required_sources=["future_simulation_engine"],
+    "technology_impact_explorer": CapabilityRecord(
+        capability_id="technology_impact_explorer",
+        name="Technology Impact Explorer",
+        description="Explore supported relationships between technologies, skills, and occupations.",
+        supported_domains=["market"],
+        supported_intent="explore_technology_impact",
+        supported_entity_types=["technology", "skill", "occupation"],
+        required_inputs=["technology_or_skill"],
+        optional_inputs=["target_occupation"],
+        required_signals=["reference_taxonomy", "crosswalk"],
+        required_sources=["onet", "esco"],
         min_readiness_periods=None,
-        global_status="building",
-        reason_code="FUTURE_ENTERPRISE_PLANNED",
+        global_status="available",
+        implementation_status="pending",
+        reason_code="CAPABILITY_ACTIVE",
         handler=None,
         limitations=[
-            "No approved simulation engine or reproducible calculation method is implemented.",
-            "No verified workforce baseline, validated employee-to-role assignments, or trustworthy proficiency records are available as simulation inputs.",
-            "No approved future role-skill requirements or documented upskilling, reskilling, redeployment, or hiring assumptions are configured.",
-            "Costs, training success rates, productivity gains, hiring outcomes, savings, and staffing projections must not be inferred.",
+            "Accepts a technology or skill as primary input; optionally accepts a target occupation.",
+            "Reflects structured taxonomy mappings between technologies and occupations without speculative projection.",
+            "Analytical engine is pending implementation in Phase 2; not execution-ready.",
         ],
-        provenance_requirements=[
-            "simulation_run_id",
-            "verified_workforce_baseline",
-            "validated_employee_role_assignments",
-            "trustworthy_skill_proficiency",
-            "approved_future_skill_requirements",
-            "documented_action_assumptions",
-            "reproducible_calculation_method",
+        provenance_requirements=["taxonomy_version", "onet_soc_code"],
+    ),
+    "skill_based_job_match": CapabilityRecord(
+        capability_id="skill_based_job_match",
+        name="Skill-Based Job Match",
+        description="Compare a user's skills with requirements in retrieved job postings and explain matches and skill gaps.",
+        supported_domains=["job"],
+        supported_intent="match_skills_to_jobs",
+        supported_entity_types=["occupation", "skill"],
+        required_inputs=["current_skills"],
+        optional_inputs=["target_role", "location"],
+        required_signals=["hiring_demand", "reference_taxonomy"],
+        required_sources=["jsearch", "adzuna", "verified_postings"],
+        min_readiness_periods=None,
+        global_status="available",
+        implementation_status="pending",
+        reason_code="CAPABILITY_ACTIVE",
+        handler=None,
+        limitations=[
+            "Matches against retrieved and verified job postings; not an exhaustive index of all market vacancies.",
+            "Analytical engine is pending implementation in Phase 2; not execution-ready.",
         ],
+        provenance_requirements=["posting_id", "source_provider"],
+    ),
+    "career_transition_opportunity": CapabilityRecord(
+        capability_id="career_transition_opportunity",
+        name="Career Transition Opportunity",
+        description="Identify possible related target roles and the skills that may be needed for a transition.",
+        supported_domains=["job"],
+        supported_intent="explore_career_transition",
+        supported_entity_types=["occupation", "skill"],
+        required_inputs=["current_role_or_target_role"],
+        optional_inputs=["current_skills"],
+        required_signals=["reference_taxonomy", "mobility_pathways"],
+        required_sources=["onet", "esco"],
+        min_readiness_periods=None,
+        global_status="available",
+        implementation_status="pending",
+        reason_code="CAPABILITY_ACTIVE",
+        handler=None,
+        limitations=[
+            "Accepts a current role or target role; accepts current skills when available.",
+            "Identifies transition opportunities based on shared occupational tasks and skills in O*NET/ESCO baselines.",
+            "Analytical engine is pending implementation in Phase 2; not execution-ready.",
+        ],
+        provenance_requirements=["onet_soc_code", "taxonomy_version"],
     ),
 }
 
 CAPABILITY_DOMAINS: dict[str, list[str]] = {
-    "entity_resolution": ["skill", "market", "job"],
-    "skill_technology_reference": ["skill", "market"],
-    "occupation_lookup": ["job"],
-    "occupation_software_skills": ["job"],
-    "related_occupations": ["job"],
-    "market_snapshot": ["market"],
-    "historical_signal_retrieval": ["skill", "market"],
-    "trend_velocity_analysis": ["skill", "market"],
-    "skill_health_analysis": ["skill", "market"],
-    "skill_half_life_analysis": ["skill", "market"],
-    "evidence_provenance_retrieval": ["skill", "market"],
-    "skill_gap_role_fit": ["skill", "job"],
-    "action_recommendations": ["skill", "market", "job"],
-    "job_posting_search": ["job"],
-    "company_intelligence": ["skill", "market"],
-    "skill_forecasting_half_life": ["skill", "market"],
-    "ai_task_exposure": ["market", "skill", "job"],
-    "workforce_what_if_simulation": ["market"],
+    "skill_future_relevance_score": ["skill"],
+    "skill_change_alert": ["skill"],
+    "adaptive_skill_roadmap": ["skill"],
+    "technology_adoption_shift_detector": ["market"],
+    "technology_impact_explorer": ["market"],
+    "skill_based_job_match": ["job"],
+    "career_transition_opportunity": ["job"],
 }
 
 for _capability_id, _domains in CAPABILITY_DOMAINS.items():
-    CAPABILITY_CATALOG[_capability_id].supported_domains = _domains
+    if _capability_id in CAPABILITY_CATALOG:
+        CAPABILITY_CATALOG[_capability_id].supported_domains = _domains
 
 
 class CapabilityRegistryService:
@@ -520,7 +304,33 @@ class CapabilityRegistryService:
                 provenance_requirements=cap.provenance_requirements,
             )
 
-        # 2. Dispatch to specific capability evaluator
+        # 2. Input contract validation and pending status for Phase 1 registered features
+        if cap.capability_id == "technology_impact_explorer":
+            return self._eval_technology_impact_explorer(cap, req)
+        elif cap.capability_id == "career_transition_opportunity":
+            return self._eval_career_transition_opportunity(cap, req)
+        elif cap.capability_id in {
+            "skill_future_relevance_score",
+            "skill_change_alert",
+            "adaptive_skill_roadmap",
+            "technology_adoption_shift_detector",
+            "skill_based_job_match",
+        }:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status=cap.global_status,
+                implementation_status="pending",
+                can_execute=False,
+                reason_codes=["CAPABILITY_PENDING_IMPLEMENTATION"],
+                explanation=f"{cap.name} is registered. Analytical engine is pending implementation in Phase 2.",
+                missing_requirements=[f"Phase 2 analytical engine for {cap.capability_id}"],
+                limitations=cap.limitations,
+                provenance_requirements=cap.provenance_requirements,
+            )
+
+        # 3. Dispatch to legacy capability evaluator
         if cap.capability_id == "entity_resolution":
             return self._eval_entity_resolution(cap, req)
         elif cap.capability_id == "skill_technology_reference":
@@ -569,6 +379,187 @@ class CapabilityRegistryService:
     # -------------------------------------------------------------------------
     # INDIVIDUAL RUNTIME EVALUATION HANDLERS
     # -------------------------------------------------------------------------
+
+    def _eval_technology_impact_explorer(
+        self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
+    ) -> CapabilityEvaluationResult:
+        """Validate input contract for Technology Impact Explorer (accepts technology OR skill; optional occupation)."""
+        # Validate entity_type if provided
+        if req.entity_type is not None:
+            if not isinstance(req.entity_type, str):
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id,
+                    name=cap.name,
+                    global_status=cap.global_status,
+                    runtime_status="insufficient_data",
+                    implementation_status="pending",
+                    can_execute=False,
+                    reason_codes=["INVALID_INPUT_TYPE"],
+                    explanation="entity_type must be a string matching 'technology', 'skill', or 'occupation'.",
+                    missing_requirements=["valid_entity_type"],
+                    limitations=cap.limitations,
+                    provenance_requirements=cap.provenance_requirements,
+                )
+            if req.entity_type not in cap.supported_entity_types:
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id,
+                    name=cap.name,
+                    global_status=cap.global_status,
+                    runtime_status="insufficient_data",
+                    implementation_status="pending",
+                    can_execute=False,
+                    reason_codes=["UNSUPPORTED_ENTITY_TYPE"],
+                    explanation=f"Entity type '{req.entity_type}' is not supported for {cap.name}. Supported entity types: {cap.supported_entity_types}.",
+                    missing_requirements=[f"entity_type in {cap.supported_entity_types}"],
+                    limitations=cap.limitations,
+                    provenance_requirements=cap.provenance_requirements,
+                )
+
+        # Primary input: technology OR skill
+        has_tech = bool(
+            (isinstance(req.technology, str) and req.technology.strip())
+            or (isinstance(req.entity_name, str) and req.entity_name.strip() and req.entity_type in {"technology", None})
+        )
+        has_skill = bool(
+            (isinstance(req.selected_skills, list) and any(isinstance(s, str) and s.strip() for s in req.selected_skills))
+            or (isinstance(req.entity_name, str) and req.entity_name.strip() and req.entity_type in {"skill", None})
+        )
+
+        if not has_tech and not has_skill:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                implementation_status="pending",
+                can_execute=False,
+                reason_codes=["MISSING_TECHNOLOGY_OR_SKILL_INPUT"],
+                explanation="Technology Impact Explorer requires a technology or a skill as primary input.",
+                missing_requirements=["technology_or_skill"],
+                limitations=cap.limitations,
+                provenance_requirements=cap.provenance_requirements,
+            )
+
+        # Optional occupation input
+        has_occ = bool(
+            (isinstance(req.occupation, str) and req.occupation.strip())
+            or (isinstance(req.target_role, str) and req.target_role.strip())
+            or (isinstance(req.entity_name, str) and req.entity_name.strip() and req.entity_type == "occupation")
+        )
+
+        provenance = []
+        if has_tech:
+            tech_val = req.technology.strip() if req.technology else req.entity_name.strip()
+            provenance.append(f"primary_input:technology:{tech_val}")
+        elif has_skill:
+            skill_val = req.selected_skills[0].strip() if req.selected_skills else req.entity_name.strip()
+            provenance.append(f"primary_input:skill:{skill_val}")
+        if has_occ:
+            occ_val = (req.occupation or req.target_role or req.entity_name).strip()
+            provenance.append(f"optional_input:occupation:{occ_val}")
+
+        return CapabilityEvaluationResult(
+            capability_id=cap.capability_id,
+            name=cap.name,
+            global_status=cap.global_status,
+            runtime_status="available",
+            implementation_status="pending",
+            can_execute=False,
+            reason_codes=["CAPABILITY_PENDING_IMPLEMENTATION"],
+            explanation=f"{cap.name} is registered. Analytical engine is pending implementation in Phase 2.",
+            missing_requirements=[f"Phase 2 analytical engine for {cap.capability_id}"],
+            limitations=cap.limitations,
+            provenance_references=provenance,
+            provenance_requirements=cap.provenance_requirements,
+        )
+
+    def _eval_career_transition_opportunity(
+        self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
+    ) -> CapabilityEvaluationResult:
+        """Validate input contract for Career Transition Opportunity (accepts current_role OR target_role; optional skills)."""
+        # Validate entity_type if provided
+        if req.entity_type is not None:
+            if not isinstance(req.entity_type, str):
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id,
+                    name=cap.name,
+                    global_status=cap.global_status,
+                    runtime_status="insufficient_data",
+                    implementation_status="pending",
+                    can_execute=False,
+                    reason_codes=["INVALID_INPUT_TYPE"],
+                    explanation="entity_type must be a string matching 'occupation' or 'skill'.",
+                    missing_requirements=["valid_entity_type"],
+                    limitations=cap.limitations,
+                    provenance_requirements=cap.provenance_requirements,
+                )
+            if req.entity_type not in cap.supported_entity_types:
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id,
+                    name=cap.name,
+                    global_status=cap.global_status,
+                    runtime_status="insufficient_data",
+                    implementation_status="pending",
+                    can_execute=False,
+                    reason_codes=["UNSUPPORTED_ENTITY_TYPE"],
+                    explanation=f"Entity type '{req.entity_type}' is not supported for {cap.name}. Supported entity types: {cap.supported_entity_types}.",
+                    missing_requirements=[f"entity_type in {cap.supported_entity_types}"],
+                    limitations=cap.limitations,
+                    provenance_requirements=cap.provenance_requirements,
+                )
+
+        # Role input: current_role OR target_role
+        has_current_role = bool(
+            (isinstance(req.current_role, str) and req.current_role.strip())
+            or (isinstance(req.entity_name, str) and req.entity_name.strip() and req.entity_type in {"occupation", None} and not req.target_role)
+        )
+        has_target_role = bool(
+            (isinstance(req.target_role, str) and req.target_role.strip())
+            or (isinstance(req.entity_name, str) and req.entity_name.strip() and req.entity_type in {"occupation", None} and not req.current_role)
+        )
+
+        if not has_current_role and not has_target_role:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                implementation_status="pending",
+                can_execute=False,
+                reason_codes=["MISSING_ROLE_INPUT"],
+                explanation="Career Transition Opportunity requires either a current role or a target role.",
+                missing_requirements=["current_role_or_target_role"],
+                limitations=cap.limitations,
+                provenance_requirements=cap.provenance_requirements,
+            )
+
+        has_skills = bool(
+            isinstance(req.selected_skills, list) and any(isinstance(s, str) and s.strip() for s in req.selected_skills)
+        )
+        provenance = []
+        if has_current_role:
+            c_val = req.current_role.strip() if req.current_role else req.entity_name.strip()
+            provenance.append(f"role_input:current_role:{c_val}")
+        if has_target_role:
+            t_val = req.target_role.strip() if req.target_role else req.entity_name.strip()
+            provenance.append(f"role_input:target_role:{t_val}")
+        if has_skills:
+            provenance.append(f"optional_input:current_skills:{req.selected_skills}")
+
+        return CapabilityEvaluationResult(
+            capability_id=cap.capability_id,
+            name=cap.name,
+            global_status=cap.global_status,
+            runtime_status="available",
+            implementation_status="pending",
+            can_execute=False,
+            reason_codes=["CAPABILITY_PENDING_IMPLEMENTATION"],
+            explanation=f"{cap.name} is registered. Analytical engine is pending implementation in Phase 2.",
+            missing_requirements=[f"Phase 2 analytical engine for {cap.capability_id}"],
+            limitations=cap.limitations,
+            provenance_references=provenance,
+            provenance_requirements=cap.provenance_requirements,
+        )
 
     def _eval_entity_resolution(
         self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
@@ -648,6 +639,64 @@ class CapabilityRegistryService:
                 explanation="Skill reference lookup requires a canonical skill or technology name.",
                 missing_requirements=["entity_name"],
                 limitations=cap.limitations,
+            )
+
+        if str(req.context_override.get("taxonomy") or "").casefold() == "esco":
+            occupation_uri = str(req.context_override.get("occupation_uri") or "").strip()
+            if occupation_uri:
+                occupation = self._reference_store.get_esco_occupations(
+                    concept_uri=occupation_uri, limit=1
+                )
+                relations = self._reference_store.get_esco_occupation_skills(
+                    occupation_uri, limit=1
+                ) if occupation else []
+                if occupation and relations:
+                    return CapabilityEvaluationResult(
+                        capability_id=cap.capability_id,
+                        name=cap.name,
+                        global_status=cap.global_status,
+                        runtime_status="available",
+                        can_execute=True,
+                        reason_codes=["ESCO_OCCUPATION_SKILL_RELATIONS_AVAILABLE"],
+                        explanation="ESCO occupation metadata and linked skill relations are available.",
+                        limitations=["ESCO taxonomy associations are not evidence of individual qualifications or live hiring demand."],
+                        provenance_references=[f"esco_occupation_uri:{occupation_uri}"],
+                    )
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id,
+                    name=cap.name,
+                    global_status=cap.global_status,
+                    runtime_status="insufficient_data",
+                    can_execute=False,
+                    reason_codes=["ESCO_OCCUPATION_RELATIONS_NOT_FOUND"],
+                    explanation="No imported ESCO occupation-skill relations matched the requested occupation.",
+                    missing_requirements=["Imported ESCO occupation-skill relation"],
+                    limitations=["ESCO taxonomy lookup cannot establish current hiring demand."],
+                )
+            skill_uri = str(req.context_override.get("skill_uri") or "").strip()
+            skill = self._entity_service._resolve_esco_skill(skill_uri) if skill_uri else None
+            if skill:
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id,
+                    name=cap.name,
+                    global_status=cap.global_status,
+                    runtime_status="available",
+                    can_execute=True,
+                    reason_codes=["ESCO_SKILL_REFERENCE_AVAILABLE"],
+                    explanation="An ESCO skill taxonomy entry is available.",
+                    limitations=["ESCO is a static reference taxonomy, not evidence of current hiring demand or individual qualifications."],
+                    provenance_references=[f"esco_skill_uri:{skill_uri}"],
+                )
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["ESCO_SKILL_NOT_FOUND"],
+                explanation="No imported ESCO skill entry matched the requested taxonomy identity.",
+                missing_requirements=["Imported ESCO skill record"],
+                limitations=["ESCO taxonomy lookup cannot establish current hiring demand."],
             )
 
         norm = normalize_skill(raw_name)
@@ -750,6 +799,27 @@ class CapabilityRegistryService:
                 explanation="Occupation software skills crosswalk requires a SOC code or occupation title.",
                 missing_requirements=["soc_code_or_target_role"],
                 limitations=cap.limitations,
+            )
+
+        if str(req.context_override.get("taxonomy") or "").casefold() == "esco":
+            uri = str(req.context_override.get("occupation_uri") or "").strip()
+            relations = self._entity_service.get_esco_occupation_skills(uri, limit=1) if uri else []
+            if relations:
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id, name=cap.name,
+                    global_status=cap.global_status, runtime_status="available", can_execute=True,
+                    reason_codes=["ESCO_TAXONOMY_ASSOCIATIONS_AVAILABLE"],
+                    explanation="ESCO occupation-skill taxonomy associations are available.",
+                    limitations=["ESCO essential/optional associations are taxonomy mappings, not individual qualifications or hiring demand."],
+                    provenance_references=[f"esco_occupation_uri:{uri}"],
+                )
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id, name=cap.name,
+                global_status=cap.global_status, runtime_status="insufficient_data", can_execute=False,
+                reason_codes=["NO_ESCO_OCCUPATION_SKILL_ASSOCIATIONS"],
+                explanation=f"No ESCO occupation-skill associations were found for '{target}'.",
+                missing_requirements=["ESCO occupation URI with imported relationship records"],
+                limitations=["ESCO is a static reference taxonomy; missing associations do not imply missing real-world skills."],
             )
 
         soc_code = target
@@ -858,8 +928,11 @@ class CapabilityRegistryService:
                 limitations=cap.limitations,
             )
 
-        readiness_reports = assess_analytical_readiness(obs)
-        if not readiness_reports:
+        from app.analytics.shared_intelligence import analyze_market_observations
+
+        analysis = analyze_market_observations(obs)
+        trend_results = analysis.trend_results
+        if not trend_results:
             return CapabilityEvaluationResult(
                 capability_id=cap.capability_id,
                 name=cap.name,
@@ -867,14 +940,27 @@ class CapabilityRegistryService:
                 runtime_status="insufficient_data",
                 can_execute=False,
                 reason_codes=["SERIES_EVALUATION_EMPTY"],
-                explanation="Observations could not be partitioned into comparable monthly series.",
+                explanation=(
+                    f"{len(obs)} matched observation record(s) did not produce a valid "
+                    "comparable monthly series for trend calculation."
+                ),
                 missing_requirements=["Consistent provider panel with valid periods"],
                 limitations=cap.limitations,
             )
 
-        # Evaluate against the primary report
-        primary = readiness_reports[0]
-        if primary.is_trend_ready:
+        eligible_trends = [
+            trend for trend in trend_results
+            if trend.data_state in {"ready", "fresh"}
+            and trend.data_origin == "real"
+            and trend.history_type == "platform_collected"
+            and trend.canonical_skill_id
+        ]
+        if eligible_trends:
+            priority = {"demand": 0, "adoption": 1, "interest": 2}
+            selected = min(
+                eligible_trends,
+                key=lambda trend: priority.get(trend.signal_type, 3),
+            )
             return CapabilityEvaluationResult(
                 capability_id=cap.capability_id,
                 name=cap.name,
@@ -882,37 +968,196 @@ class CapabilityRegistryService:
                 runtime_status="available",
                 can_execute=True,
                 reason_codes=["READY_FOR_TREND"],
-                explanation=f"Series has {primary.consecutive_valid_periods} consecutive valid periods and passes all analytical gates.",
+                explanation=(
+                    f"A comparable source-specific series has {len(selected.periods_used)} "
+                    "completed consecutive periods and passes the trend calculation gates."
+                ),
                 limitations=cap.limitations,
-                provenance_references=[f"provider:{primary.provider}", f"signal:{primary.signal_type}"],
-                readiness_state=primary.readiness_state,
+                provenance_references=[
+                    f"provider:{selected.provider}",
+                    f"signal:{selected.signal_type}",
+                ],
+                readiness_state=selected.readiness_state,
             )
-        elif primary.readiness_state.startswith("blocked_"):
-            return CapabilityEvaluationResult(
-                capability_id=cap.capability_id,
-                name=cap.name,
-                global_status=cap.global_status,
-                runtime_status="blocked",
-                can_execute=False,
-                reason_codes=["BLOCKED_BY_READINESS_GATE", primary.readiness_state],
-                explanation=f"Series blocked by analytical gate: {primary.readiness_state}.",
-                missing_requirements=primary.blocking_reasons,
-                limitations=cap.limitations,
-                readiness_state=primary.readiness_state,
+
+        def completed_periods(trend: Any) -> list[str]:
+            from app.analytics.observation_period import is_completed_month
+
+            return [
+                period for period in trend.periods_used
+                if is_completed_month(period)
+            ]
+
+        best_trend = max(
+            trend_results,
+            key=lambda trend: (
+                len(completed_periods(trend)),
+                trend.data_origin == "real",
+                trend.history_type == "platform_collected",
+            ),
+        )
+        matching_quality_report = next(
+            (
+                report for report in analysis.quality_reports
+                if report.provider.casefold() == best_trend.provider.casefold()
+                and report.signal_type == best_trend.signal_type
+                and report.canonical_skill_id == best_trend.canonical_skill_id
+            ),
+            None,
+        )
+        valid_periods = completed_periods(best_trend)
+        quality_validation_failed = any(
+            reason.startswith("G1.8 quality state is 'incomplete'")
+            or reason.startswith("G1.8 quality state is 'configuration_changed'")
+            or reason.startswith("G1.8 quality state is 'low_coverage'")
+            or reason == "Series contains observations with invalid quality states"
+            or reason.startswith("Canonical skill, stable series identity")
+            for reason in best_trend.blocking_reasons
+        )
+        if matching_quality_report and any(
+            "duplicate observation IDs" in issue.lower()
+            for issue in matching_quality_report.issues
+        ):
+            quality_validation_failed = True
+        blocking_reasons = list(best_trend.blocking_reasons)
+        if matching_quality_report:
+            blocking_reasons.extend(
+                issue for issue in matching_quality_report.issues
+                if issue not in blocking_reasons
             )
+        if best_trend.data_origin != "real" and not any(
+            "provenance" in reason.lower() for reason in blocking_reasons
+        ):
+            blocking_reasons.insert(0, "Observation provenance is missing or non-production.")
+        if best_trend.history_type != "platform_collected" and not any(
+            "history type" in reason.lower() for reason in blocking_reasons
+        ):
+            blocking_reasons.insert(0, "History type is not eligible for operational trend analysis.")
+        if quality_validation_failed and not any(
+            "missing period gap" in reason.lower()
+            for reason in blocking_reasons
+        ):
+            valid_periods = []
+        if best_trend.data_origin != "real" or best_trend.history_type != "platform_collected":
+            valid_periods = []
+        retrieved_periods = sorted({
+            observation.period or observation.observed_at.strftime("%Y-%m")
+            for observation in obs
+            if observation.period or observation.observed_at
+        })
+        from app.analytics.observation_period import is_completed_month
+
+        incomplete_periods = [
+            period for period in retrieved_periods
+            if not is_completed_month(period)
+        ]
+        blocking_reasons = blocking_reasons or [
+            "The source-specific series did not pass all quality and trend readiness checks."
+        ]
+        valid_range = (
+            f" ({valid_periods[0]} through {valid_periods[-1]})"
+            if valid_periods else ""
+        )
+        retrieved_summary = (
+            f" {len(retrieved_periods)} distinct matched periods "
+            f"({retrieved_periods[0]} through {retrieved_periods[-1]}) were retrieved across "
+            f"{len(trend_results)} source-specific series; those series are not pooled."
+            if retrieved_periods else ""
+        )
+        incomplete_summary = (
+            f" Incomplete current or future period(s) {', '.join(incomplete_periods)} were excluded."
+            if incomplete_periods else ""
+        )
+        has_period_gap = any(
+            "missing period gap" in reason.casefold()
+            or "period is missing" in reason.casefold()
+            for reason in blocking_reasons
+        )
+        reason_code = "INSUFFICIENT_TREND_HISTORY"
+        if best_trend.data_origin != "real":
+            reason_code = "OBSERVATION_PROVENANCE_UNAVAILABLE"
+        elif best_trend.history_type != "platform_collected":
+            reason_code = "INELIGIBLE_HISTORY_TYPE"
+        elif quality_validation_failed:
+            reason_code = "BLOCKED_BY_QUALITY_GATE"
+        elif not best_trend.series_id:
+            reason_code = "SERIES_IDENTITY_UNAVAILABLE"
+        elif not best_trend.unit:
+            reason_code = "OBSERVATION_UNIT_UNAVAILABLE"
+        elif not best_trend.canonical_skill_id:
+            reason_code = "CANONICAL_SKILL_ID_UNAVAILABLE"
+        elif len(valid_periods) < 4:
+            reason_code = "INSUFFICIENT_TREND_HISTORY"
+
+        if best_trend.data_origin != "real":
+            primary_block = "the observations do not have verified real-data provenance"
+        elif best_trend.history_type != "platform_collected":
+            primary_block = (
+                "this history type is not eligible for operational trend analysis, "
+                f"so this series has {len(valid_periods)} eligible completed monthly periods"
+            )
+        elif has_period_gap:
+            primary_block = "a required completed month is missing from the selected series"
+        elif quality_validation_failed:
+            primary_block = "the selected series failed its data-quality checks"
+        elif not best_trend.series_id:
+            primary_block = "the selected observations do not have a stable series identity"
+        elif not best_trend.unit:
+            primary_block = "the selected observations do not declare a comparable unit"
+        elif not best_trend.canonical_skill_id:
+            primary_block = "the selected observations do not have a canonical skill identity"
+        elif len(valid_periods) < 4:
+            primary_block = f"only {len(valid_periods)} eligible completed monthly periods are available"
         else:
-            return CapabilityEvaluationResult(
-                capability_id=cap.capability_id,
-                name=cap.name,
-                global_status=cap.global_status,
-                runtime_status="insufficient_data",
-                can_execute=False,
-                reason_codes=["INSUFFICIENT_PERIODS_FOR_TREND"],
-                explanation=f"Series has {primary.consecutive_valid_periods} consecutive valid periods (minimum 4 required for Theil-Sen trend).",
-                missing_requirements=primary.blocking_reasons or ["Minimum 4 consecutive monthly periods"],
-                limitations=cap.limitations,
-                readiness_state=primary.readiness_state,
-            )
+            primary_block = "the selected series does not pass the trend readiness checks"
+
+        detail_reasons = []
+        for reason in blocking_reasons:
+            normalized = reason.casefold()
+            if "history type" in normalized or "provenance" in normalized:
+                continue
+            if "stable series identity" in normalized or "series identity" in normalized:
+                if not best_trend.series_id:
+                    continue
+                detail_reasons.append("stable series identity is unavailable")
+            elif "explicit observation unit" in normalized or "unit" in normalized:
+                if not best_trend.unit:
+                    continue
+                detail_reasons.append("a comparable observation unit is unavailable")
+            elif "canonical skill" in normalized:
+                if not best_trend.canonical_skill_id:
+                    continue
+                detail_reasons.append("canonical skill mapping is unavailable")
+            elif "duplicate observation" in normalized:
+                detail_reasons.append("duplicate observations were found")
+            elif "missing period" in normalized or "period gap" in normalized:
+                if not has_period_gap:
+                    detail_reasons.append("a required completed month is missing")
+            elif "quality" in normalized or "coverage" in normalized:
+                detail_reasons.append("series quality requirements were not met")
+            elif "period" in normalized or "gap" in normalized or "consecutive" in normalized:
+                detail_reasons.append("the completed periods are not consecutive")
+            if len(detail_reasons) >= 2:
+                break
+        detail_reasons = list(dict.fromkeys(detail_reasons))
+        provider_signal = f"{best_trend.provider} {best_trend.signal_type} series"
+        return CapabilityEvaluationResult(
+            capability_id=cap.capability_id,
+            name=cap.name,
+            global_status=cap.global_status,
+            runtime_status="insufficient_data",
+            can_execute=False,
+            reason_codes=[reason_code],
+            explanation=(
+                f"No trend is available from the selected {provider_signal}: {primary_block}. "
+                "At least 4 consecutive comparable completed monthly periods are required. "
+                f"{(' '.join(detail_reasons) + '. ') if detail_reasons else ''}"
+                f"{retrieved_summary}{incomplete_summary}"
+            ),
+            missing_requirements=blocking_reasons,
+            limitations=cap.limitations,
+            readiness_state=best_trend.readiness_state or "not_ready",
+        )
 
     def _eval_skill_health(
         self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
@@ -1315,7 +1560,104 @@ class CapabilityRegistryService:
             except Exception:
                 obs = []
 
+        history_context = req.context_override.get("_historical_signal_context", {})
+        if cap.capability_id == "historical_signal_retrieval" and history_context.get("source") == "github_innovation_graph":
+            country = history_context.get("country")
+            if country and req.entity_name:
+                from app.analytics.skill_registry import canonical_skill_id
+                skill_id = canonical_skill_id(req.entity_name)
+                try:
+                    rows = self._reference_store.get_github_adoption_series_for_country(country)
+                except Exception:
+                    rows = []
+                github_groups: dict[tuple[str, str, str], set[str]] = {}
+                current = datetime.now(timezone.utc)
+                current_quarter = (current.month - 1) // 3 + 1
+                for row in rows:
+                    period = str(row.get("period") or "")
+                    try:
+                        year_text, quarter_text = period.split("-Q", 1)
+                        completed = (int(year_text), int(quarter_text)) < (current.year, current_quarter)
+                    except (ValueError, TypeError):
+                        completed = False
+                    if skill_id and row.get("canonical_skill_id") == skill_id and completed and row.get("value") is not None:
+                        key = (str(row.get("metric") or ""), str(row.get("label") or ""), str(row.get("unit") or ""))
+                        github_groups.setdefault(key, set()).add(period)
+                period_count = max((len(periods) for periods in github_groups.values()), default=0)
+                required_periods = cap.min_readiness_periods
+                if required_periods is not None and period_count < required_periods:
+                    return CapabilityEvaluationResult(
+                        capability_id=cap.capability_id, name=cap.name,
+                        global_status=cap.global_status, runtime_status="insufficient_data",
+                        can_execute=False, reason_codes=["INSUFFICIENT_HISTORICAL_PERIODS"],
+                        explanation=(f"GitHub Innovation Graph has at most {period_count} distinct completed quarterly period(s) in any one compatible series for "
+                                     f"'{req.entity_name}' in {country}; historical retrieval requires at least {required_periods}."),
+                        missing_requirements=[f"At least {required_periods} distinct completed quarterly periods"],
+                        limitations=cap.limitations,
+                    )
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id, name=cap.name,
+                    global_status=cap.global_status, runtime_status="available", can_execute=True,
+                    reason_codes=["OBSERVATIONS_AVAILABLE"],
+                    explanation=f"Found at least {period_count} GitHub Innovation Graph quarterly periods in one compatible series for '{req.entity_name}' in {country}.",
+                    limitations=cap.limitations,
+                    provenance_references=[f"reference_periods:{period_count}", f"country:{country}"],
+                )
+
+        if cap.capability_id == "historical_signal_retrieval" and obs:
+            from app.analytics.historical_signals import observation_is_eligible_history, historical_series_identity
+            eligible = [item for item in obs if observation_is_eligible_history(item)]
+            compatible: dict[tuple[str, ...], set[str]] = {}
+            for item in eligible:
+                compatible.setdefault(historical_series_identity(item), set()).add(str(item.period))
+            period_count = max((len(periods) for periods in compatible.values()), default=0)
+            required_periods = cap.min_readiness_periods or 1
+            if period_count < required_periods:
+                source = history_context.get("source")
+                signal = history_context.get("signal_type") or ("adoption" if source == "github_innovation_graph" else "interest or demand")
+                if source in {"jsearch", "adzuna"}:
+                    explanation = f"{source} contains stored job-posting snapshots, not an eligible historical {signal} series."
+                    reason = "HISTORICAL_SNAPSHOT_SOURCE_INELIGIBLE"
+                else:
+                    explanation = (f"Found at most {period_count} eligible completed period(s) in one compatible {signal} series; "
+                                   f"historical retrieval requires at least {required_periods}. Snapshots, incomplete periods, "
+                                   "and incompatible series do not count toward readiness.")
+                    reason = "INSUFFICIENT_HISTORICAL_PERIODS"
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id, name=cap.name,
+                    global_status=cap.global_status, runtime_status="insufficient_data",
+                    can_execute=False, reason_codes=[reason], explanation=explanation,
+                    missing_requirements=[f"At least {required_periods} eligible completed periods in one source-specific series"],
+                    limitations=cap.limitations,
+                )
+            # Historical readiness is based only on eligible, source-specific
+            # completed series. Do not fall through to the generic period-count
+            # check, which could incorrectly accept platform snapshots.
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id, name=cap.name,
+                global_status=cap.global_status, runtime_status="available", can_execute=True,
+                reason_codes=["OBSERVATIONS_AVAILABLE"],
+                explanation=f"Found {period_count} eligible completed periods in one source-specific historical series for '{req.entity_name}'.",
+                limitations=cap.limitations,
+                provenance_references=[f"observations_count:{len(eligible)}"],
+            )
+
         if not obs:
+            if cap.capability_id == "historical_signal_retrieval":
+                explanation = (
+                    f"No persisted real historical observations are available for '{req.entity_name or 'the requested skill'}'. "
+                    "Supported historical families are monthly Stack Exchange question counts, monthly Wikipedia pageviews, "
+                    "and quarterly GitHub Innovation Graph developer activity by country. JSearch and Adzuna records are "
+                    "job-posting snapshots and do not form historical demand series."
+                )
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id, name=cap.name,
+                    global_status=cap.global_status, runtime_status="insufficient_data",
+                    can_execute=False, reason_codes=["NO_ELIGIBLE_HISTORICAL_SERIES"],
+                    explanation=explanation,
+                    missing_requirements=["Completed real source-specific periods with stable series identity and provenance"],
+                    limitations=cap.limitations,
+                )
             return CapabilityEvaluationResult(
                 capability_id=cap.capability_id,
                 name=cap.name,
@@ -1327,6 +1669,32 @@ class CapabilityRegistryService:
                 missing_requirements=["Stored market observations from platform collection"],
                 limitations=cap.limitations,
             )
+
+        if cap.capability_id == "historical_signal_retrieval":
+            observed_periods = {
+                observation.period
+                for observation in obs
+                if observation.period
+            }
+            required_periods = cap.min_readiness_periods
+            if required_periods is not None and len(observed_periods) < required_periods:
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id,
+                    name=cap.name,
+                    global_status=cap.global_status,
+                    runtime_status="insufficient_data",
+                    can_execute=False,
+                    reason_codes=["INSUFFICIENT_HISTORICAL_PERIODS"],
+                    explanation=(
+                        f"Found {len(observed_periods)} distinct observed period(s); "
+                        f"historical retrieval requires at least {required_periods}."
+                    ),
+                    missing_requirements=[
+                        f"At least {required_periods} distinct observed periods"
+                    ],
+                    limitations=cap.limitations,
+                    provenance_references=[f"observations_count:{len(obs)}"],
+                )
 
         return CapabilityEvaluationResult(
             capability_id=cap.capability_id,
@@ -1359,7 +1727,11 @@ class CapabilityRegistryService:
 
         norm = normalize_skill(target)
         cid = canonical_skill_id(norm)
-        if cid is None and norm not in SKILLS:
+        has_taxonomy_identity = bool(
+            req.context_override.get("taxonomy") == "esco"
+            and req.context_override.get("skill_uri")
+        )
+        if cid is None and norm not in SKILLS and not has_taxonomy_identity:
             return CapabilityEvaluationResult(
                 capability_id=cap.capability_id,
                 name=cap.name,
@@ -1387,8 +1759,8 @@ class CapabilityRegistryService:
     def _eval_skill_gap(
         self, cap: CapabilityRecord, req: CapabilityEvaluationRequest
     ) -> CapabilityEvaluationResult:
-        has_skills = bool(req.selected_skills)
         has_role = bool(req.target_role or req.entity_name)
+        has_skills = bool(req.selected_skills)
 
         if not has_skills and not has_role:
             return CapabilityEvaluationResult(
@@ -1405,17 +1777,12 @@ class CapabilityRegistryService:
         elif not has_skills or not has_role:
             missing = ["selected_skills"] if not has_skills else ["target_role"]
             return CapabilityEvaluationResult(
-                capability_id=cap.capability_id,
-                name=cap.name,
-                global_status=cap.global_status,
-                runtime_status="partial",
-                can_execute=False,
+                capability_id=cap.capability_id, name=cap.name,
+                global_status=cap.global_status, runtime_status="partial", can_execute=False,
                 reason_codes=["PARTIAL_INPUT_CONTEXT"],
                 explanation=f"Missing {', '.join(missing)} for complete skill gap evaluation.",
-                missing_requirements=missing,
-                limitations=cap.limitations,
+                missing_requirements=missing, limitations=cap.limitations,
             )
-
         return CapabilityEvaluationResult(
             capability_id=cap.capability_id,
             name=cap.name,
@@ -1423,7 +1790,7 @@ class CapabilityRegistryService:
             runtime_status="partial",
             can_execute=True,
             reason_codes=["HEURISTIC_GAP_ANALYSIS_READY"],
-            explanation=f"Heuristic alignment ready between {len(req.selected_skills)} skills and target role '{req.target_role or req.entity_name}'.",
+            explanation=f"Taxonomy comparison can run for target role '{req.target_role or req.entity_name}'.",
             limitations=cap.limitations,
             provenance_references=["source:onet_crosswalk"],
         )
@@ -1460,16 +1827,61 @@ class CapabilityRegistryService:
                 missing_requirements=["target_role"],
                 limitations=cap.limitations,
             )
+        target_role = (req.target_role or req.entity_name or "").strip()
+        occupation = self._entity_service._resolve_onet_occupation(target_role)
+        taxonomy = "onet"
+        if not occupation or not occupation.metadata.get("soc_code"):
+            occupation = self._entity_service._resolve_esco_occupation(target_role)
+            taxonomy = "esco"
+        if not occupation:
+            return CapabilityEvaluationResult(
+                capability_id=cap.capability_id,
+                name=cap.name,
+                global_status=cap.global_status,
+                runtime_status="insufficient_data",
+                can_execute=False,
+                reason_codes=["NO_OCCUPATION_REFERENCE_MATCH"],
+                explanation=f"No exact O*NET occupation match is available for '{target_role}', so role-linked learning actions cannot be grounded.",
+                missing_requirements=["Exact supported occupation reference mapping"],
+                limitations=cap.limitations,
+            )
+        if taxonomy == "esco":
+            occupation_uri = occupation.metadata.get("esco_uri") or occupation.source_record_id
+            relationships = self._reference_store.get_esco_occupation_skills(
+                str(occupation_uri), limit=1
+            ) if occupation_uri else []
+            if not relationships:
+                return CapabilityEvaluationResult(
+                    capability_id=cap.capability_id,
+                    name=cap.name,
+                    global_status=cap.global_status,
+                    runtime_status="insufficient_data",
+                    can_execute=False,
+                    reason_codes=["ESCO_OCCUPATION_SKILLS_UNAVAILABLE"],
+                    explanation=(
+                        f"ESCO resolves '{target_role}', but no local occupation-skill relationships "
+                        "are available to ground a practice suggestion."
+                    ),
+                    missing_requirements=["Local ESCO occupation-skill relationships"],
+                    limitations=cap.limitations,
+                )
         return CapabilityEvaluationResult(
             capability_id=cap.capability_id,
             name=cap.name,
             global_status=cap.global_status,
             runtime_status="available",
             can_execute=True,
-            reason_codes=["ACTION_SYNTHESIS_READY"],
-            explanation=f"Action recommendation engine is ready to synthesize actions for portal '{req.portal_type}'.",
+            reason_codes=["ESCO_ACTION_SYNTHESIS_READY" if taxonomy == "esco" else "ACTION_SYNTHESIS_READY"],
+            explanation=(
+                f"Action recommendation engine is ready to synthesize actions for '{occupation.canonical_name}' "
+                f"from {taxonomy.upper()} reference relationships."
+            ),
             limitations=cap.limitations,
-            provenance_references=[f"portal:{req.portal_type}"],
+            provenance_references=[
+                f"portal:{req.portal_type}",
+                f"taxonomy:{taxonomy}",
+                f"occupation:{occupation.source_record_id}",
+            ],
         )
 
     def _eval_job_search(

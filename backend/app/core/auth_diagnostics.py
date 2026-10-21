@@ -23,7 +23,10 @@ def uid_reference(uid: str | None) -> str | None:
 
 
 def log_auth_trace(stage: str, **fields: Any) -> None:
-    if get_settings().environment != "development":
+    try:
+        if get_settings().environment != "development":
+            return
+    except Exception:
         return
     safe_fields = {
         key: value

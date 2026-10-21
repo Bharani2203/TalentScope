@@ -21,7 +21,8 @@ from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from app.analytics.skill_normalization import normalize_skill
-from app.analytics.skill_registry import SKILLS, _ALIASES, canonical_skill_id
+from app.analytics.historical_signals import historical_signal_context
+from app.analytics.skill_registry import SKILLS, _ALIASES, canonical_skill_id, normalize_skill_entry
 from app.models.auth import AuthenticatedUser
 from app.models.capability_registry import (
     CapabilityEvaluationRequest,
@@ -87,11 +88,18 @@ COMPARISON_PATTERNS = [
 JOB_SEARCH_PATTERNS = [
     re.compile(r"\b(find|search|show|get|list|see)\b.*\b(jobs|postings|openings|vacancies|positions)\b", re.IGNORECASE),
     re.compile(r"\bjob (search|postings|market)\b", re.IGNORECASE),
+    # Inspecting skills in already collected postings is still a stored-job
+    # query; it must not fall through to a taxonomy crosswalk or market trend.
+    re.compile(r"\b(?:which|what)\s+skills?\b.*\b(?:appear|occur|are listed|are mentioned|show up)\b.*\b(?:job\s+)?postings?\b", re.IGNORECASE),
+    re.compile(r"\bskills?\b.*\b(?:in|from|within|across)\s+(?:these\s+|the\s+)?(?:job\s+)?postings?\b", re.IGNORECASE),
+    re.compile(r"\b(?:postings?|jobs?)\b.*\b(?:require|requiring|list|mention)\b", re.IGNORECASE),
     re.compile(r"\bhiring (for|demand)\b", re.IGNORECASE),
+    re.compile(r"\b(which|what|top)\s+companies?\b.*\b(hiring|open roles|openings|requisitions)\b", re.IGNORECASE),
 ]
 
 # 5. Occupation software tools / skills crosswalk
 OCC_SOFTWARE_PATTERNS = [
+    re.compile(r"\b(?:what|which|show|find|list)\s+(?:the\s+)?(?:(?:essential|optional)\s+)?(?:skills|tools|software|technologies)\b.*\b(?:associated with|mapped to|linked to|used by|required for)\s+(?:the\s+)?(?:occupation\s+)?([a-zA-Z][a-zA-Z\s-]*?)(?:\s+in\s+(?:the\s+)?(?:esco|o\*?net)(?:\s+taxonomy)?)?\s*[?.!]*$", re.IGNORECASE),
     re.compile(r"\b(what|which)\s+(?:skills|tools|software|technologies)(?:\s+(?:skills|tools|software|technologies))?\s+(?:does|do|for|needed for)\s+(?:a|an)?\s*(.*?)\s*(?:need|use|require)\b", re.IGNORECASE),
     re.compile(r"\b(?:skills|software|tools)(?:\s+(?:skills|software|tools))?\s+(?:for|required for|needed by)\s+(?:a|an)?\s*(.*?)\b", re.IGNORECASE),
     re.compile(r"\b([a-zA-Z\s]+?)\s+(?:tools|software tools|tech stack)\b", re.IGNORECASE),
@@ -115,7 +123,17 @@ SKILL_LEARNING_PATTERNS = [
     re.compile(r"\bwhich\s+skills?\s+should\s+i\s+prioriti[sz]e\b", re.IGNORECASE),
     re.compile(r"\bprioriti[sz]e\b.*\bskills?\b", re.IGNORECASE),
     re.compile(r"\bcreate\b.*\blearning\s+roadmap\b", re.IGNORECASE),
+    re.compile(r"\bcreate\b.*\blearning\s+path\b", re.IGNORECASE),
+    re.compile(r"\b(?:what|which)\s+skills?\s+(?:should|could|can)\s+i\s+learn\b", re.IGNORECASE),
+    re.compile(r"\b(?:what|which)\s+skills?\s+should\s+i\s+(?:improve|strengthen|develop)\b", re.IGNORECASE),
     re.compile(r"\broadmap\b.*\bbased\s+on\s+my\s+current\s+skills\b", re.IGNORECASE),
+]
+
+ROADMAP_GAP_PATTERNS = [
+    re.compile(r"\b(?:create|build|make|give me)\b.*\blearning roadmap\b.*\b(?:missing|gap|role|occupation)\b", re.IGNORECASE),
+    re.compile(r"\bwhat should i learn first\b", re.IGNORECASE),
+    re.compile(r"\bproject\b.*\b(?:practise|practice)\b.*\b(?:missing|highest[- ]priority|gap)\b", re.IGNORECASE),
+    re.compile(r"\bhow can i check whether i have learned\b", re.IGNORECASE),
 ]
 
 # 7. Occupation lookup
@@ -137,7 +155,10 @@ EVIDENCE_PATTERNS = [
 # 9. Skill gap & role alignment
 SKILL_GAP_PATTERNS = [
     re.compile(r"\b(skill gaps?|role fits?|am i ready for|gap analysis|missing skills?|skills? needed)\b", re.IGNORECASE),
+    re.compile(r"\b(?:which|what)\s+skills?\s+(?:am i|are we)\s+missing\b", re.IGNORECASE),
+    re.compile(r"\b(?:which|what)\s+skills?\s+(?:match|fit|align with)\b", re.IGNORECASE),
     re.compile(r"\b(what does this (?:result )?mean for (?:my |our )?career|career impact|career relevance|relevance to my career)\b", re.IGNORECASE),
+    re.compile(r"\bwhat am i missing\b.*\b(?:for|in|from)\b", re.IGNORECASE),
 ]
 
 # 10. Action recommendations
@@ -196,7 +217,7 @@ TREND_PATTERNS = [
 ALL_SKILL_TREND_PATTERNS = [
     re.compile(
         r"\b(?:what|which|show|list|rank|compare|identify|find)\b.*\bskills?\b.*"
-        r"\b(?:trending|trend(?:s)?|gaining demand|increasing demand|declining|decreasing|rising|falling)\b",
+        r"\b(?:trending|trend(?:s)?|gaining demand|increasing demand|growing in demand|declining|decreasing|rising|falling)\b",
         re.IGNORECASE,
     ),
     re.compile(
@@ -217,6 +238,21 @@ SNAPSHOT_PATTERNS = [
 ]
 
 # 15. Concept explanation / lookup
+GENERAL_KNOWLEDGE_PATTERNS = [
+    re.compile(r"\bwhat\s+is\s+(?:a\s+|an\s+|the\s+)?[A-Za-z0-9.+#-]+\s+used\s+for\b", re.IGNORECASE),
+    re.compile(r"\b(?:explain|describe)\b(?!.*\b(?:demand|hiring|employer|job postings?)\b).*\btrends?\b.*\b(?:in\s+)?simple\s+terms\b", re.IGNORECASE),
+    re.compile(r"\b(?:explain|describe)\b(?!.*\b(?:demand|hiring|employer|job postings?)\b).*\b(?:in\s+simple\s+terms|for\s+a\s+beginner)\b", re.IGNORECASE),
+    re.compile(r"\b(?:latest|current|recent|emerging)\s+(?:(?:ui\s*/\s*ux|ui|ux|user interface|user experience|web|product|graphic|visual|design|technology|software)\s+){0,3}trends?\b", re.IGNORECASE),
+    re.compile(r"\bwhat\s+are\s+(?:the\s+)?(?:latest|current|recent|emerging)\s+trends?\s+(?:in|for|across)\s+(?:ui\s*/\s*ux|user interface|user experience|web design|product design|graphic design|design)\b", re.IGNORECASE),
+]
+
+SKILL_REFERENCE_PATTERNS = [
+    re.compile(r"\b(?:canonical\s+)?(?:definition|category)\b.*\b(?:skill|technology|python|javascript|java|react|kubernetes)\b", re.IGNORECASE),
+    re.compile(r"\b(?:canonical\s+definition|definition\s+and\s+category)\s+(?:for|of)\b", re.IGNORECASE),
+    re.compile(r"\bwhat\s+is\s+(?:the\s+)?[A-Za-z0-9.+#-]+\s+skill\s+in\s+(?:the\s+)?esco(?:\s+taxonomy)?\b", re.IGNORECASE),
+    re.compile(r"\b(?:find|lookup|show|describe)\s+(?:the\s+)?esco\s+skill\b", re.IGNORECASE),
+]
+
 CONCEPT_PATTERNS = [
     re.compile(r"\b(?:what is|explain|tell me about|overview of|definition of)\s+(?:a\s+|an\s+|the\s+)?([A-Za-z0-9\.\+#]+)\s*[?.!]*$", re.IGNORECASE),
     re.compile(r"\b(explain (?:that|this|it)?\s*(?:in simpler words|more simply|simply|for a beginner)?)\b", re.IGNORECASE),
@@ -287,6 +323,8 @@ class IntentPlannerService:
                     request.conversation_id,
                     user_id=user_id,
                     company_id=company_id,
+                    domain=request.domain,
+                    portal_type=effective_portal,
                 )
                 if rew_msg:
                     effective_message = rew_msg
@@ -299,13 +337,19 @@ class IntentPlannerService:
         # 2. Extract and resolve entities mentioned in the query
         resolved_entities = self._extract_and_resolve_entities(effective_message, request)
 
+        # Do not carry a prior entity into a complete, explicit new request.
+        raw_intent_confidence = self._classify_intent(message, resolved_entities)[1]
+        is_contextual_follow_up = bool(
+            re.search(r"\b(?:this|that|it|its|these|those|same)\b", message, re.IGNORECASE)
+        )
         # If conversation context resolved a primary entity for follow-up
-        if res_primary:
-            query_has_explicit_occ = any(
-                e.canonical_entity and e.canonical_entity.entity_type == "occupation" and e.raw_token.lower() in message.lower()
+        if res_primary and (raw_intent_confidence < 0.80 or is_contextual_follow_up):
+            query_has_explicit_entity = any(
+                e.canonical_entity
+                and re.search(rf"(?<!\w){re.escape(e.raw_token)}(?!\w)", message, re.IGNORECASE)
                 for e in resolved_entities
             )
-            if not query_has_explicit_occ:
+            if not query_has_explicit_entity:
                 res_ent_resp = self._entity_service.resolve(EntityResolutionRequest(name=res_primary))
                 if res_ent_resp.status == "resolved" and res_ent_resp.entity:
                     primary_item = ResolvedEntityItem(
@@ -320,18 +364,64 @@ class IntentPlannerService:
                         e.is_primary = False
                     resolved_entities.insert(0, primary_item)
 
+        # Follow-up rewriting supplies missing entities for terse messages, but
+        # an explicit current request must retain its own intent (for example,
+        # a learning request following a trend exchange).
+        classification_message = (
+            message
+            if raw_intent_confidence >= 0.80 and not is_contextual_follow_up
+            else effective_message
+        )
+
         # 3. Classify user intent or validate an explicit focused capability.
         forced_capability_issue: str | None = None
+        capability_mismatch: str | None = None
         if request.capability_id:
             capability = CAPABILITY_CATALOG[request.capability_id]
             supported_domains = CAPABILITY_DOMAINS[request.capability_id]
-            if request.domain not in supported_domains:
+            detected_intent, detected_confidence, _, detected_capabilities, detected_comparison = (
+                self._classify_intent(classification_message, resolved_entities)
+            )
+            detected_capabilities = [
+                capability_id
+                for capability_id in detected_capabilities
+                if capability_id in CAPABILITY_CATALOG
+            ]
+            routable_capabilities = [
+                capability_id
+                for capability_id in detected_capabilities
+                if request.domain in CAPABILITY_DOMAINS.get(capability_id, [])
+                and CAPABILITY_CATALOG[capability_id].global_status in {"available", "partial"}
+                and CAPABILITY_CATALOG[capability_id].handler
+            ]
+            explicit_capability_is_available = (
+                request.domain in supported_domains
+                and capability.global_status in {"available", "partial"}
+                and bool(capability.handler)
+            )
+
+            if (
+                detected_confidence >= 0.80
+                and request.capability_id in detected_capabilities
+                and (
+                    capability.global_status not in {"available", "partial"}
+                    or not capability.handler
+                )
+            ):
                 forced_capability_issue = (
-                    f"{capability.name} is not supported in the "
-                    f"{request.domain or 'selected'} domain."
+                    f"{capability.name} is not currently executable: "
+                    f"{'; '.join(capability.limitations)}"
                 )
                 intent, confidence, explanation, selected_caps, is_comparison = (
                     "unsupported_or_unclear", 1.0, forced_capability_issue, [], False
+                )
+            elif request.domain not in supported_domains:
+                capability_mismatch = (
+                    f"{capability.name} is not an available capability in the {request.domain} domain. "
+                    "Select a feature supported in this domain to continue."
+                )
+                intent, confidence, explanation, selected_caps, is_comparison = (
+                    "unsupported_or_unclear", 1.0, capability_mismatch, [], False
                 )
             elif capability.global_status not in {"available", "partial"} or not capability.handler:
                 forced_capability_issue = (
@@ -341,17 +431,121 @@ class IntentPlannerService:
                 intent, confidence, explanation, selected_caps, is_comparison = (
                     "unsupported_or_unclear", 1.0, forced_capability_issue, [], False
                 )
-            else:
+            elif (
+                request.domain == "skill"
+                and request.capability_id == "skill_technology_reference"
+                and re.search(r"\besco\b", classification_message, re.IGNORECASE)
+                and re.search(r"\b(?:skills?\s+(?:(?:are|is)\s+)?(?:associated|linked|related)|occupation\s+skills?)\b", classification_message, re.IGNORECASE)
+                and detected_intent == "crosswalk_occupation_software"
+            ):
                 intent, confidence, explanation, selected_caps, is_comparison = (
-                    capability.supported_intent,
-                    1.0,
-                    f"Explicitly selected capability: {capability.name}.",
+                    "lookup_skill_reference",
+                    max(detected_confidence, 0.90),
+                    "The selected Skill Reference feature will retrieve the requested ESCO occupation-skill taxonomy relations.",
                     [request.capability_id],
                     False,
                 )
+            elif (
+                request.domain in {"skill", "market"}
+                and request.capability_id == "historical_signal_retrieval"
+                and (
+                    detected_intent == "lookup_github_adoption"
+                    or re.search(r"\bdeveloper[\s-]+(?:adoption|activity)\b", classification_message, re.IGNORECASE)
+                )
+            ):
+                intent, confidence, explanation, selected_caps, is_comparison = (
+                    "retrieve_history",
+                    max(detected_confidence, 0.90),
+                    "The selected Historical Skill Signals feature will retrieve the requested quarterly GitHub developer-adoption series without treating it as hiring demand.",
+                    [request.capability_id],
+                    False,
+                )
+            elif (
+                request.domain == "market"
+                and request.capability_id == "trend_velocity_analysis"
+                and re.search(r"\b(?:increas\w*|decreas\w*|grow\w*|declin\w*|trend|direction|velocity)\b", classification_message, re.IGNORECASE)
+                and not re.search(r"\b(?:search|find|list|show me)\b.{0,30}\b(?:jobs?|postings?|vacancies)\b", classification_message, re.IGNORECASE)
+            ):
+                intent, confidence, explanation, selected_caps, is_comparison = (
+                    "analyze_trend",
+                    max(detected_confidence, 0.90),
+                    "The selected Skill Demand Trends feature will evaluate comparable stored market observations.",
+                    [request.capability_id],
+                    False,
+                )
+            elif (
+                request.domain == "skill"
+                and request.capability_id == "skill_gap_role_fit"
+                and request.selected_skills
+                and (request.target_role or re.search(r"\b(?:occupation|role|for)\b", classification_message, re.IGNORECASE))
+                and re.search(r"\b(?:compare|align|match|gap|missing|fit)\b", classification_message, re.IGNORECASE)
+            ):
+                intent, confidence, explanation, selected_caps, is_comparison = (
+                    "analyze_skill_gap", max(detected_confidence, 0.90),
+                    "The selected Skill & Role Alignment feature will compare the supplied skills with the named occupation reference.",
+                    [request.capability_id], False,
+                )
+            elif (
+                request.domain == "skill"
+                and request.capability_id == "action_recommendations"
+                and re.search(r"\b(?:what should i|what can i|recommend|suggest)\b.{0,50}\b(?:practice|practise|learn|study|next)\b", classification_message, re.IGNORECASE)
+            ):
+                intent, confidence, explanation, selected_caps, is_comparison = (
+                    "synthesize_actions", max(detected_confidence, 0.90),
+                    "The selected Action Recommendation feature will produce source-grounded practice suggestions for the named role.",
+                    [request.capability_id], False,
+                )
+            elif detected_confidence >= 0.80 and request.capability_id in routable_capabilities:
+                intent, confidence, explanation, selected_caps, is_comparison = (
+                    detected_intent,
+                    detected_confidence,
+                    "The selected feature matches the question's detected intent.",
+                    [request.capability_id],
+                    detected_comparison,
+                )
+            elif detected_confidence >= 0.80:
+                detected_capability_names = [
+                    CAPABILITY_CATALOG[capability_id].name
+                    for capability_id in detected_capabilities
+                ]
+                detected_name = (
+                    detected_capability_names[0]
+                    if detected_capability_names
+                    else detected_intent.replace("_", " ")
+                )
+                capability_mismatch = (
+                    f"Your question appears to require {detected_name}, but the selected feature is "
+                    f"{capability.name}. Change the selected feature to continue with your original "
+                    f"question: {message}"
+                )
+                if detected_intent == "search_jobs" and request.domain != "job":
+                    capability_mismatch += " Switch to the Job domain."
+                intent, confidence, explanation, selected_caps, is_comparison = (
+                    "unsupported_or_unclear",
+                    1.0,
+                    capability_mismatch,
+                    [],
+                    False,
+                )
+            elif explicit_capability_is_available:
+                intent, confidence, explanation, selected_caps, is_comparison = (
+                    capability.supported_intent,
+                    max(detected_confidence, 0.50),
+                    "The selected feature is used because the question does not identify a conflicting intent.",
+                    [request.capability_id],
+                    False,
+                )
+            else:
+                forced_capability_issue = (
+                    f"{capability.name} is not supported or executable in the "
+                    f"{request.domain or 'selected'} domain."
+                )
+                intent, confidence, explanation, selected_caps, is_comparison = (
+                    "unsupported_or_unclear", 1.0, forced_capability_issue, [], False
+                )
         else:
             intent, confidence, explanation, selected_caps, is_comparison = self._classify_intent(
-                effective_message, resolved_entities
+                classification_message, resolved_entities
             )
         # The selected workspace domain is part of routing for terse prompts
         # (for example a user entering only a canonical skill name). Explicit
@@ -369,6 +563,42 @@ class IntentPlannerService:
                 ["market_snapshot"],
             )
 
+        if request.domain and selected_caps:
+            domain_capabilities = [
+                capability_id
+                for capability_id in selected_caps
+                if request.domain in CAPABILITY_DOMAINS.get(capability_id, [])
+                and CAPABILITY_CATALOG[capability_id].global_status in {"available", "partial"}
+                and CAPABILITY_CATALOG[capability_id].handler
+            ]
+            if len(domain_capabilities) != len(selected_caps):
+                unsupported = [
+                    capability_id for capability_id in selected_caps
+                    if capability_id not in domain_capabilities
+                ]
+                if domain_capabilities:
+                    selected_caps = domain_capabilities
+                else:
+                    unsupported_names = [
+                        CAPABILITY_CATALOG[capability_id].name
+                        for capability_id in unsupported
+                        if capability_id in CAPABILITY_CATALOG
+                    ]
+                    capability_mismatch = (
+                        f"This question requires {unsupported_names[0] if unsupported_names else 'a capability'} "
+                        f"that is not available in the {request.domain} domain. "
+                        + (
+                            f'Switch to the Job domain to continue with your original question: “{message}”'
+                            if intent == "search_jobs" and request.domain != "job"
+                            else f'Choose the Skill domain and continue with: “{message}”'
+                            if intent in {"synthesize_actions", "analyze_skill_gap"} and request.domain != "skill"
+                            else f'Choose the appropriate domain and continue with: “{message}”'
+                        )
+                    )
+                    intent, confidence, explanation, selected_caps, is_comparison = (
+                        "unsupported_or_unclear", 1.0, capability_mismatch, [], False
+                    )
+
         # 4. Derive context fields and detect missing context
         context_summary, missing_context, clarification_questions = self._build_context(
             request,
@@ -378,6 +608,67 @@ class IntentPlannerService:
             selected_caps,
             is_comparison,
         )
+        if intent == "general_explanation":
+            # General questions do not need a registered platform entity or
+            # market filters; those inputs must not force an unrelated lookup.
+            missing_context = []
+            clarification_questions = []
+        if capability_mismatch:
+            missing_context = ["capability_selection"]
+            clarification_questions = [
+                f"{capability_mismatch} Change the selected feature or rephrase your question."
+            ]
+        elif intent == "unsupported_or_unclear" and not selected_caps:
+            missing_context = ["supported_execution_path"]
+            clarification_questions = [explanation]
+        elif (
+            request.capability_id == "skill_technology_reference"
+            and request.domain == "skill"
+            and re.search(r"\besco\b", message, re.IGNORECASE)
+            and resolved_entities
+            and resolved_entities[0].resolution_status != "resolved"
+        ):
+            entity = resolved_entities[0]
+            missing_context = [f"esco_entity_{entity.resolution_status}"]
+            if entity.resolution_status == "ambiguous":
+                options = ", ".join(candidate.entity.canonical_name for candidate in entity.candidates)
+                clarification_questions = [
+                    f"'{entity.raw_token}' matches multiple ESCO entries ({options}). Which one did you mean?"
+                ]
+            else:
+                clarification_questions = [
+                    f"No ESCO reference entry matched '{entity.raw_token}'. Check the skill or occupation name and try again."
+                ]
+
+        history_context = historical_signal_context(
+            message, location=request.location, filters=request.filters
+        )
+        if (
+            request.capability_id == "historical_signal_retrieval"
+            and history_context["source"] == "github_innovation_graph"
+        ):
+            primary_entity = next((
+                entity.canonical_entity for entity in resolved_entities
+                if entity.is_primary and entity.canonical_entity
+            ), None)
+            history_context["skill_name"] = primary_entity.canonical_name if primary_entity else None
+            context_summary["_historical_signal_context"] = history_context
+            if not history_context["country"] and not clarification_questions:
+                missing_context.append("github_country")
+                clarification_questions.append(
+                    "The GitHub Innovation Graph series is recorded separately by country. Which country should I use (for example, India or the United States)?"
+                )
+        if request.capability_id == "historical_signal_retrieval":
+            primary_entity = next((
+                entity.canonical_entity for entity in resolved_entities
+                if entity.is_primary and entity.canonical_entity
+            ), None)
+            history_context["skill_name"] = primary_entity.canonical_name if primary_entity else None
+            context_summary["_historical_signal_context"] = history_context
+            if history_context.get("ambiguous_source") == "true" and not clarification_questions:
+                clarification_questions.append(
+                    "Your question names more than one historical signal source. Which source should I use: GitHub Innovation Graph, Stack Exchange, Wikipedia, JSearch, or Adzuna?"
+                )
 
         # 5. Evaluate runtime readiness of selected capabilities
         readiness_results, plan_limitations = self._evaluate_selected_capabilities(
@@ -402,6 +693,23 @@ class IntentPlannerService:
         if forced_capability_issue:
             plan_status = "unsupported"
 
+        # Keep selected_capabilities backward compatible while assigning one
+        # primary operation. Additional comparison operations are explicit dependencies.
+        primary_capability = None
+        if selected_caps:
+            comparison_priority = (
+                "skill_health_analysis",
+                "skill_half_life_analysis",
+                "skill_forecasting_half_life",
+                "trend_velocity_analysis",
+            )
+            primary_capability = (
+                next((cap for cap in comparison_priority if cap in selected_caps), selected_caps[0])
+                if intent == "compare_entities"
+                else selected_caps[0]
+            )
+        dependency_capabilities = [cap for cap in selected_caps if cap != primary_capability]
+
         # Build auditable structured response
         return IntelligencePlanResponse(
             request_id=request_id,
@@ -412,6 +720,8 @@ class IntentPlannerService:
             intent_explanation=explanation,
             conversation_id=request.conversation_id,
             entities=resolved_entities,
+            primary_capability=primary_capability,
+            dependency_capabilities=dependency_capabilities,
             selected_capabilities=selected_caps,
             context_summary=context_summary,
             missing_context=missing_context,
@@ -434,6 +744,39 @@ class IntentPlannerService:
     ) -> list[ResolvedEntityItem]:
         """Extract entity mentions from the message and resolve them via EntityRegistryService."""
         tokens_to_resolve: list[tuple[str, bool]] = []  # (token, is_primary)
+        github_adoption_question = bool(
+            re.search(r"\b(?:github|innovation graph)\b", message, re.IGNORECASE)
+            and re.search(r"\b(?:adoption|developer activity|pushers?)\b", message, re.IGNORECASE)
+        )
+        if github_adoption_question:
+            adoption_entity = re.search(
+                r"\b(?:adoption|activity)\s+(?:of|for|in)\s+(.+?)(?=\s+(?:changed?|change|has|have|over\s+time|trend|increas\w*|decreas\w*|grow\w*|declin\w*|as\s+hiring|for\s+hiring|prove\w*|indicat\w*|show\w*|demonstrat\w*|in\s+(?:india|the\s+united\s+states|united\s+states|usa|the\s+united\s+kingdom|united\s+kingdom|uk|canada|australia|germany|france|brazil))\b|[?.!]*$)",
+                message,
+                re.IGNORECASE,
+            )
+            if adoption_entity:
+                token = adoption_entity.group(1).strip(" \t\r\n?.!,;:")
+                if token:
+                    tokens_to_resolve.append((token, True))
+
+        # Explicit taxonomy queries use the exact requested ESCO label/URI and
+        # constrain resolution to the requested entity family. This prevents a
+        # canonical technology alias from shadowing an ESCO reference entry.
+        esco_match = re.search(r"\besco\s+(skill|occupation)\s+(.+?)[?.!]*$", message, re.IGNORECASE)
+        taxonomy_skill_match = re.search(
+            r"\b(?:what is|define|describe)\s+(?:the\s+)?(.+?)\s+skill\s+(?:in|from|under)\s+(?:the\s+)?esco(?:\s+taxonomy)?\b",
+            message,
+            re.IGNORECASE,
+        )
+        taxonomy_match = re.search(
+            r"\b(?:in|from|under)\s+(?:the\s+)?(esco|o\*?net)(?:\s+taxonomy)?\b",
+            message,
+            re.IGNORECASE,
+        )
+        if esco_match:
+            tokens_to_resolve.append((esco_match.group(2).strip(), True))
+        elif taxonomy_skill_match:
+            tokens_to_resolve.append((taxonomy_skill_match.group(1).strip(), True))
 
         # Check comparison pattern for explicit entity pair
         for pat in COMPARISON_PATTERNS:
@@ -448,8 +791,27 @@ class IntentPlannerService:
         if soc_match:
             tokens_to_resolve.append((soc_match.group(0), True))
 
+        # Explicit target role in personalized skill-gap questions.
+        roadmap_role = re.search(
+            r"\b(?:learning roadmap|roadmap|project).*?\bfor\s+(?:my\s+)?(?:missing\s+)?(?:the\s+)?(.+?)(?:\s+skills?)?(?:\s+in\s+(?:the\s+)?(?:esco|o\*?net)(?:\s+taxonomy)?)?[?.!]*$",
+            message, re.IGNORECASE,
+        )
+        if roadmap_role:
+            extracted_role = roadmap_role.group(1).strip(" \t\r\n?.!,;:")
+            if extracted_role:
+                tokens_to_resolve.append((extracted_role, not tokens_to_resolve))
+        skill_gap_role = re.search(
+            r"\b(?:what\s+am\s+i\s+missing|missing|gap|compare\s+my\s+(?:current\s+)?skills).*?\b(?:for|with|to)\s+(?:(?:the\s+)?target\s+role\s+|(?:the\s+)?occupation\s+)?([A-Za-z][A-Za-z -]+?)(?:\s+in\s+(?:the\s+)?(?:esco|o\*?net)(?:\s+taxonomy)?)?[?.!]*$",
+            message, re.IGNORECASE,
+        )
+        if skill_gap_role:
+            extracted_role = skill_gap_role.group(1).strip(" \t\r\n?.!,;:")
+            if extracted_role:
+                tokens_to_resolve.append((extracted_role, not tokens_to_resolve))
+
         # Check occupation patterns for explicit role mentions from query message
         for pat in [
+            re.compile(r"\b(?:what|which|show|find|list)\s+(?:the\s+)?(?:(?:essential|optional)\s+)?(?:skills|tools|software|technologies)\b.*?\b(?:associated with|mapped to|linked to|used by|required for)\s+(?:the\s+)?(?:occupation\s+)?(.+?)(?:\s+in\s+(?:the\s+)?(?:esco|o\*?net)(?:\s+taxonomy)?)?[?.!]*$", re.IGNORECASE),
             re.compile(r"\btasks?\s+in\s+([a-zA-Z\s]+?)(?:\s+(?:are|is)?\s*exposed|\s+exposed|\s+affected|\s+to ai|\s+by ai|\s*$)", re.IGNORECASE),
             re.compile(r"\b(?:skills|tools|software|technologies|tech stack)\s+(?:does|do|for|needed for)\s+(?:a|an)?\s*(.*?)\s*(?:need|use|require)\b", re.IGNORECASE),
             re.compile(r"\b(?:skills|tools|software|technologies|tech stack)\s+(?:for|required for|needed by)\s+(?:a|an)?\s*(.*?)$", re.IGNORECASE),
@@ -460,6 +822,14 @@ class IntentPlannerService:
             m = pat.search(message)
             if m:
                 extracted = m.group(1).strip(" \t\n\r?.!,;:")
+                extracted = re.sub(
+                    r"\s+in\s+(?:the\s+)?(?:esco|o\*?net)(?:\s+taxonomy)?$",
+                    "",
+                    extracted,
+                    flags=re.IGNORECASE,
+                ).strip()
+                extracted = re.sub(r"^(?:a|an|the)\s+", "", extracted, flags=re.IGNORECASE)
+                extracted = re.sub(r"\s+occupation$", "", extracted, flags=re.IGNORECASE).strip()
                 if extracted and len(extracted) >= 3:
                     tokens_to_resolve.append((extracted, not tokens_to_resolve))
                     break
@@ -476,10 +846,10 @@ class IntentPlannerService:
                 ):
                     tokens_to_resolve.append((extracted, not tokens_to_resolve))
         # Check trend / about patterns: e.g. "trend about uiux", "trend for python", "trends in machine learning"
-        for pat in [
+        for pat in ([] if github_adoption_question else [
             re.compile(r"\b(?:trend|trends|trending|growth|adoption)\s+(?:about|for|in|of|on)\s+(.*?)(?:\s+(?:trend|trends|history|data|in|for|over))?$", re.IGNORECASE),
             re.compile(r"\b(?:tell me about|info on|details for|about)\s+(.*?)$", re.IGNORECASE),
-        ]:
+        ]):
             m = pat.search(message)
             if m:
                 extracted = m.group(1).strip(" \t\n\r?.!,;:")
@@ -502,8 +872,18 @@ class IntentPlannerService:
         msg_lower = f" {message.lower()} "
         found_spans: list[tuple[int, int]] = []
 
-        for term in known_terms:
+        for term in (() if esco_match or taxonomy_skill_match else known_terms):
             if len(term) < 2 and term != "c" and term != "r":
+                continue
+            if term in {"c", "r"} and not re.search(
+                rf"(?:\b(?:for|about|of|trend|demand|versus|vs\.?)\s+{term}\b\s*[?.!,;:]?\s*$"
+                rf"|\b{term}\s+(?:language|programming|and|versus|vs\.?)\b"
+                rf"|\b(?:compare|between)\s+{term}\b)",
+                message,
+                re.IGNORECASE,
+            ):
+                # C and R are valid entities, but an isolated letter elsewhere
+                # in a natural-language question is not enough to resolve them.
                 continue
             # Word boundary matching
             pat = r"(?<![a-zA-Z0-9\+#])" + re.escape(term) + r"(?![a-zA-Z0-9\+#])"
@@ -540,8 +920,41 @@ class IntentPlannerService:
         # Resolve each token via EntityRegistryService
         resolved_items: list[ResolvedEntityItem] = []
         is_first = True
+        taxonomy_context = None
+        gap_taxonomy_context = False
+        if esco_match or taxonomy_match:
+            taxonomy_context = {"taxonomy": "esco" if esco_match else taxonomy_match.group(1).lower().replace("onet", "onet")}
+            if taxonomy_context["taxonomy"] == "o*net":
+                taxonomy_context["taxonomy"] = "onet"
+            gap_taxonomy_context = bool(re.search(
+                r"\b(?:skill\s+gap|missing\s+skills?|what am i missing|compare\s+my\s+(?:current\s+)?skills|learning\s+roadmap|highest[- ]priority)\b",
+                message, re.IGNORECASE,
+            ))
+            if not gap_taxonomy_context and re.search(r"\boccupation\b", message, re.IGNORECASE):
+                taxonomy_context["taxonomy_entity_type"] = "occupation"
+            elif not gap_taxonomy_context and re.search(r"\bskill\b", message, re.IGNORECASE):
+                taxonomy_context["taxonomy_entity_type"] = "skill"
+        occupation_tokens = {
+            token.casefold().strip()
+            for token in (
+                request.target_role, *(request.selected_roles or []),
+                roadmap_role.group(1) if roadmap_role else None,
+                skill_gap_role.group(1) if skill_gap_role else None,
+            )
+            if isinstance(token, str) and token.strip()
+        }
         for tok, is_prim in unique_tokens:
-            res = self._entity_service.resolve(EntityResolutionRequest(name=tok))
+            token_context = taxonomy_context
+            if gap_taxonomy_context and taxonomy_context:
+                if tok.casefold().strip() in occupation_tokens:
+                    token_context = {**taxonomy_context, "taxonomy_entity_type": "occupation"}
+                elif normalize_skill_entry(tok).is_known:
+                    # Current skills are resolved independently; they are
+                    # compared to the selected taxonomy only inside the gap engine.
+                    token_context = None
+                else:
+                    token_context = None
+            res = self._entity_service.resolve(EntityResolutionRequest(name=tok, context=token_context))
             if res.status == "resolved" and res.entity:
                 resolved_items.append(
                     ResolvedEntityItem(
@@ -589,10 +1002,27 @@ class IntentPlannerService:
         entities: list[ResolvedEntityItem],
     ) -> tuple[IntentCategory, float, str, list[str], bool]:
         """Classify user intent deterministically and map to registered capabilities."""
+        # The answer contract validates one execution intent at a time. Avoid
+        # silently dropping one half of a cross-domain request until a combined
+        # evidence contract exists.
+        if (
+            re.search(r"\b(?:and|also|then)\b", message, re.IGNORECASE)
+            and re.search(r"\b(?:esco|o\*?net|taxonomy|definition|occupation skills?)\b", message, re.IGNORECASE)
+            and re.search(r"\b(?:market|demand|hiring|job postings?|jobs?)\b", message, re.IGNORECASE)
+        ):
+            return (
+                "unsupported_or_unclear",
+                0.92,
+                "This request combines taxonomy and market or job questions, but the current answer contract cannot validate their evidence together. Please split it into separate questions.",
+                [],
+                False,
+            )
+
         # 1. Forecasting / Future projections
         is_comp = any(pat.search(message) for pat in COMPARISON_PATTERNS)
         is_ev = any(pat.search(message) for pat in EVIDENCE_PATTERNS)
-        if is_ev and not is_comp:
+        is_action = any(pat.search(message) for pat in ACTION_PATTERNS)
+        if is_ev and not is_comp and not is_action:
             return (
                 "retrieve_evidence",
                 0.90,
@@ -602,6 +1032,18 @@ class IntentPlannerService:
             )
 
         if not is_comp:
+            if (
+                re.search(r"\b(?:github|innovation graph)\b", message, re.IGNORECASE)
+                and re.search(r"\b(?:adoption|developer activity|pushers?)\b", message, re.IGNORECASE)
+                and re.search(r"\b(?:hiring|job postings?|labor market|labour market)\b", message, re.IGNORECASE)
+            ):
+                return (
+                    "lookup_github_adoption",
+                    0.96,
+                    "Request asks about GitHub adoption semantics; the source measures developer activity, not hiring demand.",
+                    ["skill_technology_reference"],
+                    False,
+                )
             for pat in FORECAST_PATTERNS:
                 if pat.search(message):
                     return (
@@ -612,8 +1054,31 @@ class IntentPlannerService:
                         False,
                     )
 
+        # GitHub adoption is a local quarterly developer-activity series. Route
+        # it to its own reference-data handler before generic market trend or
+        # hiring-demand routing can reinterpret its semantics.
+        if (
+            re.search(r"\b(?:github|innovation graph)\b", message, re.IGNORECASE)
+            and re.search(r"\b(?:adoption|developer activity|pushers?)\b", message, re.IGNORECASE)
+            and re.search(r"\b(?:changed?|change|over time|trend|increas\w*|decreas\w*|grow\w*|declin\w*|historical)\b", message, re.IGNORECASE)
+        ):
+            return (
+                "lookup_github_adoption",
+                0.94,
+                "Request asks for historical GitHub developer adoption, which is distinct from hiring demand.",
+                ["skill_technology_reference"],
+                False,
+            )
+
         # Role-specific learning questions use the authenticated profile-aware
         # recommendation capability, not only a role taxonomy lookup.
+        if any(pat.search(message) for pat in ROADMAP_GAP_PATTERNS):
+            return (
+                "analyze_skill_gap", 0.92,
+                "Request builds a practice roadmap from a deterministic occupation skill-gap comparison.",
+                ["skill_gap_role_fit"], False,
+            )
+
         for pat in SKILL_LEARNING_PATTERNS:
             if pat.search(message):
                 return (
@@ -623,6 +1088,21 @@ class IntentPlannerService:
                     ["action_recommendations"],
                     False,
                 )
+
+        # Conceptual comparisons of named technologies are general knowledge;
+        # market and hiring comparisons remain on their operational capabilities.
+        if re.search(r"\bdifference between\b", message, re.IGNORECASE) and not re.search(
+            r"\b(?:demand|hiring|employer|job postings?|trend|market|measured)\b",
+            message,
+            re.IGNORECASE,
+        ):
+            return (
+                "general_explanation",
+                0.90,
+                "Request asks for a conceptual comparison, not a platform measurement.",
+                [],
+                False,
+            )
 
         # 2. What-if simulation
         for pat in SIMULATION_PATTERNS:
@@ -656,6 +1136,18 @@ class IntentPlannerService:
                 False,
             )
 
+        # Personalized role-gap questions must be recognized before generic
+        # entity comparison and taxonomy lookup patterns.
+        if any(pat.search(message) for pat in SKILL_GAP_PATTERNS) or re.search(
+            r"\b(?:i\s+(?:know|have)|my\s+skills\s+(?:are|include))\b.*\b(?:for|toward|to become)\b",
+            message, re.IGNORECASE,
+        ) or re.search(r"\bcompare\s+my\s+(?:current\s+)?skills\b.*\b(?:occupation|role|for)\b", message, re.IGNORECASE):
+            return (
+                "analyze_skill_gap", 0.92,
+                "Request compares self-reported skills with a target occupation reference set.",
+                ["skill_gap_role_fit"], False,
+            )
+
         # 3. Entity comparison
         for pat in COMPARISON_PATTERNS:
             if pat.search(message):
@@ -681,6 +1173,21 @@ class IntentPlannerService:
                     True,
                 )
 
+        # A question about the current level of demand is an observation lookup,
+        # not a request to search postings and not a taxonomy crosswalk.
+        if re.search(
+            r"\b(?:currently|right now|today|at present)\b.{0,80}\b(?:hiring\s+)?demand\b|\b(?:high|strong|low|weak)\s+(?:hiring\s+)?demand\b",
+            message,
+            re.IGNORECASE,
+        ) and re.search(r"\b(?:demand|hiring)\b", message, re.IGNORECASE):
+            return (
+                "retrieve_snapshot",
+                0.90,
+                "Request asks whether a current empirical market observation is available.",
+                ["market_snapshot"],
+                False,
+            )
+
         # 4. Job postings search
         for pat in JOB_SEARCH_PATTERNS:
             if pat.search(message):
@@ -691,6 +1198,33 @@ class IntentPlannerService:
                     ["job_posting_search"],
                     False,
                 )
+
+        if any(pat.search(message) for pat in SKILL_REFERENCE_PATTERNS):
+            return (
+                "lookup_skill_reference",
+                0.92,
+                "Request asks for canonical skill reference information.",
+                ["skill_technology_reference"],
+                False,
+            )
+
+        if re.search(r"\b(?:demand|hiring|employer|job postings?)\b.*\btrends?\b|\btrends?\b.*\b(?:demand|hiring|employer|job postings?)\b", message, re.IGNORECASE):
+            return (
+                "analyze_trend",
+                0.88,
+                "Request asks for an operational hiring-demand trend calculation.",
+                ["trend_velocity_analysis"],
+                False,
+            )
+
+        if any(pat.search(message) for pat in GENERAL_KNOWLEDGE_PATTERNS):
+            return (
+                "general_explanation",
+                0.90,
+                "Request asks for a general knowledge explanation, not a platform market calculation.",
+                [],
+                False,
+            )
 
         # 6. Related occupations / mobility
         for pat in OCC_RELATED_PATTERNS:
@@ -748,18 +1282,9 @@ class IntentPlannerService:
                     False,
                 )
 
-        # 9. Evidence & provenance
-        for pat in EVIDENCE_PATTERNS:
-            if pat.search(message):
-                return (
-                    "retrieve_evidence",
-                    0.90,
-                    "Request asks for verifiable evidence, provenance citations, or archives.",
-                    ["evidence_provenance_retrieval"],
-                    False,
-                )
-
-        # 10. Action recommendations
+        # 9. Action recommendations are evaluated before generic evidence
+        # keywords so prompts such as "what should I learn next based on
+        # evidence" keep their action intent.
         for pat in ACTION_PATTERNS:
             if pat.search(message):
                 return (
@@ -767,6 +1292,17 @@ class IntentPlannerService:
                     0.90,
                     "Request asks for next learning actions or operational recommendations.",
                     ["action_recommendations"],
+                    False,
+                )
+
+        # 10. Evidence & provenance
+        for pat in EVIDENCE_PATTERNS:
+            if pat.search(message):
+                return (
+                    "retrieve_evidence",
+                    0.90,
+                    "Request asks for verifiable evidence, provenance citations, or archives.",
+                    ["evidence_provenance_retrieval"],
                     False,
                 )
 
@@ -1025,8 +1561,27 @@ class IntentPlannerService:
                         missing_context.append("target_occupation")
                         if not clarification_questions:
                             clarification_questions.append("Which occupation or role title would you like to look up?")
+                elif req_in == "target_role":
+                    has_role = bool(request.target_role or request.selected_roles) or any(
+                        entity.canonical_entity
+                        and entity.canonical_entity.entity_type == "occupation"
+                        for entity in entities
+                    )
+                    if not has_role:
+                        missing_context.append("target_occupation")
+                        if not clarification_questions:
+                            clarification_questions.append("Which target occupation would you like to compare against?")
                 elif req_in == "selected_skills":
-                    if not request.selected_skills:
+                    has_resolved_skills = any(
+                        entity.canonical_entity
+                        and entity.canonical_entity.entity_type in {"skill", "technology"}
+                        for entity in entities
+                    )
+                    has_stated_skill_list = bool(re.search(
+                        r"\b(?:i\s+(?:know|have)|my\s+skills\s+(?:are|include))\s+.+?(?:[,;]|\band\b|\bfor\b)",
+                        request.message, re.IGNORECASE,
+                    ))
+                    if not request.selected_skills and not has_resolved_skills and not has_stated_skill_list:
                         missing_context.append("selected_skills")
                         if not clarification_questions:
                             clarification_questions.append("Please specify which skills you'd like to evaluate for this role alignment.")
@@ -1057,13 +1612,33 @@ class IntentPlannerService:
 
         primary_ent_name = None
         primary_ent_type = None
+        capability_context = dict(request.context_override)
         if entities and entities[0].canonical_entity:
-            primary_ent_name = entities[0].canonical_entity.canonical_name
-            primary_ent_type = entities[0].canonical_entity.entity_type
+            primary_entity = entities[0].canonical_entity
+            primary_ent_name = primary_entity.canonical_name
+            primary_ent_type = primary_entity.entity_type
+            if primary_entity.source == "ref_esco_occupations":
+                capability_context.update({"taxonomy": "esco", "occupation_uri": primary_entity.source_record_id})
+            elif primary_entity.source == "ref_esco_skills":
+                capability_context.update({"taxonomy": "esco", "skill_uri": primary_entity.source_record_id})
         elif entities:
             primary_ent_name = entities[0].raw_token
 
+        history_context = historical_signal_context(
+            request.message, location=request.location, filters=request.filters
+        )
+        if "historical_signal_retrieval" in selected_caps:
+            history_context["skill_name"] = primary_ent_name
+            capability_context["_historical_signal_context"] = history_context
+            context_summary["_historical_signal_context"] = history_context
+
         for cap_id in selected_caps:
+            resolved_skill_names = [
+                entity.canonical_entity.canonical_name
+                for entity in entities
+                if entity.canonical_entity
+                and entity.canonical_entity.entity_type in {"skill", "technology"}
+            ]
             eval_req = CapabilityEvaluationRequest(
                 capability_id=cap_id,
                 entity_name=primary_ent_name,
@@ -1072,11 +1647,11 @@ class IntentPlannerService:
                 time_range=context_summary.get("time_range") or request.time_range,
                 location=request.location,
                 target_role=request.target_role,
-                selected_skills=request.selected_skills,
+                selected_skills=request.selected_skills or resolved_skill_names,
                 observations=request.observations,
                 task_exposure_records=request.task_exposure_records,
                 dataset_provenance=request.dataset_provenance,
-                context_override=request.context_override,
+                context_override=capability_context,
             )
             eval_resp = self._capability_service.evaluate(eval_req)
             if eval_resp.results:
@@ -1104,6 +1679,9 @@ class IntentPlannerService:
 
         if intent == "unsupported_or_unclear":
             return "requires_clarification"
+
+        if intent == "general_explanation":
+            return "ready_to_execute"
 
         if clarification_required:
             return "requires_clarification"

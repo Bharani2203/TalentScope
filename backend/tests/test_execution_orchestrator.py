@@ -108,7 +108,7 @@ def test_answer_request_accepts_frontend_twelve_month_filter_label():
 def test_explicit_capability_overrides_intent_classification():
     plan = IntentPlannerService().create_plan(
         IntelligencePlanRequest(
-            message="What is Python?",
+            message="Show market snapshot for Python",
             portal_type="individual",
             domain="market",
             capability_id="market_snapshot",
@@ -118,6 +118,308 @@ def test_explicit_capability_overrides_intent_classification():
 
     assert plan.intent == "retrieve_snapshot"
     assert plan.selected_capabilities == ["market_snapshot"]
+
+
+def test_market_hiring_snapshot_excludes_newer_github_adoption_observation(monkeypatch):
+    """A newer adoption observation must never satisfy an employer-demand query."""
+    from types import SimpleNamespace
+
+    service = ExecutionOrchestratorService()
+    observations = [
+        _make_obs(source="jsearch", signal_type="demand", period="2026-04", value=100),
+        _make_obs(source="github", signal_type="adoption", period="2026-06", value=250),
+    ]
+    monkeypatch.setattr(
+        service, "_shared_market_analysis",
+        lambda *_args, **_kwargs: SimpleNamespace(observations=observations),
+    )
+    request = CoreIntelligenceAnswerRequest(
+        message="What hiring signals are available for Python?",
+        portal_type="individual", domain="market", capability_id="market_snapshot",
+    )
+    plan = IntentPlannerService().create_plan(
+        IntelligencePlanRequest(
+            message=request.message, portal_type="individual", domain="market",
+            capability_id="market_snapshot",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+
+    facts, evidence, _limitations = service._handle_market_snapshot(request, plan)
+
+    assert [fact.source for fact in facts if fact.fact_type == "market_snapshot"] == ["jsearch"]
+    assert [item.source for item in evidence] == ["jsearch"]
+    assert facts[0].details["signal_type"] == "demand"
+
+
+def test_market_hiring_snapshot_with_only_github_is_insufficient(monkeypatch):
+    """Adoption alone cannot be promoted to hiring evidence."""
+    from types import SimpleNamespace
+
+    service = ExecutionOrchestratorService()
+    monkeypatch.setattr(
+        service, "_shared_market_analysis",
+        lambda *_args, **_kwargs: SimpleNamespace(observations=[
+            _make_obs(source="github", signal_type="adoption", period="2026-06", value=250),
+        ]),
+    )
+    request = CoreIntelligenceAnswerRequest(
+        message="What hiring signals are available for Python?",
+        portal_type="individual", domain="market", capability_id="market_snapshot",
+    )
+    plan = IntentPlannerService().create_plan(
+        IntelligencePlanRequest(
+            message=request.message, portal_type="individual", domain="market",
+            capability_id="market_snapshot",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+
+    facts, evidence, _limitations = service._handle_market_snapshot(request, plan)
+
+    assert facts[0].fact_type == "analysis_readiness"
+    assert facts[0].readiness_state == "insufficient_data"
+    assert "Other signal families are not hiring evidence" in facts[0].details["reason"]
+    assert evidence == []
+
+
+def test_market_snapshot_summarizes_series_coverage_and_preserves_provenance(monkeypatch):
+    from types import SimpleNamespace
+    from datetime import timedelta
+
+    service = ExecutionOrchestratorService()
+    now = datetime.now(timezone.utc)
+    periods = []
+    year, month = now.year, now.month
+    for _ in range(3):
+        periods.append(f"{year:04d}-{month:02d}")
+        month -= 1
+        if month == 0:
+            year, month = year - 1, 12
+    observations = []
+    for index, period in enumerate(reversed(periods)):
+        year, month = map(int, period.split("-"))
+        observations.append(MarketObservation(
+            id=f"snapshot-{period}", source="jsearch", signal_type="demand", skill="Python",
+            skill_id="python", location="India", scope="country",
+            observed_at=datetime(year, month, 15, tzinfo=timezone.utc), period=period,
+            value=10 + index, unit="job_postings", data_origin="real",
+            history_type="platform_collected", series_id="jsearch:python:india:v1",
+            query_id="jsearch-python-india", fetch_run_id=f"run-{period}",
+            created_at=now - timedelta(hours=1), quality="valid",
+        ))
+    # Same period and skill, but distinct source/metric identity: never collapse it.
+    other = observations[-1].model_copy(update={
+        "id": "stackoverflow-python-india", "source": "stackoverflow",
+        "signal_type": "interest", "unit": "questions", "series_id": "stack:python:india:v1",
+        "fetch_run_id": None,
+    })
+    monkeypatch.setattr(service, "_shared_market_analysis", lambda *_a, **_k: SimpleNamespace(observations=observations + [other]))
+    request = CoreIntelligenceAnswerRequest(
+        message="Show a market snapshot for Python", portal_type="individual", domain="market",
+        capability_id="market_snapshot",
+    )
+    plan = IntentPlannerService().create_plan(
+        IntelligencePlanRequest(message=request.message, portal_type="individual", domain="market", capability_id="market_snapshot"),
+        authenticated_user=mock_auth_user(),
+    )
+
+    facts, evidence, _ = service._handle_market_snapshot(request, plan)
+
+    assert len(facts) == len(evidence) == 2
+    demand_fact = next(fact for fact in facts if fact.source == "jsearch")
+    demand_evidence = next(item for item in evidence if item.source == "jsearch")
+    assert demand_fact.details["observation_count"] == 3
+    assert demand_fact.details["period_frequency"] == "monthly"
+    assert demand_fact.details["time_coverage_start"] == min(periods)
+    assert demand_fact.details["latest_completed_period"] == max(p for p in periods if p < f"{now.year:04d}-{now.month:02d}")
+    assert len(demand_evidence.supporting_observation_ids) == 3
+    assert len({fact.series_id for fact in facts}) == 2
+
+
+def test_market_snapshot_surfaces_partial_collection_quality(monkeypatch):
+    from types import SimpleNamespace
+
+    service = ExecutionOrchestratorService()
+    observation = _make_obs(period="2026-09").model_copy(update={
+        "quality": {
+            "collection_complete": False,
+            "pagination_complete": False,
+            "sampling_frame": "one bounded provider page",
+        },
+        "fetch_run_id": "partial-run-1",
+    })
+    monkeypatch.setattr(
+        service, "_shared_market_analysis",
+        lambda *_a, **_k: SimpleNamespace(observations=[observation]),
+    )
+    request = CoreIntelligenceAnswerRequest(
+        message="Show a market snapshot for Python", portal_type="individual",
+        domain="market", capability_id="market_snapshot",
+    )
+    plan = IntentPlannerService().create_plan(
+        IntelligencePlanRequest(
+            message=request.message, portal_type="individual", domain="market",
+            capability_id="market_snapshot",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+
+    facts, evidence, limitations = service._handle_market_snapshot(request, plan)
+
+    snapshot = next(fact for fact in facts if fact.fact_type == "market_snapshot")
+    assert snapshot.quality_state == "partial"
+    assert snapshot.details["collection_completeness"] == "partial"
+    assert snapshot.details["collection_status"] == "partial"
+    assert evidence[0].quality == "partial"
+    assert "partial collection coverage" in limitations[-1]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Why is Python demand changing?",
+        "What demand trend is observed for Python?",
+    ],
+)
+def test_explicit_trend_feature_accepts_both_python_question_variants(message):
+    plan = IntentPlannerService().create_plan(
+        IntelligencePlanRequest(
+            message=message,
+            portal_type="individual",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+
+    assert plan.intent == "analyze_trend"
+    assert plan.plan_status in {"ready_to_execute", "insufficient_data"}
+    assert plan.selected_capabilities == ["trend_velocity_analysis"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Why is Python demand changing?",
+        "What demand trend is observed for Python?",
+    ],
+)
+def test_explicit_trend_question_runs_the_selected_handler_with_fixture_observations(
+    monkeypatch, message,
+):
+    service = ExecutionOrchestratorService()
+    monkeypatch.setattr(service.llm_service, "is_available", lambda: False)
+    observations = [
+        _make_obs(period="2026-04", value=100.0),
+        _make_obs(period="2026-05", value=115.0),
+        _make_obs(period="2026-06", value=130.0),
+        _make_obs(period="2026-07", value=145.0),
+    ]
+
+    response = service.answer(
+        CoreIntelligenceAnswerRequest(
+            message=message,
+            portal_type="individual",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+            time_range="max_available",
+            observations=observations,
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+
+    assert response.execution_status == "completed"
+    assert response.intent == "analyze_trend"
+    assert response.capabilities_used == ["trend_velocity_analysis"]
+    assert any(fact.fact_type == "trend_analysis" for fact in response.facts)
+
+
+def test_conflicting_selected_capability_clarifies_instead_of_switching():
+    plan = IntentPlannerService().create_plan(
+        IntelligencePlanRequest(
+            message="What evidence supports the Python trend?",
+            portal_type="individual",
+            domain="market",
+            capability_id="market_snapshot",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+
+    assert plan.intent == "unsupported_or_unclear"
+    assert plan.plan_status == "requires_clarification"
+    assert plan.clarification_required is True
+    assert plan.selected_capabilities == []
+
+
+def test_general_question_with_selected_trend_feature_clarifies(monkeypatch):
+    service = ExecutionOrchestratorService()
+    monkeypatch.setattr(service.llm_service, "is_available", lambda: True)
+    monkeypatch.setattr(
+        service.llm_service,
+        "generate_grounded_explanation",
+        lambda **kwargs: (
+            "Common design directions include clearer typography, accessible color, "
+            "and interfaces that adapt to context."
+            if kwargs.get("general_knowledge") and kwargs.get("facts") == [] else None
+        ),
+    )
+    response = service.answer(CoreIntelligenceAnswerRequest(
+        message="What are the latest UI/UX design trends?",
+        portal_type="individual",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+    ), authenticated_user=mock_auth_user())
+
+    assert response.intent == "unsupported_or_unclear"
+    assert response.execution_status == "requires_clarification"
+    assert response.capabilities_used == []
+    assert "selected feature" in response.answer.lower()
+
+
+def test_general_question_with_selected_feature_does_not_claim_platform_finding(monkeypatch):
+    service = ExecutionOrchestratorService()
+    monkeypatch.setattr(service.llm_service, "is_available", lambda: False)
+    response = service.answer(CoreIntelligenceAnswerRequest(
+        message="What are the latest UI/UX design trends?",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+        filters={"salary_band": "high"},
+    ), authenticated_user=mock_auth_user())
+    assert response.status == "insufficient_data"
+    assert response.execution_status == "requires_clarification"
+    assert response.capabilities_used == []
+    assert response.facts == []
+    assert response.evidence == []
+
+
+def test_python_general_explanation_uses_offline_fallback_when_provider_unavailable(monkeypatch):
+    service = ExecutionOrchestratorService()
+    monkeypatch.setattr(service.llm_service, "is_available", lambda: False)
+    response = service.answer(CoreIntelligenceAnswerRequest(
+        message="What is Python used for?", domain="skill"
+    ), authenticated_user=mock_auth_user())
+    assert response.intent == "general_explanation"
+    assert response.status == "ready"
+    assert "web services" in response.answer
+    assert "not a TalentScope market finding" in response.answer
+    assert response.facts == [] and response.evidence == [] and response.capabilities_used == []
+
+
+def test_skill_domain_job_question_returns_safe_switch_action_without_searching():
+    response = ExecutionOrchestratorService().answer(
+        CoreIntelligenceAnswerRequest(
+            message="Which companies are hiring Python developers?",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+    assert response.intent == "unsupported_or_unclear"
+    assert response.capabilities_used == []
+    assert response.facts == [] and response.evidence == []
+    assert "Switch to the Job domain" in response.answer
+    assert "Which companies are hiring Python developers?" in response.answer
 
 
 def test_explicit_capability_rejects_wrong_domain_and_unavailable_operation():
@@ -141,12 +443,30 @@ def test_explicit_capability_rejects_wrong_domain_and_unavailable_operation():
         authenticated_user=mock_auth_user(),
     )
 
-    assert wrong_domain.plan_status == "unsupported"
+    assert wrong_domain.plan_status == "requires_clarification"
+    assert wrong_domain.clarification_required is True
     assert wrong_domain.selected_capabilities == []
-    assert "not supported" in wrong_domain.limitations[0].lower()
+    assert "not an available capability in the skill domain" in wrong_domain.clarification_questions[0].lower()
     assert unavailable.plan_status == "unsupported"
     assert unavailable.selected_capabilities == []
     assert "not currently executable" in unavailable.limitations[0].lower()
+
+
+def test_cross_domain_question_clarifies_without_false_capability_attribution():
+    response = ExecutionOrchestratorService().answer(
+        CoreIntelligenceAnswerRequest(
+            message="Which companies are hiring the most?",
+            portal_type="individual",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+
+    assert response.execution_status == "requires_clarification"
+    assert response.capabilities_used == []
+    assert "selected feature" in response.answer.lower()
+    assert "switch to the job domain" in response.answer.lower()
 
 
 # =============================================================================
@@ -183,6 +503,49 @@ def test_successful_occupation_software_skills_execution(local_reference_databas
     assert len(resp.evidence) > 0
     assert resp.evidence[0].source == "ref_onet_software_skills"
     assert "Software Developers" in resp.answer
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(("entity", "ambient_skill"), [("Python", "HTML"), ("Java", "Python")])
+def test_skill_reference_is_scoped_to_primary_entity_and_taxonomy(monkeypatch, local_reference_database, entity, ambient_skill):
+    service = ExecutionOrchestratorService()
+
+    def unexpected_market_analysis(*args, **kwargs):
+        raise AssertionError("reference lookup must not invoke market analytics")
+
+    def unexpected_github_lookup(*args, **kwargs):
+        raise AssertionError("reference lookup must not retrieve developer-adoption series")
+
+    monkeypatch.setattr(service, "_shared_market_analysis", unexpected_market_analysis)
+    monkeypatch.setattr(service.reference_store, "get_github_adoption_series", unexpected_github_lookup)
+    response = service.answer(
+        CoreIntelligenceAnswerRequest(
+            message=f"Show the canonical definition and category for {entity}.",
+            domain="skill",
+            selected_skills=[ambient_skill],
+            filters={
+                "domain": "skill",
+                "scope": "My Skills",
+                "selected_skill": ambient_skill,
+                "selected_skills": [ambient_skill],
+                "selected_feature": "skill_technology_reference",
+            },
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+
+    assert response.planned_primary_capability == "skill_technology_reference"
+    assert response.executed_primary_capability == "skill_technology_reference"
+    assert "skill_technology_reference" in response.capabilities_used
+    assert not ({"skill_health", "skill_half_life", "forecast"} & set(response.capabilities))
+    assert {fact.entity_name for fact in response.facts} == {entity}
+    assert {fact.fact_type for fact in response.facts} == {"canonical_reference"}
+    assert {item.signal_type for item in response.evidence} == {"taxonomy_lookup"}
+    assert "developer adoption" not in response.answer.lower()
+    assert "github" not in response.answer.lower()
+    assert "definition is unavailable" in response.answer.lower()
+    assert "Sources" not in response.answer
+    assert response.unapplied_filters == []
 
 
 @pytest.mark.integration
@@ -314,9 +677,12 @@ def test_insufficient_historical_data_does_not_produce_trend():
     assert "trend_velocity_analysis" not in resp.capabilities_used
     assert len(resp.facts) == 0
     assert "INSUFFICIENT_TREND_HISTORY" in resp.reason_codes
-    assert "insufficient to calculate a directional trend" in resp.answer
+    assert resp.planned_primary_capability == "trend_velocity_analysis"
+    assert resp.executed_primary_capability is None
+    assert not ({"skill_health", "skill_half_life", "forecast"} & set(resp.capabilities))
+    assert "only 2 eligible completed monthly periods" in resp.answer
     assert "2026-06 through 2026-07" in resp.answer
-    assert "four consecutive comparable monthly periods" in resp.answer
+    assert "at least 4 consecutive comparable completed monthly periods" in resp.answer.lower()
 
 
 # =============================================================================
@@ -336,6 +702,116 @@ def test_missing_evidence_does_not_produce_fabricated_citations():
     assert resp.execution_status == "insufficient_data"
     assert len(resp.evidence) == 0
     assert "ev_" not in resp.answer
+
+
+def test_evidence_summary_reports_empty_store_as_insufficient_without_citation():
+    service = ExecutionOrchestratorService()
+    plan = service.intent_planner.create_plan(
+        IntelligencePlanRequest(
+            message="Show evidence and sources for Python",
+            portal_type="individual",
+            domain="skill",
+            capability_id="evidence_provenance_retrieval",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+    facts, evidence, _ = service._handle_evidence_provenance_retrieval(
+        CoreIntelligenceAnswerRequest(
+            message="Show evidence and sources for Python",
+            portal_type="individual",
+            domain="skill",
+            capability_id="evidence_provenance_retrieval",
+        ),
+        plan,
+    )
+
+    summary = next(fact for fact in facts if fact.fact_type == "evidence_summary")
+    assert evidence == []
+    assert summary.metric_value == 0
+    assert summary.data_origin == "unavailable"
+    assert summary.readiness_state == "insufficient_data"
+    assert summary.evidence_reference is None
+    assert "No matching stored observation" in summary.details["reason"]
+
+
+def test_evidence_retrieval_reads_actual_local_onet_reference_records(local_reference_database):
+    service = ExecutionOrchestratorService(db_path=local_reference_database)
+    message = "Show O*NET taxonomy evidence for Software Developers"
+    plan = service.intent_planner.create_plan(
+        IntelligencePlanRequest(
+            message=message,
+            portal_type="individual",
+            domain="skill",
+            capability_id="evidence_provenance_retrieval",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+    facts, evidence, _ = service._handle_evidence_provenance_retrieval(
+        CoreIntelligenceAnswerRequest(
+            message=message,
+            portal_type="individual",
+            domain="skill",
+            capability_id="evidence_provenance_retrieval",
+            target_role="Software Developers",
+        ),
+        plan,
+    )
+
+    assert evidence
+    assert all(item.source == "ref_onet_essential_skills" for item in evidence)
+    assert all(item.history_type == "reference_taxonomy" for item in evidence)
+    assert all(item.provenance_id for item in evidence)
+    summary = next(fact for fact in facts if fact.fact_type == "evidence_summary")
+    assert summary.metric_value == len(evidence)
+    assert summary.evidence_reference in {item.evidence_id for item in evidence}
+
+
+def test_evidence_retrieval_reads_actual_local_github_adoption_records(local_reference_database):
+    service = ExecutionOrchestratorService(db_path=local_reference_database)
+    message = "Show GitHub Innovation Graph developer adoption evidence for Python in India"
+    plan = service.intent_planner.create_plan(
+        IntelligencePlanRequest(
+            message=message,
+            portal_type="individual",
+            domain="skill",
+            capability_id="evidence_provenance_retrieval",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+    facts, evidence, _ = service._handle_evidence_provenance_retrieval(
+        CoreIntelligenceAnswerRequest(
+            message=message,
+            portal_type="individual",
+            domain="skill",
+            capability_id="evidence_provenance_retrieval",
+        ),
+        plan,
+    )
+
+    assert evidence
+    assert all(item.measured_signal_type == "adoption" for item in evidence)
+    assert all(item.location == "IN" and item.scope == "country" for item in evidence)
+    assert all(item.period and item.period.endswith(tuple(f"Q{quarter}" for quarter in range(1, 5))) for item in evidence)
+    assert all("unique developers per quarter" in item.description for item in evidence)
+    assert all("not hiring demand" in item.description for item in evidence)
+    summary = next(fact for fact in facts if fact.fact_type == "evidence_summary")
+    assert summary.metric_value == len(evidence)
+
+
+def test_action_feature_keeps_action_intent_when_question_mentions_evidence():
+    service = ExecutionOrchestratorService()
+    message = "What should I learn next based on evidence?"
+    plan = service.intent_planner.create_plan(
+        IntelligencePlanRequest(
+            message=message,
+            portal_type="individual",
+            domain="skill",
+            capability_id="action_recommendations",
+        ),
+        authenticated_user=mock_auth_user(),
+    )
+    assert plan.intent == "synthesize_actions"
+    assert plan.selected_capabilities == ["action_recommendations"]
 
 
 # =============================================================================
@@ -388,7 +864,9 @@ def test_handler_exception_returns_safe_failed_result(monkeypatch, local_referen
     assert resp.execution_status == "failed"
     assert "HANDLER_EXECUTION_FAILED" in resp.reason_codes
     assert "Simulated internal storage timeout" not in resp.answer
-    assert "unexpected error occurred" in resp.answer
+    assert "couldn't complete this analysis" in resp.answer
+    assert f"Reference: {resp.request_id}" in resp.answer
+    assert "Simulated unexpected handler failure" not in resp.answer
 
 
 # =============================================================================
@@ -494,6 +972,36 @@ def test_empty_job_search_does_not_create_synthetic_evidence():
     assert facts[0].readiness_state == "insufficient_data"
     assert evidence == []
     assert facts[0].evidence_reference is None
+
+
+def test_employer_hiring_question_uses_stored_jobs_and_reports_empty_sample(monkeypatch):
+    service = ExecutionOrchestratorService()
+    class EmptyObservationStore:
+        @staticmethod
+        def get_observations_by_skill(**_kwargs):
+            return []
+
+        @staticmethod
+        def get_observations(**_kwargs):
+            return []
+
+    service.firestore_store = EmptyObservationStore()
+    monkeypatch.setattr(
+        "app.services.job_storage_service.search_stored_jsearch_jobs",
+        lambda **_kwargs: [],
+    )
+    response = service.answer(CoreIntelligenceAnswerRequest(
+        message="Which companies are hiring Python developers?",
+        domain="job",
+        capability_id="job_posting_search",
+        time_range="max_available",
+    ), authenticated_user=mock_auth_user())
+
+    assert response.intent == "search_jobs"
+    assert "job_posting_search" in response.capabilities_used
+    assert response.status == "insufficient_data"
+    assert response.evidence == []
+    assert any("stored postings" in limitation.lower() for limitation in response.limitations)
 
 
 def test_firestore_job_search_limit_matches_reported_metadata(monkeypatch):
@@ -684,10 +1192,10 @@ def test_answer_api_accepts_ui_twelve_month_filter(local_reference_database):
             json={
                 "message": "What software tools does a Software Developer use?",
                 "portal_type": "individual",
-                "domain": "skill",
+                "domain": "job",
                 "time_range": "12m",
                 "filters": {
-                    "domain": "skill",
+                    "domain": "job",
                     "requested_time_window": "12 Months",
                 },
             },

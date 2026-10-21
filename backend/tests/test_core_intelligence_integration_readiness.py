@@ -221,7 +221,7 @@ def test_integration_entity_resolution_and_planner_handoff(local_reference_datab
             marks=pytest.mark.integration,
         ),
         ("Search job postings for React", "search_jobs", "job_posting_search"),
-        ("Recommended learning actions for career growth", "synthesize_actions", "action_recommendations"),
+        ("Recommended learning actions for Software Developers", "synthesize_actions", "action_recommendations"),
         ("Analyze skill gap for target role Software Developers", "analyze_skill_gap", "skill_gap_role_fit"),
     ],
 )
@@ -229,13 +229,14 @@ def test_integration_intent_to_handler_mapping(
     query, expected_intent, expected_capability, request,
 ):
     """Verify every implemented intent routes strictly to its designated capability handler."""
-    if expected_capability in {"occupation_software_skills", "related_occupations"}:
+    if expected_capability in {"occupation_software_skills", "related_occupations", "action_recommendations"}:
         request.getfixturevalue("local_reference_database")
     service = ExecutionOrchestratorService()
-    req = CoreIntelligenceAnswerRequest(message=query, selected_skills=["Python"])
+    explicit_role = "Software Developers" if expected_capability == "action_recommendations" else None
+    req = CoreIntelligenceAnswerRequest(message=query, selected_skills=["Python"], target_role=explicit_role)
 
     plan = service.intent_planner.create_plan(
-        IntelligencePlanRequest(message=query, selected_skills=["Python"]),
+        IntelligencePlanRequest(message=query, selected_skills=["Python"], target_role=explicit_role),
         authenticated_user=mock_auth_user(),
     )
     assert plan.intent == expected_intent
@@ -491,7 +492,11 @@ def test_integration_handler_exception_safety(monkeypatch, local_reference_datab
 
     assert resp.execution_status == "failed"
     assert "HANDLER_EXECUTION_FAILED" in resp.reason_codes
-    assert "unexpected error occurred" in resp.answer
+    assert "couldn't complete this analysis" in resp.answer
+    assert f"Reference: {resp.request_id}" in resp.answer
+    assert "Simulated internal storage timeout" not in resp.answer
+    assert resp.facts == []
+    assert resp.evidence == []
     assert "Simulated unexpected handler failure" not in resp.answer
     assert len(resp.facts) == 0
 

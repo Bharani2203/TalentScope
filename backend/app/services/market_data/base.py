@@ -11,6 +11,12 @@ class PostingFetchResult:
     records_fetched: int
     records_rejected: int = 0
     records_filtered: int = 0
+    requested_page_count: int = 1
+    page_size_limit: int | None = None
+    provider_total_count: int | None = None
+    pagination_complete: bool = True
+    zero_results_verified: bool = False
+    sampling_frame: str | None = None
 
 
 @dataclass(frozen=True)

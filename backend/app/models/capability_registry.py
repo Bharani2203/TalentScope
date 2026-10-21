@@ -23,24 +23,13 @@ CapabilityState = Literal[
 ]
 
 CapabilityId = Literal[
-    "entity_resolution",
-    "skill_technology_reference",
-    "occupation_lookup",
-    "occupation_software_skills",
-    "related_occupations",
-    "market_snapshot",
-    "historical_signal_retrieval",
-    "trend_velocity_analysis",
-    "skill_health_analysis",
-    "skill_half_life_analysis",
-    "evidence_provenance_retrieval",
-    "skill_gap_role_fit",
-    "action_recommendations",
-    "job_posting_search",
-    "company_intelligence",
-    "skill_forecasting_half_life",
-    "ai_task_exposure",
-    "workforce_what_if_simulation",
+    "skill_future_relevance_score",
+    "skill_change_alert",
+    "adaptive_skill_roadmap",
+    "technology_adoption_shift_detector",
+    "technology_impact_explorer",
+    "skill_based_job_match",
+    "career_transition_opportunity",
 ]
 
 
@@ -56,10 +45,12 @@ class CapabilityRecord(BaseModel):
     supported_intent: str
     supported_entity_types: list[str] = Field(default_factory=list)
     required_inputs: list[str] = Field(default_factory=list)
+    optional_inputs: list[str] = Field(default_factory=list)
     required_signals: list[str] = Field(default_factory=list)
     required_sources: list[str] = Field(default_factory=list)
     min_readiness_periods: int | None = None
     global_status: CapabilityState
+    implementation_status: Literal["pending", "implemented", "deprecated"] = "pending"
     reason_code: str
     handler: str | None = None
     limitations: list[str] = Field(default_factory=list)
@@ -67,7 +58,12 @@ class CapabilityRecord(BaseModel):
 
 
 class CapabilityCatalogResponse(BaseModel):
-    """Platform capability catalog response listing all registered capabilities."""
+    """Platform capability catalog response listing all registered capabilities.
+
+    `available_count` indicates registered and selectable features (global_status="available").
+    Registration/catalog availability does not imply an analytical engine is implemented or
+    execution-ready. Engine implementation status is tracked via `implementation_status`.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -91,8 +87,11 @@ class CapabilityEvaluationRequest(BaseModel):
     portal_type: Literal["individual", "employee", "company"] = "individual"
     time_range: str = "30d"
     location: str | None = None
+    current_role: str | None = None
     target_role: str | None = None
     selected_skills: list[str] = Field(default_factory=list)
+    technology: str | None = None
+    occupation: str | None = None
     observations: list[MarketObservation] = Field(default_factory=list)
     task_exposure_records: list[TaskExposureRecord] = Field(default_factory=list)
     dataset_provenance: AIExposureDatasetProvenance | None = None
@@ -108,6 +107,7 @@ class CapabilityEvaluationResult(BaseModel):
     name: str
     global_status: CapabilityState
     runtime_status: CapabilityState
+    implementation_status: Literal["pending", "implemented", "deprecated"] = "pending"
     can_execute: bool
     reason_codes: list[str] = Field(default_factory=list)
     explanation: str

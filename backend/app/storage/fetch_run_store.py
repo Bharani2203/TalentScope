@@ -3,11 +3,98 @@
 from __future__ import annotations
 
 import time
+import json
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from app.core.firebase import get_firestore_client
 from app.storage.firestore_read_guard import read_guard
 from firebase_admin import firestore
+
+
+class SQLiteFetchRunStore:
+    """Additive local run ledger sharing the existing skill-intelligence SQLite DB."""
+
+    def __init__(self, database_path: str | Path):
+        from app.storage.market_store import MarketDataStore
+
+        self.market_store = MarketDataStore(database_path)
+
+    @staticmethod
+    def _iso(value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            return value.astimezone(timezone.utc).isoformat()
+        return str(value)
+
+    @staticmethod
+    def _dumps(value: dict[str, Any]) -> str:
+        return json.dumps(
+            value, sort_keys=True, separators=(",", ":"),
+            default=lambda item: item.isoformat() if isinstance(item, datetime) else str(item),
+        )
+
+    def start(self, run_id: str, record: dict[str, Any]) -> None:
+        payload = dict(record)
+        payload["started_at"] = self._iso(payload.get("started_at"))
+        with self.market_store._connect() as connection:
+            connection.execute(
+                "INSERT INTO market_fetch_runs "
+                "(run_id, collection_run_id, source, started_at, status, record_json) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    run_id, str(payload.get("collection_run_id") or ""),
+                    str(payload.get("source") or "").casefold(),
+                    payload["started_at"], str(payload.get("status") or "running"),
+                    self._dumps(payload),
+                ),
+            )
+
+    def finish(self, run_id: str, record: dict[str, Any]) -> None:
+        with self.market_store._connect() as connection:
+            row = connection.execute(
+                "SELECT record_json FROM market_fetch_runs WHERE run_id = ?", (run_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError("Fetch run does not exist.")
+            payload = json.loads(row["record_json"])
+            payload.update(record)
+            payload["completed_at"] = self._iso(payload.get("completed_at"))
+            cursor = connection.execute(
+                "UPDATE market_fetch_runs SET completed_at = ?, status = ?, record_json = ? "
+                "WHERE run_id = ?",
+                (
+                    payload["completed_at"], str(payload.get("status") or "failed"),
+                    self._dumps(payload), run_id,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError("Fetch run completion was not persisted.")
+
+    def get(self, run_id: str) -> dict[str, Any] | None:
+        with self.market_store._connect() as connection:
+            row = connection.execute(
+                "SELECT record_json FROM market_fetch_runs WHERE run_id = ?", (run_id,),
+            ).fetchone()
+        return json.loads(row["record_json"]) if row else None
+
+    def collection_summary(self, *, limit: int = 100) -> dict[str, Any]:
+        with self.market_store._connect() as connection:
+            rows = connection.execute(
+                "SELECT record_json FROM market_fetch_runs ORDER BY started_at DESC LIMIT ?",
+                (max(1, min(int(limit), 500)),),
+            ).fetchall()
+        latest_by_source: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            record = json.loads(row["record_json"])
+            source = str(record.get("source") or "").casefold()
+            if source and source not in latest_by_source:
+                latest_by_source[source] = record
+        return {"last_collection": {"providers": latest_by_source} if latest_by_source else None}
 
 
 class FirestoreFetchRunStore:
@@ -26,12 +113,22 @@ class FirestoreFetchRunStore:
         return client.collection(self.collection_name)
 
     def start(self, run_id: str, record: dict[str, Any]) -> None:
-        self._collection().document(run_id).create(record)
+        document = self._collection().document(run_id)
+        document.create(record)
+        snapshot = document.get()
+        stored = snapshot.to_dict() if getattr(snapshot, "exists", False) else None
+        if not isinstance(stored, dict) or any(stored.get(key) != value for key, value in record.items()):
+            raise RuntimeError("Fetch-run start read-back verification failed.")
         self._run_cache[run_id] = dict(record)
         self._summary_cache = None
 
     def finish(self, run_id: str, record: dict[str, Any]) -> None:
-        self._collection().document(run_id).update(record)
+        document = self._collection().document(run_id)
+        document.update(record)
+        snapshot = document.get()
+        stored = snapshot.to_dict() if getattr(snapshot, "exists", False) else None
+        if not isinstance(stored, dict) or any(stored.get(key) != value for key, value in record.items()):
+            raise RuntimeError("Fetch-run completion read-back verification failed.")
         if run_id in self._run_cache:
             self._run_cache[run_id].update(record)
         else:
@@ -89,6 +186,8 @@ class FirestoreFetchRunStore:
             aggregate = "failed"
         elif "failed" in status_values or "partial" in status_values:
             aggregate = "partial"
+        elif "blocked" in status_values:
+            aggregate = "failed"
         else:
             aggregate = "success"
 

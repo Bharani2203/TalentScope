@@ -12,6 +12,7 @@ import {
 } from '../../../data/ai-assistant-data.js';
 
 import { dashboardState, userProfileState } from '../../../app/state.js';
+import { resolveAssistantUserId } from '../../../auth/assistant-user-identity.js';
 import { loadSkillCatalog, loadMarketCatalog } from '../../../api/intelligence-catalog-client.js';
 import {
   queryCoreIntelligenceAnswer,
@@ -21,19 +22,35 @@ import {
   createIntelligenceConversation,
   getActiveConversationId,
   setActiveConversationId,
-  normalizeAnswerTimeRange,
   getCapabilityCatalog,
   queryCoreIntelligencePlan,
   evaluateCapabilities
 } from '../../../api/core-intelligence-client.js';
 import { renderIntelligenceEvidencePanel } from '../../../components/common/IntelligenceEvidencePanel.js';
+import { renderStructuredIntelligenceDetails } from '../../../components/common/IntelligenceResultDetails.js';
 import { cleanConversationAnswer, renderConversationAnswer } from '../../../components/common/ConversationAnswer.js';
 import { API_BASE_URL } from '../../../config/api.js';
 
 function formatMarkdown(content) {
   if (!content) return '';
   const escaped = escapeHTML(content);
-  return escaped
+
+  // Convert markdown tables
+  const tableRegex = /((?:^|\n)\|[^\n]+\|\r?\n\|[-: |]+\|\r?\n(?:\|[^\n]+\|\r?\n?)+)/g;
+  const withTables = escaped.replace(tableRegex, (match) => {
+    const lines = match.trim().split(/\r?\n/);
+    if (lines.length < 3) return match;
+    const headerCells = lines[0].split('|').slice(1, -1).map(c => `<th>${c.trim()}</th>`).join('');
+    const thead = `<thead><tr>${headerCells}</tr></thead>`;
+    const bodyRows = lines.slice(2).map(row => {
+      const cells = row.split('|').slice(1, -1).map(c => `<td>${c.trim()}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+    const tbody = `<tbody>${bodyRows}</tbody>`;
+    return `<div class="ai-table-container" style="overflow-x:auto;margin:12px 0;"><table class="ai-markdown-table" style="width:100%;border-collapse:collapse;font-size:13px;">${thead}${tbody}</table></div>`;
+  });
+
+  return withTables
     .replace(/^### (.*$)/gim, '<h4 class="ai-md-h4">$1</h4>')
     .replace(/^## (.*$)/gim, '<h3 class="ai-md-h3">$1</h3>')
     .replace(/^# (.*$)/gim, '<h2 class="ai-md-h2">$1</h2>')
@@ -110,15 +127,7 @@ function removeFilterPopoverPortal() {
 }
 
 function resolveCurrentUserId() {
-  if (userProfileState?.uid) return userProfileState.uid;
-  try {
-    const raw = localStorage.getItem('talentscope-auth-session');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return parsed?.uid || parsed?.user?.uid || 'anonymous';
-    }
-  } catch (_) {}
-  return 'anonymous';
+  return resolveAssistantUserId();
 }
 
 // ----------------------------------------------------------------------------
@@ -127,530 +136,348 @@ function resolveCurrentUserId() {
 export const DOMAIN_CAPABILITY_REGISTRY = {
   skill: [
     {
-      id: 'skill_health',
-      title: 'Skill Health',
-      category: 'Skill Readiness',
-      desc: 'Understand skill momentum from comparable market evidence.',
-      cardTagline: 'See whether skill demand is building or cooling.',
-      promptHint: 'Ask about skill viability, ecosystem momentum, or health status',
-      defaultPrompt: 'What is the skill health for {entity}?',
-      icon: 'heart-pulse',
-      color: '#EC4899',
+      id: 'skill_future_relevance_score',
+      capabilityId: 'skill_future_relevance_score',
+      title: 'Skill Future Relevance Score',
+      category: 'Skill Relevance',
+      desc: "Assess a skill's potential future relevance using available historical and technology-adoption signals.",
+      cardTagline: "Assess a skill's potential future relevance using available signals.",
+      promptHint: 'Ask about future relevance, demand trajectory, or adoption signals',
+      defaultPrompt: 'What is the future relevance score for {entity}?',
+      icon: 'trending-up',
+      color: '#8B5CF6',
+      supportedDomains: ['skill'],
+      suggestedQuestions: [
+        'What is the future relevance score for Python?',
+        'How do historical and adoption signals project future relevance for React?',
+        'What evidence supports the future relevance score for Kubernetes?'
+      ],
       explainer: {
-        whatItDoes: 'Evaluates the relative vitality, adoption momentum, and market viability of skills against empirical labor market signals.',
-        inputsNeeded: 'Canonical skill name or selected focus skills from the catalog.',
-        outputProduced: 'Health category (Emerging, Stable, High Velocity, At Risk), empirical score metrics, and ecosystem momentum.',
-        limitations: 'Calculated strictly from verified observation periods; requires at least 1 verified empirical period.'
+        whatItDoes: "Assess a skill's potential future relevance using available historical and technology-adoption signals.",
+        inputsNeeded: 'Skill name; optional time period and target role.',
+        outputProduced: 'Potential future relevance evaluation based on observable historical and adoption signals.',
+        limitations: 'Predictions are strictly bounded by observable data and historical adoption signals; does not guarantee employment outcomes.'
       },
       motif: `
         <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
           <defs>
-            <linearGradient id="shGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#FF3366" />
-              <stop offset="50%" stop-color="#EC4899" />
-              <stop offset="100%" stop-color="#8B5CF6" />
+            <linearGradient id="sfrGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#8B5CF6" />
+              <stop offset="50%" stop-color="#6366F1" />
+              <stop offset="100%" stop-color="#3B82F6" />
             </linearGradient>
-            <linearGradient id="shPulseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <linearGradient id="sfrSparkGrad" x1="0%" y1="100%" x2="100%" y2="0%">
               <stop offset="0%" stop-color="#10B981" />
               <stop offset="100%" stop-color="#38BDF8" />
             </linearGradient>
           </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#shGrad)" fill-opacity="0.14" />
-          <path d="M22 10 C17 6, 9 11, 9 19 C9 27, 22 35, 22 35 C22 35, 35 27, 35 19 C35 11, 27 6, 22 10 Z" fill="url(#shGrad)" fill-opacity="0.22" stroke="url(#shGrad)" stroke-width="1.8" />
-          <path d="M13 21 H17 L19 15 L23 27 L26 18 L28 21 H31" stroke="url(#shPulseGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-          <circle cx="23" cy="27" r="2" fill="#10B981" />
+          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#sfrGrad)" fill-opacity="0.14" />
+          <path d="M11 31 L18 24 L24 28 L33 15" stroke="url(#sfrGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M27 15 H33 V21" stroke="url(#sfrGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="33" cy="15" r="3" fill="url(#sfrSparkGrad)" />
         </svg>
-      `
+      `,
+      followUpCapabilityIds: ['skill_change_alert', 'adaptive_skill_roadmap']
     },
     {
-      id: 'skill_half_life',
-      title: 'Skill Half-Life',
-      category: 'Skill Relevance',
-      desc: 'Examine how a skill’s measured relevance changes over time.',
-      cardTagline: 'Explore how skill relevance changes over time.',
-      promptHint: 'Ask about obsolescence risks, decay rates, or tech freshness',
-      defaultPrompt: 'What is the skill half-life for {entity}?',
-      icon: 'hourglass',
-      color: '#8B5CF6',
+      id: 'skill_change_alert',
+      capabilityId: 'skill_change_alert',
+      title: 'Skill Change Alert',
+      category: 'Skill Alerts',
+      desc: 'Identify supported increases, decreases, or stable patterns in comparable skill signals.',
+      cardTagline: 'Identify increases, decreases, or stable patterns in skill signals.',
+      promptHint: 'Ask about momentum changes, inflection points, or emerging patterns',
+      defaultPrompt: 'Are there any change alerts for {entity}?',
+      icon: 'alert-circle',
+      color: '#EC4899',
+      supportedDomains: ['skill'],
+      suggestedQuestions: [
+        'Are there any change alerts for Python in recent periods?',
+        'Identify shift patterns or momentum changes for TypeScript.',
+        'What signal changes are detected for Cloud Computing?'
+      ],
       explainer: {
-        whatItDoes: 'Models empirical decay rate and obsolescence risk of technical knowledge based on multi-period employer postings and developer adoption.',
-        inputsNeeded: 'Canonical skill name and historical panel data.',
-        outputProduced: 'Half-life estimation in months, decay trajectory, and freshness status.',
-        limitations: 'Requires multi-year continuous panel observations; zero synthetic interpolation.'
+        whatItDoes: 'Identify supported increases, decreases, or stable patterns in comparable skill signals.',
+        inputsNeeded: 'Skill name; comparison period when needed.',
+        outputProduced: 'Change alert status, direction shifts, and momentum patterns.',
+        limitations: 'Requires comparable historical periods without synthetic interpolation.'
       },
       motif: `
         <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
           <defs>
-            <linearGradient id="shlGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id="scaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#FF3366" />
+              <stop offset="50%" stop-color="#EC4899" />
+              <stop offset="100%" stop-color="#8B5CF6" />
+            </linearGradient>
+          </defs>
+          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#scaGrad)" fill-opacity="0.14" />
+          <circle cx="22" cy="22" r="12" stroke="url(#scaGrad)" stroke-width="2" stroke-dasharray="3 2" />
+          <path d="M22 14 V24" stroke="url(#scaGrad)" stroke-width="2.2" stroke-linecap="round" />
+          <circle cx="22" cy="28" r="1.6" fill="#EC4899" />
+        </svg>
+      `,
+      followUpCapabilityIds: ['skill_future_relevance_score', 'adaptive_skill_roadmap']
+    },
+    {
+      id: 'adaptive_skill_roadmap',
+      capabilityId: 'adaptive_skill_roadmap',
+      title: 'Adaptive Skill Roadmap',
+      category: 'Skill Pathways',
+      desc: 'Recommend an ordered learning plan based on current skills, a target role, and available skill relationships.',
+      cardTagline: 'Recommend an ordered learning plan for a target role.',
+      promptHint: 'Ask about milestone learning paths, target roles, or skill bridges',
+      defaultPrompt: 'What is the adaptive skill roadmap for {entity}?',
+      icon: 'map',
+      color: '#06B6D4',
+      supportedDomains: ['skill'],
+      suggestedQuestions: [
+        'Create an adaptive skill roadmap for a Backend Developer role.',
+        'What ordered learning plan transitions from Python to Machine Learning Engineer?',
+        'Recommend a milestone learning path for DevOps Engineer.'
+      ],
+      explainer: {
+        whatItDoes: 'Recommend an ordered learning plan based on current skills, a target role, and available skill relationships.',
+        inputsNeeded: 'Target role; current skills when available.',
+        outputProduced: 'Ordered milestone roadmap, prerequisite dependencies, and skill groupings.',
+        limitations: 'Based on standardized occupational taxonomy and reference curricula, not guaranteed placement.'
+      },
+      motif: `
+        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
+          <defs>
+            <linearGradient id="asrGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#06B6D4" />
+              <stop offset="50%" stop-color="#3B82F6" />
+              <stop offset="100%" stop-color="#10B981" />
+            </linearGradient>
+          </defs>
+          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#asrGrad)" fill-opacity="0.14" />
+          <path d="M12 32 C12 25, 22 25, 22 18 C22 11, 32 11, 32 18" stroke="url(#asrGrad)" stroke-width="2.2" stroke-linecap="round" fill="none" />
+          <circle cx="12" cy="32" r="3" fill="#06B6D4" />
+          <circle cx="22" cy="20" r="3" fill="#3B82F6" />
+          <circle cx="32" cy="18" r="3.5" fill="#10B981" />
+        </svg>
+      `,
+      followUpCapabilityIds: ['skill_future_relevance_score', 'skill_change_alert']
+    }
+  ],
+  market: [
+    {
+      id: 'technology_adoption_shift_detector',
+      capabilityId: 'technology_adoption_shift_detector',
+      title: 'Technology Adoption Shift Detector',
+      category: 'Market Shifts',
+      desc: 'Compare supported technology-adoption signals over comparable periods and identify meaningful changes.',
+      cardTagline: 'Compare technology-adoption signals over comparable periods.',
+      promptHint: 'Ask about technology adoption shifts, developer traction, or public interest',
+      defaultPrompt: 'What adoption shifts are detected for {entity}?',
+      icon: 'activity',
+      color: '#3B82F6',
+      supportedDomains: ['market'],
+      suggestedQuestions: [
+        'Detect technology adoption shifts between React and Vue.',
+        'Compare quarterly developer adoption signals for Rust versus Go.',
+        'What adoption trajectory shifts are observed for Docker over comparable periods?'
+      ],
+      explainer: {
+        whatItDoes: 'Compare supported technology-adoption signals over comparable periods and identify meaningful changes.',
+        inputsNeeded: 'One or more technologies; comparison period when needed.',
+        outputProduced: 'Adoption shift direction, comparative velocity, and multi-source signals.',
+        limitations: 'Preserves each source\'s native metric and provenance; developer activity is not conflated with employer demand.'
+      },
+      motif: `
+        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
+          <defs>
+            <linearGradient id="tasdGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#3B82F6" />
+              <stop offset="50%" stop-color="#06B6D4" />
+              <stop offset="100%" stop-color="#8B5CF6" />
+            </linearGradient>
+          </defs>
+          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#tasdGrad)" fill-opacity="0.14" />
+          <path d="M11 28 L17 18 L24 24 L33 13" stroke="url(#tasdGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M11 33 H33" stroke="url(#tasdGrad)" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round" />
+          <circle cx="24" cy="24" r="2.5" fill="#3B82F6" />
+          <circle cx="33" cy="13" r="3" fill="#06B6D4" />
+        </svg>
+      `,
+      followUpCapabilityIds: ['technology_impact_explorer']
+    },
+    {
+      id: 'technology_impact_explorer',
+      capabilityId: 'technology_impact_explorer',
+      title: 'Technology Impact Explorer',
+      category: 'Market Impact',
+      desc: 'Explore supported relationships between technologies, skills, and occupations.',
+      cardTagline: 'Explore relationships between technologies, skills, and occupations.',
+      promptHint: 'Ask about occupational exposure, technology impacts, or skill crosswalks',
+      defaultPrompt: 'What is the technology impact of {entity} across roles and occupations?',
+      icon: 'compass',
+      color: '#10B981',
+      supportedDomains: ['market'],
+      suggestedQuestions: [
+        'Explore the occupational impact of Generative AI.',
+        'Which job roles and software skills are most affected by Kubernetes?',
+        'How does Cloud Computing impact Data Engineering occupations?'
+      ],
+      explainer: {
+        whatItDoes: 'Explore supported relationships between technologies, skills, and occupations.',
+        inputsNeeded: 'Technology or skill; optional target occupation.',
+        outputProduced: 'Crosswalk of impacted roles, related software skills, and occupational dependencies.',
+        limitations: 'Reflects structured taxonomy mappings between technologies and occupations without speculative projection.'
+      },
+      motif: `
+        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
+          <defs>
+            <linearGradient id="tieGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#10B981" />
+              <stop offset="50%" stop-color="#38BDF8" />
+              <stop offset="100%" stop-color="#6366F1" />
+            </linearGradient>
+          </defs>
+          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#tieGrad)" fill-opacity="0.14" />
+          <circle cx="22" cy="22" r="11" stroke="url(#tieGrad)" stroke-width="1.8" />
+          <polygon points="22,14 25,22 22,20 19,22" fill="#10B981" />
+          <polygon points="22,30 25,22 22,24 19,22" fill="#38BDF8" />
+          <circle cx="22" cy="22" r="2" fill="#FFFFFF" />
+        </svg>
+      `,
+      followUpCapabilityIds: ['technology_adoption_shift_detector']
+    }
+  ],
+  job: [
+    {
+      id: 'skill_based_job_match',
+      capabilityId: 'skill_based_job_match',
+      title: 'Skill-Based Job Match',
+      category: 'Job Matching',
+      desc: "Compare a user's skills with requirements in retrieved job postings and explain matches and skill gaps.",
+      cardTagline: "Compare your skills with requirements in retrieved job postings.",
+      promptHint: 'Ask about matching postings, required software skills, or skill gap analysis',
+      defaultPrompt: 'How do my skills match job postings for {entity}?',
+      icon: 'briefcase',
+      color: '#F59E0B',
+      supportedDomains: ['job'],
+      suggestedQuestions: [
+        'Match my skills against verified Software Engineer job postings.',
+        'Which job postings match a skill profile of Python and SQL?',
+        'Explain the skill gaps between my profile and Senior Data Scientist postings.'
+      ],
+      explainer: {
+        whatItDoes: "Compare a user's skills with requirements in retrieved job postings and explain matches and skill gaps.",
+        inputsNeeded: 'Current skills or profile; optional target role and location.',
+        outputProduced: 'Matched job postings, requirement coverage, and specific skill gaps.',
+        limitations: 'Matches against retrieved and verified job postings; not an exhaustive index of all market vacancies.'
+      },
+      motif: `
+        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
+          <defs>
+            <linearGradient id="sbjmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stop-color="#F59E0B" />
               <stop offset="50%" stop-color="#EC4899" />
               <stop offset="100%" stop-color="#8B5CF6" />
             </linearGradient>
-            <linearGradient id="sandGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#FDE047" />
-              <stop offset="100%" stop-color="#F59E0B" />
-            </linearGradient>
           </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#shlGrad)" fill-opacity="0.14" />
-          <path d="M13 10 H31 M13 34 H31 M15 10 L22 22 L29 10 M15 34 L22 22 L29 34" stroke="url(#shlGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M18 13 H26 L22 19 Z" fill="url(#sandGrad)" />
-          <path d="M17 33 H27 L22 27 Z" fill="url(#sandGrad)" />
-          <circle cx="22" cy="23" r="1.5" fill="#FDE047" />
-          <circle cx="22" cy="25.5" r="1.2" fill="#FDE047" />
+          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#sbjmGrad)" fill-opacity="0.14" />
+          <rect x="12" y="16" width="20" height="15" rx="3" stroke="url(#sbjmGrad)" stroke-width="2" />
+          <path d="M17 16 V13 C17 11.5, 18.5 10.5, 20 10.5 H24 C25.5 10.5, 27 11.5, 27 13 V16" stroke="url(#sbjmGrad)" stroke-width="1.8" stroke-linecap="round" />
+          <circle cx="22" cy="23.5" r="2" fill="#F59E0B" />
         </svg>
-      `
+      `,
+      followUpCapabilityIds: ['career_transition_opportunity']
     },
     {
-      id: 'market_to_person_to_company',
-      title: 'Market → Person → Company',
-      category: 'Workforce Intelligence',
-      desc: 'Connect available market signals to role and skill requirements.',
-      cardTagline: 'Connect market signals with people and company needs.',
-      promptHint: 'Ask how macroeconomic hiring trends connect to personal growth',
-      defaultPrompt: 'How do available market signals connect to people and company needs for {entity}?',
-      icon: 'users',
-      color: '#06B6D4',
+      id: 'career_transition_opportunity',
+      capabilityId: 'career_transition_opportunity',
+      title: 'Career Transition Opportunity',
+      category: 'Career Pathways',
+      desc: 'Identify possible related target roles and the skills that may be needed for a transition.',
+      cardTagline: 'Identify related target roles and transition skills.',
+      promptHint: 'Ask about lateral moves, transition pathways, or role bridges',
+      defaultPrompt: 'What career transition opportunities exist from {entity}?',
+      icon: 'shuffle',
+      color: '#6366F1',
+      supportedDomains: ['job'],
+      suggestedQuestions: [
+        'What career transition opportunities exist from QA Engineer to DevOps?',
+        'Identify related occupations and skill bridges for Data Analyst.',
+        'Explore viable transition pathways from Frontend Developer to Full Stack Engineer.'
+      ],
       explainer: {
-        whatItDoes: 'Bridges market-level technology adoption, personal skill profiles, and company hiring demands into a unified workforce alignment model.',
-        inputsNeeded: 'Target skill, role title, or employer context.',
-        outputProduced: 'Three-node alignment matrix showing talent supply, organizational demand, and individual positioning.',
-        limitations: 'Bounded strictly to deduplicated postings and authenticated company memberships.'
+        whatItDoes: 'Identify possible related target roles and the skills that may be needed for a transition.',
+        inputsNeeded: 'Current or target role; current skills when available.',
+        outputProduced: 'Viable target roles, shared work activities, and transition skill requirements.',
+        limitations: 'Identifies transition opportunities based on shared occupational tasks and skills in O*NET/ESCO baselines.'
       },
       motif: `
         <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
           <defs>
-            <linearGradient id="mpcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#06B6D4" />
-              <stop offset="50%" stop-color="#3B82F6" />
-              <stop offset="100%" stop-color="#6366F1" />
+            <linearGradient id="ctoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#6366F1" />
+              <stop offset="50%" stop-color="#8B5CF6" />
+              <stop offset="100%" stop-color="#EC4899" />
             </linearGradient>
           </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#mpcGrad)" fill-opacity="0.14" />
-          <polygon points="22,11 11,31 33,31" stroke="url(#mpcGrad)" stroke-width="1.8" stroke-dasharray="3 2" fill="none" />
-          <circle cx="22" cy="11" r="5" fill="#06B6D4" />
-          <circle cx="22" cy="11" r="2.5" fill="#FFFFFF" />
-          <circle cx="11" cy="31" r="5" fill="#8B5CF6" />
-          <circle cx="11" cy="31" r="2.5" fill="#FFFFFF" />
-          <circle cx="33" cy="31" r="5" fill="#2563EB" />
-          <circle cx="33" cy="31" r="2.5" fill="#FFFFFF" />
-          <circle cx="22" cy="24" r="2.5" fill="#38BDF8" />
+          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#ctoGrad)" fill-opacity="0.14" />
+          <path d="M12 16 H24 L29 22 L24 28 H12" stroke="url(#ctoGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M27 16 L32 22 L27 28" stroke="url(#ctoGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-      `
-    },
-    {
-      id: 'ai_disruption',
-      title: 'AI Disruption Impact',
-      category: 'Task-Level AI Impact',
-      desc: 'Explore verified evidence about task exposure and augmentation.',
-      cardTagline: 'Understand where AI may change work tasks.',
-      promptHint: 'Ask about automated tasks, AI exposure scores, and human augmentation',
-      defaultPrompt: 'How could AI-related task changes affect {entity}?',
-      icon: 'zap',
-      color: '#F97316',
-      explainer: {
-        whatItDoes: 'Assesses occupational task-level exposure to AI models based on standardized O*NET work activities and empirical technology adoption.',
-        inputsNeeded: 'Role title, SOC code, or skill keyword.',
-        outputProduced: 'Theoretical task overlap percentage, augmentation potential, and resilient skills.',
-        limitations: 'Measures theoretical capability overlap only; does not predict headcount reduction or job elimination.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="adiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#F59E0B" />
-              <stop offset="50%" stop-color="#F97316" />
-              <stop offset="100%" stop-color="#EF4444" />
-            </linearGradient>
-            <linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#FEF08A" />
-              <stop offset="100%" stop-color="#F59E0B" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#adiGrad)" fill-opacity="0.14" />
-          <rect x="10" y="10" width="24" height="24" rx="6" stroke="url(#adiGrad)" stroke-width="1.8" fill="rgba(249, 115, 22, 0.1)" />
-          <line x1="7" y1="17" x2="10" y2="17" stroke="#F97316" stroke-width="1.5" stroke-linecap="round" />
-          <line x1="7" y1="27" x2="10" y2="27" stroke="#F97316" stroke-width="1.5" stroke-linecap="round" />
-          <line x1="34" y1="17" x2="37" y2="17" stroke="#F97316" stroke-width="1.5" stroke-linecap="round" />
-          <line x1="34" y1="27" x2="37" y2="27" stroke="#F97316" stroke-width="1.5" stroke-linecap="round" />
-          <path d="M24 12 L16 23 H23 L20 32 L28 20 H22 L24 12 Z" fill="url(#boltGrad)" stroke="#B45309" stroke-width="0.8" />
-        </svg>
-      `
-    },
-    {
-      id: 'forecast',
-      title: 'Explainable Forecast',
-      category: 'Demand Forecasting',
-      desc: 'Review forecasts only when historical data meets readiness requirements.',
-      cardTagline: 'Review evidence and assumptions behind a forecast.',
-      promptHint: 'Inquire about empirical demand trajectories and readiness states',
-      defaultPrompt: 'Show an explainable forecast for {entity} if supported by available evidence.',
-      icon: 'trending-up',
-      color: '#10B981',
-      explainer: {
-        whatItDoes: 'Evaluates whether a skill meets rigorous analytical readiness gates (>=6 consecutive valid historical periods) before generating future projections.',
-        inputsNeeded: 'At least 6 consecutive monthly observations without panel drift.',
-        outputProduced: 'Forecast readiness report, Theil-Sen velocity slope, or honest unreadiness disclosure.',
-        limitations: 'Synthetic extrapolation is strictly blocked; unverified predictions are never displayed.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="efGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#10B981" />
-              <stop offset="50%" stop-color="#06B6D4" />
-              <stop offset="100%" stop-color="#3B82F6" />
-            </linearGradient>
-            <linearGradient id="efArea" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#10B981" stop-opacity="0.35" />
-              <stop offset="100%" stop-color="#10B981" stop-opacity="0" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#efGrad)" fill-opacity="0.14" />
-          <path d="M10 32 L16 26 L23 28 L34 14 V32 H10 Z" fill="url(#efArea)" />
-          <path d="M10 32 L16 26 L23 28 L34 14" stroke="url(#efGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-          <circle cx="16" cy="26" r="2.2" fill="#10B981" />
-          <circle cx="23" cy="28" r="2.2" fill="#06B6D4" />
-          <circle cx="34" cy="14" r="3" fill="#3B82F6" stroke="#FFFFFF" stroke-width="1.2" />
-          <line x1="34" y1="14" x2="34" y2="32" stroke="#3B82F6" stroke-width="1.2" stroke-dasharray="2 2" />
-        </svg>
-      `
-    },
-    {
-      id: 'action_recommendations',
-      title: 'Action Recommendation',
-      category: 'Strategic Next Steps',
-      desc: 'Explore practical next steps supported by available evidence.',
-      cardTagline: 'Turn relevant evidence into practical next steps.',
-      promptHint: 'Ask what actions, courses, or adjacent skills you should pursue',
-      defaultPrompt: 'What should I learn next based on available evidence for {entity}?',
-      icon: 'compass',
-      color: '#D946EF',
-      explainer: {
-        whatItDoes: 'Synthesizes deterministic, verified career steps—such as upskilling in adjacent technologies or closing specific skill gaps.',
-        inputsNeeded: 'Current skill profile and optional target role.',
-        outputProduced: 'Prioritized recommendations (learn, monitor, bridge gaps) backed by labor market signals.',
-        limitations: 'Recommendations are advisory guidance; future salary or placement outcomes are not guaranteed.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="arGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#D946EF" />
-              <stop offset="50%" stop-color="#8B3DFF" />
-              <stop offset="100%" stop-color="#3B82F6" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#arGrad)" fill-opacity="0.14" />
-          <circle cx="22" cy="22" r="14" stroke="url(#arGrad)" stroke-width="1.8" stroke-dasharray="4 2" />
-          <circle cx="22" cy="22" r="7" stroke="url(#arGrad)" stroke-width="1.5" />
-          <path d="M22 10 L26 22 L22 19 L18 22 Z" fill="#D946EF" />
-          <path d="M22 34 L26 22 L22 25 L18 22 Z" fill="#8B3DFF" />
-          <circle cx="22" cy="22" r="2.5" fill="#FFFFFF" />
-        </svg>
-      `
-    }
-  ],
-  market: [
-    {
-      id: 'market_snapshot',
-      title: 'Market Snapshot',
-      category: 'Market Telemetry',
-      desc: 'Extract latest observations, posting counts, and demand shares.',
-      cardTagline: 'See observed demand and adoption signals.',
-      promptHint: 'Ask about current market presence, employer demand, or technology adoption',
-      defaultPrompt: 'What is the current market demand and technology adoption for {entity}?',
-      icon: 'bar-chart-3',
-      color: '#3B82F6',
-      explainer: {
-        whatItDoes: 'Retrieves current point-in-time observations, demand share, and employer hiring volume across verified sources.',
-        inputsNeeded: 'Technology name or employer entity.',
-        outputProduced: 'Observed posting volume, adoption metrics, and market share indicators.',
-        limitations: 'Reflects sample observations collected through configured providers, not the entirety of unindexed jobs.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="msGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#38BDF8" />
-              <stop offset="100%" stop-color="#2563EB" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#msGrad)" fill-opacity="0.14" />
-          <rect x="11" y="24" width="5" height="10" rx="1.5" fill="url(#msGrad)" />
-          <rect x="19" y="17" width="5" height="17" rx="1.5" fill="url(#msGrad)" />
-          <rect x="27" y="12" width="5" height="22" rx="1.5" fill="url(#msGrad)" />
-          <circle cx="29.5" cy="9.5" r="2" fill="#38BDF8" />
-        </svg>
-      `
-    },
-    {
-      id: 'market_to_person_to_company',
-      title: 'Market-to-Person Impact',
-      category: 'Workforce Alignment',
-      desc: 'Connect industry hiring patterns to personal skills and company needs.',
-      cardTagline: 'Relate hiring patterns to skills and workforce needs.',
-      promptHint: 'Ask how market adoption signals at specific companies impact your skills',
-      defaultPrompt: 'How do market signals for {entity} affect workforce requirements?',
-      icon: 'users',
-      color: '#06B6D4',
-      explainer: {
-        whatItDoes: 'Correlates employer adoption signals with individual capabilities to identify industry workforce shifts.',
-        inputsNeeded: 'Employer name or industry technology.',
-        outputProduced: 'Workforce impact insights, hiring momentum, and required skill alignment.',
-        limitations: 'Requires stored job posting records or company observation telemetry.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="mpcGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#06B6D4" />
-              <stop offset="50%" stop-color="#3B82F6" />
-              <stop offset="100%" stop-color="#6366F1" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#mpcGrad2)" fill-opacity="0.14" />
-          <polygon points="22,11 11,31 33,31" stroke="url(#mpcGrad2)" stroke-width="1.8" stroke-dasharray="3 2" fill="none" />
-          <circle cx="22" cy="11" r="5" fill="#06B6D4" />
-          <circle cx="11" cy="31" r="5" fill="#8B5CF6" />
-          <circle cx="33" cy="31" r="5" fill="#2563EB" />
-        </svg>
-      `
-    },
-    {
-      id: 'historical_signal_retrieval',
-      title: 'Technology & Hiring Signals',
-      category: 'Trend Intelligence',
-      desc: 'Retrieve multi-period empirical hiring signals without synthetic data.',
-      cardTagline: 'Explore observed technology and hiring trends.',
-      promptHint: 'Ask about historical demand trends and multi-quarter trajectory',
-      defaultPrompt: 'What historical demand signals are observed for {entity}?',
-      icon: 'trending-up',
-      color: '#10B981',
-      explainer: {
-        whatItDoes: 'Retrieves empirical multi-period observation time-series across job search feeds, GitHub, and Stack Overflow.',
-        inputsNeeded: 'Technology or company name, time range window.',
-        outputProduced: 'Verified historical series, period counts, and observation sources.',
-        limitations: 'Only verified historical snapshots are returned; zero interpolation across missing periods.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="hsrGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#10B981" />
-              <stop offset="100%" stop-color="#14B8A6" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#hsrGrad)" fill-opacity="0.14" />
-          <path d="M10 28 L18 20 L26 24 L34 14" stroke="url(#hsrGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-          <circle cx="18" cy="20" r="2.2" fill="#10B981" />
-          <circle cx="26" cy="24" r="2.2" fill="#14B8A6" />
-          <circle cx="34" cy="14" r="3" fill="#2563EB" stroke="#FFFFFF" stroke-width="1.2" />
-        </svg>
-      `
-    },
-    {
-      id: 'action_recommendations',
-      title: 'Strategic Next Steps',
-      category: 'Market Strategy',
-      desc: 'Synthesize actionable market strategies from observed hiring trends.',
-      cardTagline: 'Identify practical actions from market evidence.',
-      promptHint: 'Ask for practical market positioning and technology investment steps',
-      defaultPrompt: 'What strategic actions should I take based on market signals for {entity}?',
-      icon: 'compass',
-      color: '#D946EF',
-      explainer: {
-        whatItDoes: 'Produces prioritized next steps for navigating employer market demand and technology adoption.',
-        inputsNeeded: 'Observed market or company entity.',
-        outputProduced: 'Targeted actions for skill positioning, employer tracking, and readiness.',
-        limitations: 'Advisory guidance based strictly on observed market evidence.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="arGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#D946EF" />
-              <stop offset="100%" stop-color="#8B3DFF" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#arGrad2)" fill-opacity="0.14" />
-          <circle cx="22" cy="22" r="13" stroke="url(#arGrad2)" stroke-width="1.8" stroke-dasharray="4 2" />
-          <path d="M22 11 L25 22 L22 19 L19 22 Z" fill="#D946EF" />
-          <path d="M22 33 L25 22 L22 25 L19 22 Z" fill="#8B3DFF" />
-        </svg>
-      `
-    }
-  ],
-  job: [
-    {
-      id: 'job_posting_search',
-      title: 'Verified Job Postings',
-      category: 'Job Postings',
-      desc: 'Search deduplicated, normalized postings matching keywords and roles.',
-      cardTagline: 'Find relevant postings and their listed requirements.',
-      promptHint: 'Ask to find active job openings, requirements, and hiring employers',
-      defaultPrompt: 'Show verified job postings for {entity}.',
-      icon: 'briefcase',
-      color: '#8B5CF6',
-      explainer: {
-        whatItDoes: 'Queries stored, normalized job postings collected from verified sources like JSearch and Adzuna.',
-        inputsNeeded: 'Target role, skill keyword, or employer name.',
-        outputProduced: 'Deduplicated postings with titles, employers, locations, dates, and required skills.',
-        limitations: 'Read-only search against stored collection runs; does not execute unverified web scrapes.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="jpsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#8B5CF6" />
-              <stop offset="100%" stop-color="#6366F1" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#jpsGrad)" fill-opacity="0.14" />
-          <rect x="11" y="16" width="22" height="16" rx="4" stroke="url(#jpsGrad)" stroke-width="2" />
-          <path d="M17 16 V13 C17 11.5, 18.5 10, 20 10 H24 C25.5 10, 27 11.5, 27 13 V16" stroke="url(#jpsGrad)" stroke-width="1.8" />
-          <circle cx="22" cy="24" r="2.5" fill="#8B5CF6" />
-        </svg>
-      `
-    },
-    {
-      id: 'occupation_software_skills',
-      title: 'Role Skill Requirements',
-      category: 'O*NET Crosswalk',
-      desc: 'Map standardized occupations to workplace software tools and Hot Tech.',
-      cardTagline: 'Explore skills and tools linked to a role.',
-      promptHint: 'Ask what software tools and core skills are required for specific roles',
-      defaultPrompt: 'What software tools and skills are needed for {entity} roles?',
-      icon: 'code-2',
-      color: '#3B82F6',
-      explainer: {
-        whatItDoes: 'Crosswalks canonical occupations from O*NET 2018 SOC to required workplace software tools and Hot Technologies.',
-        inputsNeeded: 'Standardized occupation title or SOC code.',
-        outputProduced: 'Categorized tools, programming languages, and technology popularity flags.',
-        limitations: 'Baseline taxonomy representation; specific employer requirements may vary.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="ossGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#3B82F6" />
-              <stop offset="100%" stop-color="#8B3DFF" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#ossGrad)" fill-opacity="0.14" />
-          <path d="M17 16 L11 22 L17 28 M27 16 L33 22 L27 28" stroke="url(#ossGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-          <line x1="24" y1="14" x2="20" y2="30" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" />
-        </svg>
-      `
-    },
-    {
-      id: 'related_occupations',
-      title: 'Career Mobility Pathways',
-      category: 'Career Mobility',
-      desc: 'Traverse career mobility pathways based on shared work activities.',
-      cardTagline: 'Discover adjacent roles and transferable work.',
-      promptHint: 'Ask about adjacent roles, career transitions, and transferrable skills',
-      defaultPrompt: 'What career mobility pathways and adjacent roles exist for {entity}?',
-      icon: 'git-branch',
-      color: '#06B6D4',
-      explainer: {
-        whatItDoes: 'Examines career mobility transitions between occupations based on shared work activities and knowledge areas.',
-        inputsNeeded: 'Current or target occupation title.',
-        outputProduced: 'Related occupations ranked by skill transferability and career transition viability.',
-        limitations: 'Mobility viability reflects activity overlap, not hiring guarantees.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="roGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#06B6D4" />
-              <stop offset="100%" stop-color="#10B981" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#roGrad)" fill-opacity="0.14" />
-          <circle cx="14" cy="30" r="3.5" fill="#06B6D4" />
-          <circle cx="30" cy="14" r="3.5" fill="#10B981" />
-          <circle cx="30" cy="30" r="3.5" fill="#3B82F6" />
-          <path d="M14 26.5 V22 C14 18, 18 14, 26.5 14 M17.5 30 H26.5" stroke="url(#roGrad)" stroke-width="2" stroke-linecap="round" />
-        </svg>
-      `
-    },
-    {
-      id: 'action_recommendations',
-      title: 'Role Preparation Actions',
-      category: 'Action Plan',
-      desc: 'Formulate concrete preparation steps to target specific roles.',
-      cardTagline: 'Plan focused preparation for a target role.',
-      promptHint: 'Ask what preparation and learning actions to take to target a role',
-      defaultPrompt: 'What career preparation actions do you recommend for {entity}?',
-      icon: 'compass',
-      color: '#D946EF',
-      explainer: {
-        whatItDoes: 'Builds a concrete action plan to close skill gaps and prepare for target role requirements.',
-        inputsNeeded: 'Target role title and user inventory.',
-        outputProduced: 'Milestone actions, skill acquisition priorities, and alignment steps.',
-        limitations: 'Grounded in observed posting requirements; individual outcomes depend on execution.'
-      },
-      motif: `
-        <svg class="ai-card-motif-svg" viewBox="0 0 44 44" fill="none">
-          <defs>
-            <linearGradient id="arGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#D946EF" />
-              <stop offset="100%" stop-color="#8B3DFF" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="36" height="36" rx="10" fill="url(#arGrad3)" fill-opacity="0.14" />
-          <circle cx="22" cy="22" r="13" stroke="url(#arGrad3)" stroke-width="1.8" stroke-dasharray="4 2" />
-          <path d="M22 11 L25 22 L22 19 L19 22 Z" fill="#D946EF" />
-          <path d="M22 33 L25 22 L22 25 L19 22 Z" fill="#8B3DFF" />
-        </svg>
-      `
+      `,
+      followUpCapabilityIds: ['skill_based_job_match']
     }
   ]
 };
 
-const capabilityPresentationSources = DOMAIN_CAPABILITY_REGISTRY;
-const supportedCapability = (domain, sourceId, id, title, desc, defaultPrompt, followUpCapabilityIds = []) => {
-  const source = capabilityPresentationSources[domain].find(capability => capability.id === sourceId);
-  return {
-    ...source,
-    id,
-    capabilityId: id,
-    supportedDomains: [domain],
-    title,
-    desc,
-    promptHint: desc,
-    defaultPrompt,
-    explainer: {
-      ...source.explainer,
-      whatItDoes: desc
-    },
-    followUpCapabilityIds
-  };
+export const capabilitySuggestedQuestions = {
+  skill_future_relevance_score: [
+    'What is the future relevance score for Python?',
+    'How do historical and adoption signals project future relevance for React?',
+    'What evidence supports the future relevance score for Kubernetes?'
+  ],
+  skill_change_alert: [
+    'Are there any change alerts for Python in recent periods?',
+    'Identify shift patterns or momentum changes for TypeScript.',
+    'What signal changes are detected for Cloud Computing?'
+  ],
+  adaptive_skill_roadmap: [
+    'Create an adaptive skill roadmap for a Backend Developer role.',
+    'What ordered learning plan transitions from Python to Machine Learning Engineer?',
+    'Recommend a milestone learning path for DevOps Engineer.'
+  ],
+  technology_adoption_shift_detector: [
+    'Detect technology adoption shifts between React and Vue.',
+    'Compare quarterly developer adoption signals for Rust versus Go.',
+    'What adoption trajectory shifts are observed for Docker over comparable periods?'
+  ],
+  technology_impact_explorer: [
+    'Explore the occupational impact of Generative AI.',
+    'Which job roles and software skills are most affected by Kubernetes?',
+    'How does Cloud Computing impact Data Engineering occupations?'
+  ],
+  skill_based_job_match: [
+    'Match my skills against verified Software Engineer job postings.',
+    'Which job postings match a skill profile of Python and SQL?',
+    'Explain the skill gaps between my profile and Senior Data Scientist postings.'
+  ],
+  career_transition_opportunity: [
+    'What career transition opportunities exist from QA Engineer to DevOps?',
+    'Identify related occupations and skill bridges for Data Analyst.',
+    'Explore viable transition pathways from Frontend Developer to Full Stack Engineer.'
+  ]
 };
 
-Object.assign(DOMAIN_CAPABILITY_REGISTRY, {
-  skill: [
-    supportedCapability('skill', 'skill_health', 'trend_velocity_analysis', 'Skill Demand Trends', 'Review measured demand direction and velocity from verified observations.', 'What demand trend is observed for {entity}?', ['historical_signal_retrieval']),
-    supportedCapability('skill', 'skill_half_life', 'historical_signal_retrieval', 'Historical Skill Signals', 'Explore available historical observations without invented periods.', 'What historical skill signals are available for {entity}?', ['evidence_provenance_retrieval']),
-    supportedCapability('skill', 'market_to_person_to_company', 'skill_gap_role_fit', 'Skill & Role Alignment', 'Compare your selected skills with a target role when both are available.', 'How do my selected skills align with {entity}?', ['action_recommendations']),
-    supportedCapability('skill', 'ai_disruption', 'evidence_provenance_retrieval', 'Evidence & Sources', 'Inspect the verified sources and provenance behind available skill evidence.', 'Show the evidence and sources for {entity}.', ['action_recommendations']),
-    supportedCapability('skill', 'forecast', 'skill_technology_reference', 'Skill Reference', 'Look up canonical skill and technology definitions and reference context.', 'What does {entity} mean in the skill catalog?'),
-    supportedCapability('skill', 'action_recommendations', 'action_recommendations', 'Action Recommendation', 'Explore practical next steps grounded in your available evidence.', 'What should I learn next based on evidence for {entity}?')
-  ],
-  market: [
-    supportedCapability('market', 'market_snapshot', 'market_snapshot', 'Market Snapshot', 'Review the latest stored market observations for an employer or technology.', 'What current market signals are available for {entity}?', ['historical_signal_retrieval']),
-    supportedCapability('market', 'historical_signal_retrieval', 'historical_signal_retrieval', 'Technology & Hiring Signals', 'Explore verified historical hiring and adoption observations.', 'What historical market signals are available for {entity}?', ['evidence_provenance_retrieval']),
-    supportedCapability('market', 'action_recommendations', 'trend_velocity_analysis', 'Market Trend & Velocity', 'Review measured market trend direction when comparable observations exist.', 'What trend is observed for {entity}?', ['evidence_provenance_retrieval']),
-    supportedCapability('market', 'market_to_person_to_company', 'evidence_provenance_retrieval', 'Evidence & Sources', 'Inspect source records and provenance for market intelligence.', 'Show the evidence and sources for {entity}.')
-  ],
-  job: [
-    supportedCapability('job', 'job_posting_search', 'job_posting_search', 'Verified Job Postings', 'Search previously collected postings; results are not live vacancy totals.', 'Show stored job postings for {entity}.', ['occupation_software_skills']),
-    supportedCapability('job', 'occupation_software_skills', 'occupation_software_skills', 'Role Skill Requirements', 'Look up tools and technologies associated with a standardized occupation.', 'What software skills are used in {entity}?', ['skill_gap_role_fit']),
-    supportedCapability('job', 'related_occupations', 'related_occupations', 'Career Mobility Pathways', 'Explore occupations connected through shared work activities.', 'What occupations are related to {entity}?', ['job_posting_search']),
-    supportedCapability('job', 'action_recommendations', 'skill_gap_role_fit', 'Skill & Role Alignment', 'Compare available skills with a target occupation when both are provided.', 'How do my selected skills align with {entity}?', ['action_recommendations']),
-    supportedCapability('job', 'action_recommendations', 'action_recommendations', 'Role Preparation Actions', 'Explore evidence-informed preparation steps for a target role.', 'What should I do next to prepare for {entity}?')
-  ]
-});
+export function resolveActiveCapabilityId(response, domain, catalog = capabilityCatalog) {
+  const capabilities = getDomainCapabilities(domain, catalog);
+  const capabilityIds = [
+    response?.executed_primary_capability,
+    response?.planned_primary_capability,
+    ...(Array.isArray(response?.capabilities_used) ? response.capabilities_used : []),
+    ...(Array.isArray(response?.planned_capabilities) ? response.planned_capabilities : [])
+  ].filter(capabilityId => typeof capabilityId === 'string');
+  return capabilityIds
+    .map(capabilityId => capabilities.find(capability => capability.id === capabilityId))
+    .find(Boolean)?.id || null;
+}
 
 export function getDomainCapabilities(domain, catalog = capabilityCatalog) {
   const domKey = ['skill', 'market', 'job'].includes(domain) ? domain : 'skill';
@@ -678,28 +505,12 @@ export function getAssistantComposerMode(domainState) {
 }
 
 async function requestRecommendedCapability(question, domain, domState) {
-  const filters = domState.filters || {};
   const plan = await queryCoreIntelligencePlan({
     message: question,
     domain,
     portalType: 'individual',
-    location: filters.location || undefined,
-    timeRange: filters.timeRange || filters.timeframe || '30d',
-    targetRole: filters.selectedRole || undefined,
-    selectedSkills: filters.selectedSkills?.length
-      ? filters.selectedSkills
-      : filters.selectedSkill ? [filters.selectedSkill] : [],
-    selectedCompanies: filters.selectedCompany ? [filters.selectedCompany] : [],
+    timeRange: 'max',
     conversationId: domState.conversation_id || undefined,
-    filters: {
-      scope: filters.scope,
-      location: filters.location,
-      selected_role: filters.selectedRole,
-      selected_skill: filters.selectedSkill,
-      selected_skills: filters.selectedSkills,
-      selected_company: filters.selectedCompany,
-      requested_time_window: filters.timeRange || filters.timeframe
-    }
   });
   const capabilities = getDomainCapabilities(domain);
   const selectedIds = Array.isArray(plan.selected_capabilities) ? plan.selected_capabilities : [];
@@ -833,15 +644,11 @@ async function evaluateGuidedJourneyNextStep(turn, domain, userId, journeyId) {
   const journey = domState.guidedJourney;
   if (!journey || journey.id !== journeyId || userId !== resolveCurrentUserId()) return;
   const requestContext = turn.requestContext || {};
-  const filters = requestContext.filters || {};
   const entityFact = (turn.facts || []).find(fact =>
     fact.canonical_entity_id && fact.entity_name && fact.quality_state === 'valid'
   );
   const originalQuestion = journey.originalQuestion || turn.userQuestion || '';
   const entityName = entityFact?.entity_name
-    || filters.selected_skill
-    || filters.selected_company
-    || filters.selected_role
     || extractEntityCandidate(originalQuestion);
   if (!entityName) {
     journey.isEvaluatingNext = false;
@@ -883,10 +690,7 @@ async function evaluateGuidedJourneyNextStep(turn, domain, userId, journeyId) {
         entity_name: entityName,
         entity_type: entityType,
         portal_type: 'individual',
-        time_range: requestContext.timeRange || '30d',
-        location: requestContext.location || undefined,
-        target_role: requestContext.targetRole || undefined,
-        selected_skills: requestContext.selectedSkills || []
+        time_range: requestContext.timeRange || 'max'
       });
       const readiness = (evaluated.results || []).find(result => result.capability_id === candidate.nextCapability.id);
       const latestJourney = getActiveDomainSession(domain).guidedJourney;
@@ -1159,6 +963,20 @@ function groupConversationsByDate(items, searchStr = '') {
 
 async function refreshConversationSidebar() {
   if (!isHistoryModalOpen && !isHistoryDrawerOpen) return;
+  const currentUid = resolveCurrentUserId();
+  if (currentUid === 'anonymous') {
+    historyLoading = false;
+    historyLoadError = '';
+    conversationsList = [];
+    const sidebarBody = document.getElementById('aiHistoryGroupedList');
+    if (sidebarBody) {
+      sidebarBody.innerHTML = renderGroupedHistoryItemsHTML();
+      attachSidebarItemListeners(document.getElementById('mainContent'));
+      if (window.lucide) window.lucide.createIcons();
+    }
+    return;
+  }
+
   historyLoading = true;
   try {
     const domain = getActiveDomainKey();
@@ -1177,7 +995,13 @@ async function refreshConversationSidebar() {
     }
   } catch (error) {
     historyLoading = false;
-    historyLoadError = error?.message || 'Conversation history is temporarily unavailable.';
+    if (error?.status === 401 || error?.name === 'CoreIntelligenceAuthError') {
+      historyLoadError = 'Your session has expired. Please sign in again to view your conversation history.';
+    } else if (error?.status === 503 || error?.name === 'CoreIntelligenceServiceUnavailableError') {
+      historyLoadError = 'Authentication service is temporarily unavailable. Please retry shortly.';
+    } else {
+      historyLoadError = error?.message || 'Conversation history is temporarily unavailable.';
+    }
     conversationsList = [];
     const sidebarBody = document.getElementById('aiHistoryGroupedList');
     if (sidebarBody) sidebarBody.innerHTML = renderGroupedHistoryItemsHTML();
@@ -1187,6 +1011,16 @@ async function refreshConversationSidebar() {
 function renderGroupedHistoryItemsHTML() {
   const dom = getActiveDomainKey();
   const domCfg = DOMAIN_CONFIG[dom] || DOMAIN_CONFIG.skill;
+  const currentUid = resolveCurrentUserId();
+  if (currentUid === 'anonymous') {
+    return `
+      <div class="ai-history-empty-state">
+        <i data-lucide="log-in" class="ai-history-empty-icon"></i>
+        <strong class="ai-history-empty-title">Sign in for conversation history</strong>
+        <span class="ai-history-empty-sub">Sign in to save, resume, and manage your private ${escapeHTML(domCfg.label)} sessions across visits.</span>
+      </div>
+    `;
+  }
   if (historyLoading) {
     return `<div class="ai-history-empty-state" role="status"><i data-lucide="loader-2" class="ai-history-empty-icon ai-spin"></i><span>Loading ${escapeHTML(domCfg.shortLabel)} history…</span></div>`;
   }
@@ -1843,7 +1677,19 @@ function generatePageHTML() {
           </div>
         ` : ''}
 
-        <form class="ai-composer-form-inner" id="aiComposerForm">
+          ${activeFeature && !isGuidedMode && activeFeature.suggestedQuestions?.length ? `
+            <div class="ai-feature-suggested-questions" aria-label="Suggested questions for ${escapeHTML(activeFeature.title)}">
+              <span class="ai-feature-suggestions-label">Try asking</span>
+              ${activeFeature.suggestedQuestions.slice(0, 3).map(prompt => `
+                <button type="button" class="ai-suggested-chip" data-feature-prompt="${escapeHTML(prompt)}" ${isBusy ? 'disabled' : ''}>
+                  <i data-lucide="corner-down-right" class="ai-suggested-chip-icon"></i>
+                  <span>${escapeHTML(prompt)}</span>
+                </button>
+              `).join('')}
+            </div>
+          ` : ''}
+
+          <form class="ai-composer-form-inner" id="aiComposerForm">
           <div class="ai-composer-input-row">
             <textarea
               type="text"
@@ -2260,7 +2106,7 @@ function generatePageHTML() {
 // ----------------------------------------------------------------------------
 // Render Concise 6-Part Evidence-Based Result Card + Additional Insights
 // ----------------------------------------------------------------------------
-function renderTurnChartOrBaselineHTML(turn, trendFact, facts, jobPostings) {
+export function renderTurnChartOrBaselineHTML(turn, trendFact, facts, jobPostings) {
   if (jobPostings.length > 0) {
     return `
       <div class="ai-res-part ai-res-part--trend">
@@ -2272,11 +2118,11 @@ function renderTurnChartOrBaselineHTML(turn, trendFact, facts, jobPostings) {
           ${jobPostings.slice(0, 6).map(p => `
             <div class="ai-res-posting-card">
               <div class="ai-res-posting-card__top">
-                <strong>${escapeHTML(p.title || 'Open Role')}</strong>
-                <span class="ai-res-posting-company">${escapeHTML(p.company || 'Employer')}</span>
+                ${p.title ? `<strong>${escapeHTML(p.title)}</strong>` : ''}
+                ${p.company ? `<span class="ai-res-posting-company">${escapeHTML(p.company)}</span>` : ''}
               </div>
               <div class="ai-res-posting-card__meta">
-                <span><i data-lucide="map-pin"></i> ${escapeHTML(p.location || 'Global')}</span>
+                ${p.location ? `<span><i data-lucide="map-pin"></i> ${escapeHTML(p.location)}</span>` : ''}
                 ${p.posting_date ? `<span>· ${escapeHTML(String(p.posting_date).slice(0, 10))}</span>` : ''}
                 ${p.skill ? `<span>· ${escapeHTML(p.skill)}</span>` : ''}
               </div>
@@ -2287,13 +2133,20 @@ function renderTurnChartOrBaselineHTML(turn, trendFact, facts, jobPostings) {
                 <a href="${escapeHTML(p.source_url)}" target="_blank" rel="noopener noreferrer" class="ai-res-posting-link">
                   View Source (${escapeHTML(p.source || 'Verified')}) ↗
                 </a>
-              ` : `<span class="ai-res-posting-source">Source: ${escapeHTML(p.source || 'Platform Store')}</span>`}
+              ` : (p.source ? `<span class="ai-res-posting-source">Source: ${escapeHTML(p.source)}</span>` : '')}
             </div>
           `).join('')}
         </div>
       </div>
     `;
   }
+
+  // Do not turn a series into a measured chart unless the backend explicitly
+  // marked it ready and sourced it from real observations.
+  if (trendFact && (
+    (trendFact.readiness_state || trendFact.details?.readiness_status) !== 'ready'
+    || trendFact.data_origin !== 'real'
+  )) return '';
 
   const series = Array.isArray(trendFact?.details?.series) ? trendFact.details.series : [];
   const validSeries = series.filter(point => {
@@ -2321,8 +2174,9 @@ function renderTurnChartOrBaselineHTML(turn, trendFact, facts, jobPostings) {
           <i data-lucide="trending-up"></i>
           <span>3. Observed Trend (${validSeries.length} Verified Periods · ${escapeHTML(String(trendFact?.period || 'Historical Window'))})</span>
         </div>
+        <p class="ai-res-chart-context">${escapeHTML([trendFact?.details?.provider, trendFact?.details?.signal_type, trendFact?.details?.metric, trendFact?.details?.value_unit].filter(Boolean).join(' · '))}</p>
         <div class="ai-res-mini-chart-box">
-          <svg viewBox="0 0 480 116" class="ai-res-trend-svg" role="img" aria-label="Observed multi-period trend">
+          <svg viewBox="0 0 480 116" class="ai-res-trend-svg" role="img" aria-label="Observed multi-period trend from ${escapeHTML([trendFact?.details?.provider, trendFact?.details?.metric, trendFact?.details?.value_unit].filter(Boolean).join(', '))}">
             <line x1="28" y1="28" x2="452" y2="28" stroke="#EFE6F7" stroke-width="1" stroke-dasharray="3 3" />
             <line x1="28" y1="62" x2="452" y2="62" stroke="#EFE6F7" stroke-width="1" stroke-dasharray="3 3" />
             <line x1="28" y1="96" x2="452" y2="96" stroke="#E2D4F0" stroke-width="1" />
@@ -2395,12 +2249,14 @@ function renderTurnChartOrBaselineHTML(turn, trendFact, facts, jobPostings) {
 }
 
 function buildSupportedInsightChips(turn, activeDomain) {
-  const domState = getActiveDomainSession(activeDomain);
-  const entity = activeDomain === 'skill'
-    ? (domState.filters.selectedSkill || '')
+  const relevantEntityTypes = activeDomain === 'skill'
+    ? new Set(['skill', 'technology'])
     : activeDomain === 'market'
-      ? (domState.filters.selectedCompany || '')
-      : (domState.filters.selectedRole || '');
+      ? new Set(['company', 'skill', 'technology'])
+      : new Set(['occupation', 'role']);
+  const entity = (turn.facts || []).find(fact =>
+    fact.entity_name && fact.quality_state === 'valid' && relevantEntityTypes.has(fact.entity_type)
+  )?.entity_name || extractEntityCandidate(turn.userQuestion || '');
 
   const caps = turn.capabilities || {};
   const sh = caps.skill_health?.payload;
@@ -2504,6 +2360,99 @@ function describeFactKind(fact) {
   return 'Evidence-backed fact';
 }
 
+const unappliedFilterLabels = {
+  salary_band: 'Salary range',
+  seniority_level: 'Seniority level',
+  remote_mode: 'Work arrangement',
+  visa_sponsorship: 'Visa sponsorship',
+  selected_companies: 'Company selection',
+  selected_company: 'Company selection',
+  scope: 'Data scope',
+  selected_skill: 'Skill selection',
+  selected_skills: 'Skill selection',
+  selected_role: 'Role selection',
+  country: 'Country selection'
+};
+
+export function formatUnappliedFilterDisclosure(filter) {
+  const field = typeof filter?.filter === 'string' ? filter.filter : '';
+  const reason = typeof filter?.reason === 'string' ? filter.reason.toLowerCase() : '';
+  const label = unappliedFilterLabels[field] || 'Selected option';
+
+  if (reason.includes('market observation source contains technology signals')) {
+    return `${label} could not be applied because this market data contains technology signals, not company-specific market data.`;
+  }
+  if (field === 'scope') {
+    return 'The selected data scope is not available for this domain. Choose one of the scopes offered in the filters.';
+  }
+  if (field === 'selected_skill') {
+    return reason.includes('not a supported entity filter')
+      ? 'Skill selection is not available in this intelligence domain.'
+      : 'The selected skill does not match the committed skill selection.';
+  }
+  if (field === 'selected_role') {
+    return reason.includes('not a supported entity filter')
+      ? 'Role selection is not available in this intelligence domain.'
+      : 'The selected role does not match the committed role selection.';
+  }
+  if (field === 'selected_company') {
+    return 'The selected company does not match the committed company selection.';
+  }
+  if (field === 'country') {
+    return 'Country selection is only available when searching stored job postings.';
+  }
+  if (['salary_band', 'seniority_level', 'remote_mode', 'visa_sponsorship'].includes(field)) {
+    return `${label} cannot be applied because this information is not consistently available in the stored market data.`;
+  }
+
+  return `${label} could not be applied because it is not supported for this request.`;
+}
+
+export function resolveDisplayedCapabilityId(turn) {
+  const usedCapabilities = Array.isArray(turn?.capabilities_used)
+    ? turn.capabilities_used.filter(capabilityId => typeof capabilityId === 'string')
+    : [];
+  const plannedCapabilities = Array.isArray(turn?.planned_capabilities)
+    ? turn.planned_capabilities.filter(capabilityId => typeof capabilityId === 'string')
+    : [];
+  const requestedCapability = turn?.capabilityId
+    || turn?.requestContext?.capabilityId
+    || turn?.requestContext?.filters?.selected_feature;
+  if (turn?.executed_primary_capability && usedCapabilities.includes(turn.executed_primary_capability)) {
+    return turn.executed_primary_capability;
+  }
+  if (turn?.planned_primary_capability && plannedCapabilities.includes(turn.planned_primary_capability)) {
+    return turn.planned_primary_capability;
+  }
+  if (requestedCapability && usedCapabilities.includes(requestedCapability)) {
+    return requestedCapability;
+  }
+  return usedCapabilities[0] || plannedCapabilities[0] || null;
+}
+
+export function shouldShowUnappliedFilterDisclosure(turn) {
+  const intent = String(turn?.intent || '').toLowerCase();
+  const capabilityIds = [
+    ...(Array.isArray(turn?.capabilities_used) ? turn.capabilities_used : []),
+    ...(Array.isArray(turn?.planned_capabilities) ? turn.planned_capabilities : [])
+  ];
+  if (['general_explanation', 'explain_concept', 'lookup_skill_reference'].includes(intent)
+      || capabilityIds.includes('skill_technology_reference')) return false;
+  return capabilityIds.some(id => [
+    'trend_velocity_analysis', 'skill_health_analysis', 'skill_half_life_analysis',
+    'skill_forecasting_half_life', 'job_posting_search', 'market_snapshot',
+    'historical_signal_retrieval', 'company_intelligence'
+  ].includes(id));
+}
+
+export function buildFollowUpRequestContext(requestContext) {
+  if (!requestContext || typeof requestContext !== 'object') return undefined;
+  return {
+    domain: requestContext.domain || null,
+    timeRange: 'max'
+  };
+}
+
 function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
   const statusLabels = {
     completed: { label: 'Answer ready', badge: 'cmp-badge--success', icon: 'check-circle-2' },
@@ -2524,17 +2473,24 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
     : ['unsupported', 'requires_clarification'].includes(turn.execution_status)
       ? turn.execution_status
       : turn.status || turn.execution_status;
-  const statusInfo = statusKey ? (statusLabels[statusKey] || { label: 'Status unavailable', badge: 'cmp-badge--neutral', icon: 'circle-help' }) : null;
+  const intentStatusLabels = {
+    general_explanation: { unavailable: 'General Explanation Unavailable', insufficient_data: 'General Explanation Unavailable' },
+    explain_concept: { unavailable: 'Reference Information Unavailable', insufficient_data: 'Reference Information Unavailable' },
+    lookup_skill_reference: { unavailable: 'Reference Information Unavailable', insufficient_data: 'Reference Information Unavailable' },
+    analyze_trend: { insufficient_data: 'Trend Not Calculated', data_source_unavailable: 'Trend Source Unavailable' },
+    search_jobs: { insufficient_data: 'No Verified Postings Retrieved', data_source_unavailable: 'Posting Source Unavailable' }
+  };
+  const baseStatusInfo = statusKey ? (statusLabels[statusKey] || { label: 'Status unavailable', badge: 'cmp-badge--neutral', icon: 'circle-help' }) : null;
+  const statusInfo = baseStatusInfo && intentStatusLabels[turn.intent]?.[statusKey]
+    ? { ...baseStatusInfo, label: intentStatusLabels[turn.intent][statusKey] }
+    : baseStatusInfo;
   const isServiceError = ['error', 'failed', 'blocked', 'data_source_unavailable'].includes(statusKey)
     || ['error', 'failed', 'blocked'].includes(turn.execution_status);
   const domState = getActiveDomainSession(activeDomain);
-  const usedCapabilityId = turn.capabilityId
-    || turn.requestContext?.capabilityId
-    || turn.requestContext?.filters?.selected_feature;
+  const usedCapabilityId = resolveDisplayedCapabilityId(turn);
   const usedCapability = (DOMAIN_CAPABILITY_REGISTRY[turn.domainKey || activeDomain] || [])
     .find(capability => capability.id === usedCapabilityId);
   const freshness = turn.freshness || {};
-  const unappliedFilters = Array.isArray(turn.unapplied_filters) ? turn.unapplied_filters : [];
   const previousFollowUps = new Set(domState.history
     .slice(0, index)
     .flatMap(previous => previous.follow_up_suggestions || previous.follow_up_questions || previous.followUps || [])
@@ -2624,12 +2580,6 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
           </div>
         </div>
 
-        ${unappliedFilters.length > 0 ? `
-          <div class="ai-res-unapplied-banner">
-            <strong>Filter Disclosure:</strong> ${unappliedFilters.map(u => `${escapeHTML(u.filter)} (${escapeHTML(u.reason)})`).join(' • ')}
-          </div>
-        ` : ''}
-
         <!-- Flowing Conversational Body (Natural AI Answer First, Requirement 10) -->
         <div class="ai-conv-body">
           <!-- Main Markdown Response -->
@@ -2637,6 +2587,8 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
             answer: turn.answer || turn.finding || (isServiceError ? 'The intelligence service did not return an answer.' : ''),
             explanation: whyItMattersText
           })}
+
+          ${renderStructuredIntelligenceDetails(turn)}
 
           ${['error', 'failed', 'data_source_unavailable'].includes(statusKey) && turn.userQuestion ? `
             <div class="ai-conv-error-retry">
@@ -2830,6 +2782,7 @@ function attachSidebarItemListeners(container) {
               facts: payload.facts || t.facts || [],
               metric_results: payload.metric_results || t.metric_results || [],
               evidence: payload.evidence || t.evidence || [],
+              capabilities_used: payload.capabilities_used || t.capabilities_used || [],
               limitations: payload.limitations || t.limitations || [],
               reason_codes: payload.reason_codes || t.reason_codes || [],
               capabilities: payload.capabilities || t.capabilities || {},
@@ -3115,8 +3068,7 @@ function attachEventListeners(container) {
       const created = await createIntelligenceConversation({
         portalType: 'individual',
         domain: dom,
-        title: `New ${DOMAIN_CONFIG[dom]?.label || 'Intelligence'} Session`,
-        filters: domState.filters
+        title: `New ${DOMAIN_CONFIG[dom]?.label || 'Intelligence'} Session`
       });
       if (!created?.conversation_id) throw new Error('Conversation service did not return an ID.');
       if (created.portal_type && created.portal_type !== 'individual') {
@@ -3416,6 +3368,20 @@ function attachEventListeners(container) {
   });
 
   // Suggested Prompts Inside Query Panel Click
+  container.querySelectorAll('[data-feature-prompt]').forEach(el => {
+    el.addEventListener('click', () => {
+      const prompt = el.getAttribute('data-feature-prompt');
+      if (!prompt || !input) return;
+      const domState = getActiveDomainSession();
+      input.value = prompt;
+      domState.draftQuestion = prompt;
+      if (clearBtn) clearBtn.style.display = 'inline-flex';
+      saveAiSession(activeSession, resolveCurrentUserId());
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+  });
+
   container.querySelectorAll('[data-prompt]:not([data-feature-prompt])').forEach(el => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -3755,10 +3721,15 @@ function attachEventListeners(container) {
       const fu = el.getAttribute('data-followup');
       const index = parseInt(el.getAttribute('data-turn-index'), 10);
       const turn = getActiveDomainSession().history[index];
-      if (fu) executeAiQuery(fu, {
-        requestContext: turn?.requestContext,
-        selectedFeatureId: turn?.capabilityId || null
-      });
+      if (fu) {
+        const domState = getActiveDomainSession();
+        domState.selectedFeature = null;
+        saveAiSession(activeSession, resolveCurrentUserId());
+        executeAiQuery(fu, {
+          requestContext: buildFollowUpRequestContext(turn?.requestContext),
+          selectedFeatureId: null
+        });
+      }
     });
   });
   container.querySelectorAll('.ai-retry-turn').forEach(button => {
@@ -3896,100 +3867,10 @@ async function executeAiQuery(question, options = {}) {
     showToast('That capability is not supported in the selected domain. Choose another capability.');
     return;
   }
-  const filters = options.filterState || domState.filters;
-  const rawScope = filters.scope || (dom === 'skill' ? 'All Skills' : 'All');
-  const activeScope = rawScope === 'Favourite Skills' || rawScope === 'Favourite Companies'
-    ? 'Favourites'
-    : rawScope === 'All Companies'
-      ? 'All'
-      : rawScope;
-
-  // Resolve scope-specific entities without fabricating fallback values
-  let selectedSkillsPayload = [];
-  let selectedCompaniesPayload = [];
-  let scopeEmpty = false;
-
-  if (dom === 'skill') {
-    const focusSkills = Array.isArray(filters.selectedSkills) && filters.selectedSkills.length
-      ? filters.selectedSkills
-      : (filters.selectedSkill ? [filters.selectedSkill] : []);
-    const observedOptions = getObservedFilterOptions(dom, domState.history);
-    const availableSkills = new Set(observedOptions.entities);
-    if (focusSkills.length) {
-      selectedSkillsPayload = focusSkills.filter(name => availableSkills.has(name)).map(name => resolveCanonicalAssistantEntity(dom, name));
-    } else if (activeScope === 'Favourites') {
-      const uniqueFavs = (observedOptions.favoriteSkills || []).filter(name => availableSkills.has(name));
-      if (uniqueFavs.length) {
-        selectedSkillsPayload = uniqueFavs.map(name => resolveCanonicalAssistantEntity(dom, name));
-      } else {
-        scopeEmpty = true;
-        selectedSkillsPayload = [];
-      }
-    } else {
-      selectedSkillsPayload = [];
-    }
-  } else if (dom === 'market') {
-    const focusTechnology = filters.selectedCompany || '';
-    const observedOptions = getObservedFilterOptions(dom, domState.history);
-    const availableTechnologies = new Set(observedOptions.entities);
-    const technologyNames = new Set((marketCatalog?.technologies || []).map(item => item.name));
-    const companyNames = new Set([...(marketCatalog?.companies_with_job_evidence || []).map(item => item.name), ...(marketCatalog?.registered_company?.name ? [marketCatalog.registered_company.name] : [])]);
-    if (focusTechnology) {
-      if (technologyNames.has(focusTechnology)) selectedSkillsPayload = [resolveCanonicalAssistantEntity(dom, focusTechnology)];
-      else if (companyNames.has(focusTechnology)) selectedCompaniesPayload = [resolveCanonicalAssistantEntity(dom, focusTechnology)];
-    } else if (activeScope === 'Favourites') {
-      const uniqueFavTechnologies = [...new Set(observedOptions.favoriteMarketEntities || [])]
-        .filter(name => availableTechnologies.has(name));
-      const favoriteTechnologies = uniqueFavTechnologies.filter(name => technologyNames.has(name));
-      const favoriteCompanies = uniqueFavTechnologies.filter(name => companyNames.has(name));
-      if (favoriteTechnologies.length || favoriteCompanies.length) {
-        selectedSkillsPayload = favoriteTechnologies.map(name => resolveCanonicalAssistantEntity(dom, name));
-        selectedCompaniesPayload = favoriteCompanies.map(name => resolveCanonicalAssistantEntity(dom, name));
-      } else {
-        scopeEmpty = true;
-        selectedSkillsPayload = [];
-      }
-    } else {
-      selectedSkillsPayload = [];
-    }
-  } else {
-    if (filters.selectedCompany) {
-      selectedCompaniesPayload = [resolveCanonicalAssistantEntity(dom, filters.selectedCompany)];
-    }
-    if (activeScope === 'Favourites') {
-      const observedOptions = getObservedFilterOptions(dom, domState.history);
-      const availableCompanies = new Set(observedOptions.entities);
-      const uniqueFavCos = (observedOptions.favoriteCompanies || []).filter(name => availableCompanies.has(name));
-      if (uniqueFavCos.length) {
-        selectedCompaniesPayload = uniqueFavCos.map(name => resolveCanonicalAssistantEntity(dom, name));
-      } else {
-        scopeEmpty = true;
-      }
-    }
-    selectedSkillsPayload = filters.selectedSkill ? [filters.selectedSkill] : [];
-  }
-
-  const requestContext = options.requestContext || {
+  const requestContext = {
     domain: dom,
     capabilityId: selectedCapabilityId,
-    location: filters.location === 'Global' ? null : (filters.location || null),
-    timeRange: normalizeAnswerTimeRange(filters.timeRange || 'Max Available'),
-    targetRole: filters.selectedRole || null,
-    selectedSkills: selectedSkillsPayload,
-    selectedRoles: filters.selectedRole ? [filters.selectedRole] : [],
-    selectedCompanies: selectedCompaniesPayload,
-    filters: {
-      domain: dom,
-      scope: activeScope,
-      scope_empty: scopeEmpty,
-      requested_time_window: filters.timeRange || 'Max Available',
-      location: filters.location || null,
-      selected_skill: selectedSkillsPayload[0] || null,
-      selected_skills: selectedSkillsPayload,
-      selected_company: selectedCompaniesPayload[0] || null,
-      selected_role: filters.selectedRole || null,
-      selected_feature: selectedCapabilityId
-    }
+    timeRange: 'max',
   };
   const guidedJourneyId = selectedCapabilityId
     && domState.guidedJourney?.currentCapabilityId === selectedCapabilityId
@@ -4002,21 +3883,23 @@ async function executeAiQuery(question, options = {}) {
   try {
     updateAiState('thinking');
 
+    const currentUid = resolveCurrentUserId();
+    const isGuest = currentUid === 'anonymous';
     const answerRes = await queryCoreIntelligenceAnswer({
       message: question,
       portalType: 'individual',
       ...requestContext,
       capabilityId: selectedCapabilityId,
-      conversationId: domState.conversation_id || getActiveConversationId('individual', dom, resolveCurrentUserId()) || null,
+      conversationId: isGuest ? null : (domState.conversation_id || getActiveConversationId('individual', dom, currentUid) || null),
       clientMessageId: options.clientMessageId || clientMessageId,
       regenerate: Boolean(options.regenerate)
-    });
+    }, { guest: isGuest });
 
     if (reqId !== activeRequestCounter) return;
 
-    if (answerRes.conversation_id) {
+    if (answerRes.conversation_id && currentUid !== 'anonymous') {
       domState.conversation_id = answerRes.conversation_id;
-      setActiveConversationId(answerRes.conversation_id, 'individual', dom, resolveCurrentUserId());
+      setActiveConversationId(answerRes.conversation_id, 'individual', dom, currentUid);
     }
     if (guidedJourneyId && domState.guidedJourney?.id === guidedJourneyId) {
       domState.guidedJourney.conversationId = answerRes.conversation_id || domState.conversation_id;
@@ -4025,13 +3908,19 @@ async function executeAiQuery(question, options = {}) {
     const factsList = Array.isArray(answerRes.facts) ? answerRes.facts : [];
     const postingsFact = factsList.find(f => f.fact_type === 'stored_job_postings');
     const jobPostings = Array.isArray(postingsFact?.details?.postings) ? postingsFact.details.postings : [];
+    const usedCapabilityIds = Array.isArray(answerRes.capabilities_used) ? answerRes.capabilities_used : [];
+    const activeCapabilityId = resolveActiveCapabilityId(answerRes, dom);
+    const activeCapability = getDomainCapabilities(dom)
+      .find(capability => capability.id === activeCapabilityId);
+    const routedCapabilityId = activeCapabilityId;
+    const routedRequestContext = { ...requestContext, capabilityId: routedCapabilityId };
 
     const turn = {
       id: answerRes.request_id || `turn_${Date.now()}`,
       clientMessageId: options.clientMessageId || clientMessageId,
       domainKey: dom,
-      requestContext,
-      capabilityId: selectedCapabilityId,
+      requestContext: routedRequestContext,
+      capabilityId: routedCapabilityId,
       guidedJourneyId: guidedJourneyId || null,
       conversation_id: answerRes.conversation_id || domState.conversation_id || null,
       userQuestion: question,
@@ -4053,6 +3942,10 @@ async function executeAiQuery(question, options = {}) {
       limitations: answerRes.limitations,
       reason_codes: answerRes.reason_codes,
       capabilities_used: answerRes.capabilities_used,
+      planned_primary_capability: answerRes.planned_primary_capability,
+      executed_primary_capability: answerRes.executed_primary_capability,
+      dependency_capabilities: answerRes.dependency_capabilities || [],
+      planned_capabilities: answerRes.planned_capabilities || [],
       capabilities: answerRes.capabilities || {},
       confidence: answerRes.confidence || null,
       freshness: answerRes.freshness || {},
@@ -4094,6 +3987,13 @@ async function executeAiQuery(question, options = {}) {
         journey.isEvaluatingNext = false;
         domState.selectedFeature = null;
       }
+    }
+    if (activeCapability) {
+      domState.selectedFeature = activeCapability.id;
+      domState.selectionReason = `Selected for this question: ${activeCapability.title}.`;
+    } else if (answerRes.intent === 'general_explanation') {
+      domState.selectedFeature = null;
+      domState.selectionReason = 'General explanation; no platform capability was executed.';
     }
     if (options.replaceTurnId) {
       const replaceIndex = domState.history.findIndex(item => item.id === options.replaceTurnId);

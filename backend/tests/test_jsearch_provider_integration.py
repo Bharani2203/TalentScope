@@ -45,6 +45,9 @@ class MemoryObservationStore:
                 added += 1
         return added
 
+    def get_observations(self, **kwargs):
+        return list(self.records.values())
+
 
 def test_jsearch_fetch_market_postings_with_stats_counts_records():
     payload = {

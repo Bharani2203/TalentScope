@@ -43,9 +43,12 @@ class AdzunaProvider(MarketObservationCollector):
         collected_at: datetime,
         fetch_run_id: str | None = None,
         archive_response: Callable[[Any, str | None], Any] | None = None,
+        query: str = "software developer",
+        result_limit: int = 50,
     ) -> list[MarketPosting]:
         return (await self.fetch_market_postings_with_stats(
             location=location, country=country, collected_at=collected_at,
+            query=query, result_limit=result_limit,
         )).postings
 
     async def fetch_market_postings_with_stats(
@@ -56,6 +59,8 @@ class AdzunaProvider(MarketObservationCollector):
         collected_at: datetime,
         fetch_run_id: str | None = None,
         archive_response: Callable[[Any, str | None], Any] | None = None,
+        query: str = "software developer",
+        result_limit: int = 50,
     ) -> PostingFetchResult:
         app_id = (self.settings.adzuna_app_id or "").strip()
         app_key = (self.settings.adzuna_app_key or "").strip()
@@ -67,8 +72,8 @@ class AdzunaProvider(MarketObservationCollector):
         params: dict[str, str | int] = {
             "app_id": app_id,
             "app_key": app_key,
-            "results_per_page": 50,
-            "what": "software developer",
+            "results_per_page": max(1, min(int(result_limit), 50)),
+            "what": query.strip() or "software developer",
             "content-type": "application/json",
         }
         if location:
@@ -124,6 +129,11 @@ class AdzunaProvider(MarketObservationCollector):
         records = payload.get("results") if isinstance(payload, dict) else None
         if not isinstance(records, list):
             raise AdzunaError("Adzuna returned an unexpected response structure.", category="schema")
+        total_count = payload.get("count") if isinstance(payload, dict) else None
+        if isinstance(total_count, bool) or not isinstance(total_count, int) or total_count < 0:
+            total_count = None
+        if total_count is not None and total_count < len(records):
+            raise AdzunaError("Adzuna returned inconsistent pagination metadata.", category="schema")
 
         postings = []
         seen: set[str] = set()
@@ -157,7 +167,19 @@ class AdzunaProvider(MarketObservationCollector):
                 posted_at=_text(record.get("created")),
             ))
         return PostingFetchResult(
-            postings, records_fetched=len(records), records_rejected=rejected, records_filtered=filtered,
+            postings,
+            records_fetched=len(records),
+            records_rejected=rejected,
+            records_filtered=filtered,
+            requested_page_count=1,
+            page_size_limit=max(1, min(int(result_limit), 50)),
+            provider_total_count=total_count,
+            pagination_complete=total_count is not None and total_count <= len(records),
+            zero_results_verified=total_count == 0 and not records,
+            sampling_frame=(
+                f"Adzuna page 1, {max(1, min(int(result_limit), 50))}-result limit, "
+                f"query={query.strip() or 'software developer'}, country, optional location"
+            ),
         )
 
     async def collect_observations(
@@ -166,11 +188,15 @@ class AdzunaProvider(MarketObservationCollector):
         location: str | None,
         country: str | None,
         collected_at: datetime,
+        query: str = "software developer",
+        result_limit: int = 50,
     ) -> list[MarketObservation]:
         postings = await self.fetch_market_postings(
             location=location,
             country=country,
             collected_at=collected_at,
+            query=query,
+            result_limit=result_limit,
         )
         return observations_from_postings(
             postings,
@@ -185,6 +211,7 @@ def _text(value: Any) -> str | None:
 
 
 def _fallback_id(record: dict[str, Any]) -> str:
+    """Hash title, company, display location, and creation time when ID is absent."""
     job_location = record.get("location")
     location = ""
     if isinstance(job_location, dict) and isinstance(job_location.get("display_name"), str):

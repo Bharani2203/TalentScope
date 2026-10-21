@@ -9,8 +9,22 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.api.dependencies import get_current_user, resolve_company_membership
 from app.analytics.historical_range import MAX_HISTORICAL_RANGE_DAYS
+from app.intelligence_v2.contracts import (
+    CareerMobilityResult,
+    RelatedSkillsResult,
+    RoleSkillAlignmentResult,
+    TaxonomyLookupResult,
+)
+from app.intelligence_v2.reference_intelligence import (
+    CareerMobilityEngine,
+    ReferenceTaxonomyLookupEngine,
+    RelatedSkillsEngine,
+    RoleSkillAlignmentEngine,
+)
 from app.models.auth import AuthenticatedUser
 from app.storage.conversation_store import ConversationStore, ConversationState
 from app.models.action_recommendation import ActionRecommendationResponse
@@ -39,8 +53,21 @@ from app.services.intent_planner_service import IntentPlannerService
 from app.services.intelligence_catalog_service import get_market_catalog, get_skill_catalog
 from app.models.skill_intelligence import FavouriteEntityIdsResponse, FavouriteEntityIdsUpdateRequest
 from app.services.market_favourites_service import update_market_favourites
+from app.intelligence_v2.source_registry import V2SourceRegistry
 
 router = APIRouter(prefix="/intelligence", tags=["core intelligence"])
+
+
+def get_execution_orchestrator_service() -> ExecutionOrchestratorService:
+    """Build the default answer service; overrideable for isolated route tests."""
+    from app.services.execution_orchestrator_service import (
+        ExecutionOrchestratorService as _OriginalService,
+    )
+    if ExecutionOrchestratorService is not _OriginalService:
+        return ExecutionOrchestratorService()
+
+    from app.intelligence_v2.adapter import V2ExecutionOrchestratorAdapter
+    return V2ExecutionOrchestratorAdapter()
 
 
 def _authorized_company_context(
@@ -162,6 +189,7 @@ def plan_intelligence(
 def answer_intelligence(
     request: CoreIntelligenceAnswerRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
+    service: ExecutionOrchestratorService = Depends(get_execution_orchestrator_service),
 ) -> CoreIntelligenceAnswerResponse:
     """Execute capability-backed intelligence pipeline and return validated answer."""
     if request.observations:
@@ -169,7 +197,6 @@ def answer_intelligence(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Observations are retrieved from configured backend sources and cannot be supplied by clients.",
         )
-    service = ExecutionOrchestratorService()
     current_user = _authorized_company_user(
         current_user, request.portal_type, request.company_id
     )
@@ -179,6 +206,223 @@ def answer_intelligence(
             update={"domain": request.domain or "skill"}
         )
     return response
+
+
+PUBLIC_GUEST_CAPABILITIES = {
+    # 7 Approved Phase 1 features
+    "skill_future_relevance_score",
+    "skill_change_alert",
+    "adaptive_skill_roadmap",
+    "technology_adoption_shift_detector",
+    "technology_impact_explorer",
+    "skill_based_job_match",
+    "career_transition_opportunity",
+    # Canonical registry capability IDs
+    "trend_velocity_analysis",
+    "skill_health_analysis",
+    "skill_half_life_analysis",
+    "skill_forecasting_half_life",
+    "skill_technology_reference",
+    "related_occupations",
+    "occupation_software_skills",
+    "occupation_lookup",
+    "market_snapshot",
+    "historical_signal_retrieval",
+    "evidence_provenance_retrieval",
+    "ai_task_exposure",
+    # V2 engine capability IDs
+    "skill_demand_trends",
+    "skill_historical_signals",
+    "skill_role_alignment",
+    "skill_evidence_citations",
+    "skill_reference_profile",
+    "skill_lookup",
+    "related_skills",
+    "career_mobility_pathways",
+    "market_intelligence_snapshot",
+    "market_tech_signals",
+    "market_trend_velocity",
+    "market_evidence_citations",
+    "job_verified_postings",
+    "job_role_requirements",
+    "job_mobility_pathways",
+    "job_preparation_actions",
+    "role_preparation_actions",
+    # Additional public aliases
+    "skill_health",
+    "skill_half_life",
+    "skill_demand_forecast",
+    "emerging_skills",
+    "declining_skills",
+    "skill_adjacency",
+    "career_pathways",
+    "role_skill_profiles",
+    "talent_supply_proxy",
+    "hiring_demand_trends",
+}
+
+
+@router.post("/guest/answer", response_model=CoreIntelligenceAnswerResponse)
+def answer_guest_intelligence(
+    request: CoreIntelligenceAnswerRequest,
+    service: ExecutionOrchestratorService = Depends(get_execution_orchestrator_service),
+) -> CoreIntelligenceAnswerResponse:
+    """Execute capability-backed intelligence pipeline for unauthenticated guests using public reference data only.
+
+    Guarantees:
+    - Only individual portal public intelligence is permitted.
+    - No private conversation history is read, stored, or updated.
+    - User/company IDs and profile data are forbidden and ignored.
+    - Capabilities requiring private profile or company data are rejected.
+    """
+    if request.observations:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Observations are retrieved from configured backend sources and cannot be supplied by clients.",
+        )
+    if request.portal_type != "individual":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Guest access is restricted to the individual public intelligence portal. Please sign in for employee or company features.",
+        )
+    if request.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Company intelligence requires verified company membership. Please sign in.",
+        )
+    if request.capability_id and request.capability_id not in PUBLIC_GUEST_CAPABILITIES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"The requested capability '{request.capability_id}' requires authentication. Please sign in to access personalized profile and workforce insights.",
+        )
+
+    # Force guest isolation: no conversation tracking or private user state
+    guest_request = request.model_copy(
+        update={
+            "conversation_id": None,
+            "company_id": None,
+        }
+    )
+    response = service.answer(guest_request, authenticated_user=None)
+    if response.domain is None:
+        response = response.model_copy(
+            update={"domain": request.domain or "skill"}
+        )
+    if response.conversation_id:
+        response = response.model_copy(
+            update={"conversation_id": None}
+        )
+    return response
+
+
+@router.get("/guest/answer", response_model=CoreIntelligenceAnswerResponse)
+def answer_guest_intelligence_get(
+    message: str = Query(..., min_length=1, max_length=500),
+    domain: Literal["skill", "market", "job"] = Query(default="skill"),
+    capability_id: str | None = Query(default=None),
+    skill: str | None = Query(default=None),
+    role: str | None = Query(default=None),
+    service: ExecutionOrchestratorService = Depends(get_execution_orchestrator_service),
+) -> CoreIntelligenceAnswerResponse:
+    """Convenience GET endpoint for unauthenticated guest intelligence requests using public reference data."""
+    req = CoreIntelligenceAnswerRequest(
+        message=message,
+        domain=domain,
+        portal_type="individual",
+        capability_id=capability_id,
+        selected_skills=[skill] if skill else [],
+        target_role=role,
+    )
+    return answer_guest_intelligence(request=req, service=service)
+
+
+@router.get("/sources")
+def list_intelligence_sources(
+    domain: Literal["skill", "market", "job", "skill_intelligence", "market_intelligence", "job_intelligence"] | None = Query(default=None),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """List all registered intelligence data sources, metadata, and limitations."""
+    registry = V2SourceRegistry()
+    sources = registry.list_sources(domain=domain)
+    return [s.model_dump(mode="json") for s in sources]
+
+
+@router.get("/sources/{source_id}")
+def get_intelligence_source(
+    source_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Retrieve detailed metadata, permitted/prohibited interpretations, and metrics for a specific source."""
+    registry = V2SourceRegistry()
+    source = registry.get_source(source_id)
+    if source is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Intelligence source '{source_id}' not found in registry.",
+        )
+    return source.model_dump(mode="json")
+
+
+@router.get("/guest/sources")
+def list_guest_intelligence_sources(
+    domain: Literal["skill", "market", "job", "skill_intelligence", "market_intelligence", "job_intelligence"] | None = Query(default=None),
+) -> list[dict[str, Any]]:
+    """Public read-only listing of registered data sources for guests without authentication."""
+    registry = V2SourceRegistry()
+    sources = registry.list_sources(domain=domain)
+    return [s.model_dump(mode="json") for s in sources]
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Skill & Role Reference Intelligence Endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/reference/lookup", response_model=TaxonomyLookupResult)
+def lookup_reference_taxonomy(
+    query: str = Query(..., min_length=1, max_length=200),
+    entity_type: Literal["all", "skill", "occupation"] = Query(default="all"),
+    limit: int = Query(default=15, ge=1, le=50),
+    context: str | None = Query(default=None),
+) -> TaxonomyLookupResult:
+    """Canonical lookup engine for skills and occupations across O*NET and ESCO with ambiguity protection."""
+    engine = ReferenceTaxonomyLookupEngine()
+    return engine.lookup(query=query, entity_type=entity_type, limit=limit, context=context)
+
+
+@router.get("/reference/related-skills", response_model=RelatedSkillsResult)
+def get_related_skills(
+    skill_name: str = Query(..., min_length=1, max_length=100),
+    limit: int = Query(default=10, ge=1, le=50),
+) -> RelatedSkillsResult:
+    """Retrieve explainable related skills classified by explicit relationship type and PPMI/IOF ranking."""
+    engine = RelatedSkillsEngine()
+    return engine.get_related_skills(skill_name=skill_name, limit=limit)
+
+
+class RoleAlignmentPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_role: str
+    declared_skills: list[str] = Field(default_factory=list)
+
+
+@router.post("/reference/role-alignment", response_model=RoleSkillAlignmentResult)
+def evaluate_role_skill_alignment(
+    payload: RoleAlignmentPayload,
+) -> RoleSkillAlignmentResult:
+    """Grounded alignment between declared candidate skills and reference-associated occupation profiles."""
+    engine = RoleSkillAlignmentEngine()
+    return engine.align(target_role=payload.target_role, declared_skills=payload.declared_skills)
+
+
+@router.get("/reference/mobility-pathways", response_model=CareerMobilityResult)
+def get_career_mobility_pathways(
+    occupation: str = Query(..., min_length=1, max_length=150),
+    limit: int = Query(default=10, ge=1, le=30),
+) -> CareerMobilityResult:
+    """Adjacent career mobility pathways grounded in O*NET related occupations with shared and additional skill analysis."""
+    engine = CareerMobilityEngine()
+    return engine.get_pathways(occupation_query=occupation, limit=limit)
 
 
 @router.get("/capabilities", response_model=CapabilityCatalogResponse)

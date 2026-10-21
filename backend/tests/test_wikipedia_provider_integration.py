@@ -33,6 +33,7 @@ from app.services.wikipedia_backfill_service import (
     run_wikipedia_backfill,
 )
 from app.storage.market_store import MarketDataStore
+from app.storage.fetch_run_store import SQLiteFetchRunStore
 
 
 def _make_sample_payload(article: str, timestamps_and_views: list[tuple[str, int]]) -> dict[str, Any]:
@@ -336,6 +337,11 @@ async def test_wikipedia_backfill_idempotence_and_signal_isolation(tmp_path):
         provider=provider,
     )
     assert res1["total_new_observations"] == 2
+    assert res1["collection_status"] == "success"
+    run_record = SQLiteFetchRunStore(db_path).get(res1["fetch_run_id"])
+    assert run_record["status"] == "success"
+    assert run_record["panel_version"] == WikipediaPageviewsProvider.panel_version
+    assert run_record["extractor_version"] == WikipediaPageviewsProvider.extractor_version
 
     # Verify SQLite rows
     obs = store.get_observations(location=None, cutoff=datetime(2023, 1, 1, tzinfo=timezone.utc))
@@ -343,6 +349,9 @@ async def test_wikipedia_backfill_idempotence_and_signal_isolation(tmp_path):
     assert obs[0].signal_type == "interest"
     assert obs[0].source == "wikipedia"
     assert obs[0].posting_id == "article:Python_(programming_language)"
+    assert obs[0].fetch_run_id == res1["fetch_run_id"]
+    assert obs[0].created_at is not None
+    assert obs[0].metadata["collection_timestamp_utc"]
 
     # Run 2: repeat execution (should detect series is already complete in SQLite)
     res2 = await run_wikipedia_backfill(

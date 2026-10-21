@@ -24,6 +24,9 @@ class MemoryDocument:
     def update(self, data):
         self.collection.records[self.document_id].update(data)
 
+    def get(self):
+        return MemorySnapshot(self.collection.records.get(self.document_id))
+
 
 class MemoryCollection:
     def __init__(self):
@@ -31,6 +34,15 @@ class MemoryCollection:
 
     def document(self, document_id):
         return MemoryDocument(self, document_id)
+
+    def where(self, *args, **kwargs):
+        return self
+
+    def order_by(self, *args, **kwargs):
+        return self
+
+    def limit(self, *args, **kwargs):
+        return self
 
     def stream(self):
         return [MemorySnapshot(value) for value in self.records.values()]

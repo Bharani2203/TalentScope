@@ -544,6 +544,8 @@ class ConversationStore:
         *,
         user_id: str,
         company_id: str | None = None,
+        domain: str | None = None,
+        portal_type: str | None = None,
     ) -> tuple[str | None, list[str], str | None, str | None]:
         """Resolve pronouns or missing entity context using prior conversation turns.
 
@@ -552,7 +554,13 @@ class ConversationStore:
         if not conversation_id:
             return None, [], None, None
 
-        state = self.get_conversation(conversation_id, user_id=user_id, company_id=company_id)
+        state = self.get_conversation(
+            conversation_id,
+            user_id=user_id,
+            company_id=company_id,
+            domain=domain,
+            portal_type=portal_type,
+        )
         if state is None or not state.active_entity:
             return None, [], None, None
 

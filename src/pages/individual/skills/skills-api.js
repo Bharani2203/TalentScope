@@ -51,37 +51,64 @@ export function saveFavouriteSkillIds(skill_ids) {
 }
 
 export function adaptSkillIntelligenceResponse(raw, skill) {
-  const trends = Array.isArray(raw.historical_trends) ? raw.historical_trends : [];
+  const trendCollections = [
+    raw.historical_trends,
+    raw.market_top_skills,
+    raw.skill_trends,
+    raw.production_trends
+  ];
+  const trends = trendCollections.find(items => Array.isArray(items) && items.length) || [];
   const historyIncomplete = raw.history_complete === false || raw.data_state === 'incomplete_history';
   const signals = Array.isArray(raw.current_signals) ? raw.current_signals : [];
   const sources = [...new Set([
+    ...(Array.isArray(raw.sources_used) ? raw.sources_used : []),
     ...signals.map(s => s.source),
     ...trends.map(t => t.source)
   ])].filter(Boolean);
 
-  const mappedSkills = trends.map(t => ({
-    ...t,
-    skill: t.entity_name,
-    category: t.entity_type,
-    trend: t.is_trend_ready && !historyIncomplete ? (t.trend_direction || 'Stable') : 'Insufficient Data',
-    growth_pct: t.is_trend_ready && !historyIncomplete ? t.growth_pct : null,
-    velocity: t.is_trend_ready && !historyIncomplete ? t.velocity : null,
-    is_trend_ready: Boolean(t.is_trend_ready && !historyIncomplete),
-    signal_type: t.signal_type,
-    series: Array.isArray(t.data_points) ? t.data_points
-      .filter(dp => dp && dp.value != null && Number.isFinite(Number(dp.value)))
-      .map(dp => ({ ...dp, period: dp.period, value: Number(dp.value) })) : []
-  }));
+  const mapTrend = trend => {
+    const sourceTrendReady = typeof trend.is_trend_ready === 'boolean'
+      ? trend.is_trend_ready
+      : ['ready_for_trend', 'ready_for_forecast', 'fresh', 'ready'].includes(trend.readiness_state)
+        || ['Growing', 'Stable', 'Declining'].includes(trend.trend);
+    return {
+      ...trend,
+      skill: trend.entity_name || trend.skill || trend.canonical_name,
+      category: trend.entity_type || trend.category,
+      trend: sourceTrendReady && !historyIncomplete
+        ? (trend.trend_direction || trend.trend || 'Stable')
+        : 'Insufficient Data',
+      growth_pct: sourceTrendReady && !historyIncomplete ? trend.growth_pct : null,
+      velocity: sourceTrendReady && !historyIncomplete ? trend.velocity : null,
+      is_trend_ready: Boolean(sourceTrendReady && !historyIncomplete),
+      signal_type: trend.signal_type || 'demand',
+      series: (Array.isArray(trend.data_points)
+        ? trend.data_points
+        : Array.isArray(trend.series) ? trend.series : [])
+        .filter(dp => dp && dp.value != null && Number.isFinite(Number(dp.value)))
+        .map(dp => ({ ...dp, period: dp.period, value: Number(dp.value) }))
+    };
+  };
+  const mappedSkills = trends.map(mapTrend);
+  const personalTrends = Array.isArray(raw.personal_top_skills)
+    ? raw.personal_top_skills.map(mapTrend)
+    : mappedSkills;
 
   const normSkill = skill ? skill.toLowerCase().trim() : '';
-  const selectedTrend = mappedSkills.find(s => s.skill.toLowerCase() === normSkill) || mappedSkills[0] || null;
+  const rawSelectedSkill = raw.selected_skill;
+  const selectedSkillName = rawSelectedSkill?.skill || rawSelectedSkill?.entity_name;
+  const selectedTrend = mappedSkills.find(s => (
+    s.skill && s.skill.toLowerCase() === (selectedSkillName || normSkill).toLowerCase().trim()
+  )) || personalTrends.find(s => s.skill && s.skill.toLowerCase() === normSkill)
+    || mappedSkills[0]
+    || (rawSelectedSkill ? mapTrend(rawSelectedSkill) : null);
 
   return {
     ...raw,
     data_status: raw.data_status || 'insufficient_data',
     data_state: historyIncomplete ? 'incomplete_history' : raw.data_state || (mappedSkills.some(s => s.is_trend_ready) ? 'ready' : 'insufficient_data'),
     sources_used: sources,
-    personal_top_skills: mappedSkills,
+    personal_top_skills: personalTrends,
     market_top_skills: mappedSkills,
     selected_skill: selectedTrend,
     is_forecast_ready: Boolean(raw.forecast && raw.forecast.status === 'ready')

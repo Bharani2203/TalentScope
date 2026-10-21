@@ -295,6 +295,9 @@ def test_focused_ui_ux_trend_resolves_alias_routes_to_capability_and_returns_mea
     assert trend_fact.canonical_entity_id == "ui_ux"
     assert trend_fact.metric_value == "Increasing"
     assert trend_fact.details["periods_count"] == 4
+    assert len(trend_fact.details["series"]) == 4
+    assert [point["period"] for point in trend_fact.details["series"]] == trend_fact.details["periods_used"]
+    assert all(isinstance(point["value"], (int, float)) for point in trend_fact.details["series"])
     assert response.evidence
 
 
@@ -358,10 +361,12 @@ def test_focused_trend_rejects_missing_provenance_and_backfill_history():
     assert missing_response.status == "insufficient_data"
     assert missing_response.reason_codes == ["OBSERVATION_PROVENANCE_UNAVAILABLE"]
     assert not any(fact.fact_type == "trend_analysis" for fact in missing_response.facts)
-    assert "cannot support a measured trend" in missing_response.answer
+    assert "verified real-data provenance" in missing_response.answer
     assert backfill_response.status == "insufficient_data"
     assert backfill_response.reason_codes == ["INELIGIBLE_HISTORY_TYPE"]
     assert not any(fact.fact_type == "trend_analysis" for fact in backfill_response.facts)
+    assert "not eligible for operational trend analysis" in backfill_response.answer
+    assert "0 eligible completed monthly periods" in backfill_response.answer
 
 
 def test_focused_trend_rejects_stale_collection_evidence():
@@ -403,6 +408,28 @@ def test_focused_github_adoption_is_never_presented_as_job_demand():
     trend_fact = next(fact for fact in response.facts if fact.fact_type == "trend_analysis")
     assert trend_fact.details["signal_type"] == "adoption"
     assert response.evidence[0].measured_signal_type == "adoption"
+
+
+def test_focused_skill_demand_trend_rejects_stackexchange_interest_series():
+    response = answer(
+        InMemoryObservationStore(observations_for(
+            "Python",
+            [10, 14, 19, 25],
+            source="stackexchange",
+            signal_type="interest",
+        )),
+        "Python demand trend",
+        domain="skill",
+        capability_id="trend_velocity_analysis",
+    )
+
+    assert response.status == "insufficient_data"
+    assert not any(fact.fact_type == "trend_analysis" for fact in response.facts)
+    assert any(
+        "cannot substitute an interest series" in fact.details.get("reason", "")
+        for fact in response.facts
+        if fact.fact_type == "analysis_readiness"
+    )
 
 
 def test_focused_trend_preserves_observation_and_fetch_run_provenance(monkeypatch):
@@ -507,10 +534,10 @@ def test_focused_trend_with_three_periods_discloses_history_without_direction():
 
     assert response.execution_status == "insufficient_data"
     assert response.reason_codes == ["INSUFFICIENT_TREND_HISTORY"]
-    assert "insufficient to calculate a directional trend" in response.answer
+    assert "only 3 eligible completed monthly periods" in response.answer
     assert "three distinct periods" not in response.answer
-    assert "3 distinct periods" in response.answer
-    assert "four consecutive comparable monthly periods" in response.answer
+    assert "3 distinct matched periods" in response.answer
+    assert "at least 4 consecutive comparable completed monthly periods" in response.answer.lower()
     assert not any(fact.fact_type == "trend_analysis" for fact in response.facts)
 
 

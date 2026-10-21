@@ -212,11 +212,30 @@ def test_scenario_06_stored_historical_observations():
         observations=obs,
     )
     res = orchestrator.answer(req, authenticated_user=user)
-    assert res.execution_status == "completed"
-    assert "historical_signal_retrieval" in res.capabilities_used
-    assert len(res.facts) >= 3
-    assert any(f.fact_type == "historical_observation" for f in res.facts)
-    assert all(f.data_origin == "demo" for f in res.facts)
+    assert res.execution_status == "insufficient_data"
+    assert "historical_signal_retrieval" not in res.capabilities_used
+    assert not any(f.fact_type == "historical_observation" for f in res.facts)
+    assert "demo" in res.answer.casefold() or "snapshot" in res.answer.casefold()
+    assert any("eligible" in item.casefold() or "historical" in item.casefold() for item in res.limitations)
+
+
+def test_scenario_06_historical_retrieval_requires_multiple_periods():
+    orchestrator = ExecutionOrchestratorService()
+    req = CoreIntelligenceAnswerRequest(
+        message="Show historical observations for Python over time",
+        time_range="max",
+        observations=create_synthetic_observations("Python", ["2026-01"]),
+    )
+
+    res = orchestrator.answer(req, authenticated_user=mock_auth_user())
+
+    assert res.status == "insufficient_data"
+    assert res.execution_status == "insufficient_data"
+    assert "INSUFFICIENT_HISTORICAL_PERIODS" in res.reason_codes
+    assert res.capabilities_used == []
+    assert not any(f.fact_type == "historical_observation" for f in res.facts)
+    assert "at least 2" in res.answer.lower()
+    assert any("eligible completed periods in one source-specific series" in item for item in res.limitations)
 
 
 # Scenario 7: Trend with >=4 valid consecutive periods
@@ -232,13 +251,15 @@ def test_scenario_07_demo_observations_do_not_produce_a_trend():
         observations=obs,
     )
     res = orchestrator.answer(req, authenticated_user=user)
-    assert res.execution_status == "completed"
+    # Demo observations fail readiness before execution; they cannot be
+    # reported as an executed measured-trend capability.
+    assert res.execution_status == "insufficient_data"
     assert res.status == "insufficient_data"
-    assert "trend_velocity_analysis" in res.capabilities_used
+    assert "trend_velocity_analysis" not in res.capabilities_used
     trend_facts = [f for f in res.facts if f.fact_type == "trend_analysis"]
     assert trend_facts == []
     assert all(f.data_origin == "demo" for f in res.facts)
-    assert "No measured trend is available" in res.answer
+    assert "verified real-data provenance" in res.answer
 
 
 # Scenario 8: Trend with 0 observations (insufficient data)
@@ -267,7 +288,32 @@ def test_scenario_09_trend_with_missing_periods_incompatible_series():
     """Verify trend request with only 2 periods (<4 required) rejects execution with insufficient_data."""
     orchestrator = ExecutionOrchestratorService()
     user = mock_auth_user()
-    obs = create_synthetic_observations("Python", ["2026-01", "2026-02"])  # Only 2 periods
+    # Use a complete, otherwise eligible offline fixture so the request reaches
+    # the period threshold instead of failing the provenance/quality gates.
+    obs = []
+    for index, period in enumerate(("2026-01", "2026-02"), start=1):
+        obs.append(MarketObservation(
+            id=f"valid-python-{period}",
+            source="jsearch",
+            skill="Python",
+            skill_id="skill:python",
+            location="US",
+            observed_at=f"{period}-15T12:00:00Z",
+            period=period,
+            scope="city",
+            posting_id=f"posting-python-{period}",
+            signal_type="demand",
+            value=100.0 + index * 10,
+            unit="job_postings",
+            denominator=1000,
+            metadata={"raw_archive_id": f"archive-{period}"},
+            history_type="platform_collected",
+            data_origin="real",
+            fetch_run_id=f"run-{period}",
+            series_id="series-python-demand-v1",
+            query_id="jsearch:python:test-v1",
+            panel_version="job-demand-v1",
+        ))
 
     req = CoreIntelligenceAnswerRequest(
         message="Show Python's trend",
@@ -289,6 +335,7 @@ def test_scenario_10_evidence_provenance_retrieval():
 
     req = CoreIntelligenceAnswerRequest(
         message="What evidence and citations support Python?",
+        time_range="max",
         observations=obs,
     )
     res = orchestrator.answer(req, authenticated_user=user)
@@ -296,6 +343,7 @@ def test_scenario_10_evidence_provenance_retrieval():
     assert "evidence_provenance_retrieval" in res.capabilities_used
     assert len(res.evidence) >= 1
     assert any(f.fact_type == "evidence_summary" for f in res.facts)
+    assert all(item.data_origin == "demo" and item.history_type == "snapshot" for item in res.evidence)
 
 
 # Scenario 11: Search stored job postings

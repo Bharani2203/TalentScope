@@ -25,23 +25,31 @@ let companySkillsError = null;
 
 let companySkillsRequestVersion = 0;
 
+export function buildCompanySkillRequest() {
+  return {
+    portal_type: 'company',
+    skills: companyCriticalSkillGaps.map(skill => skill.name),
+    range: '6m'
+  };
+}
+
+function companyRequestErrorMessage(error) {
+  if (error?.status === 401 || error?.status === 403) {
+    return 'Company access could not be verified. Sign in with an authorized company account; no company-specific API result was loaded.';
+  }
+  if (error?.status === 503) {
+    return 'Company access or intelligence is temporarily unavailable. No company-specific API result was loaded.';
+  }
+  return 'Company skill intelligence could not be loaded. No company-specific API result was loaded.';
+}
+
 export async function loadCompanySkillIntelligence(rerender) {
   if (companySkillsIntelligence || companySkillsLoading) return;
   const currentVersion = ++companySkillsRequestVersion;
   companySkillsLoading = true;
   companySkillsError = null;
-  const p = companyProfile;
-
   try {
-    const res = await querySkillIntelligence({
-      portal_type: 'company',
-      company_id: p.id,
-      company_name: p.name,
-      industry: p.industry,
-      workforce_headcount: p.globalHeadcount,
-      skills: companyCriticalSkillGaps.map(s => s.name),
-      range: '6m'
-    });
+    const res = await querySkillIntelligence(buildCompanySkillRequest());
     if (currentVersion !== companySkillsRequestVersion) return;
     companySkillsIntelligence = res;
     companySkillsLoading = false;
@@ -50,7 +58,7 @@ export async function loadCompanySkillIntelligence(rerender) {
     if (currentVersion !== companySkillsRequestVersion) return;
     console.warn('[Company SkillIntelligence] Failed to load intelligence:', err);
     companySkillsLoading = false;
-    companySkillsError = err.message || 'Failed to load intelligence';
+    companySkillsError = companyRequestErrorMessage(err);
     if (typeof rerender === 'function') rerender();
   }
 }
@@ -75,6 +83,7 @@ export function renderCompanySkillIntelligence() {
   return `
     <div class="company-page company-skills">
       <aside role="note" class="cmp-card" style="margin-bottom:14px;border-color:#D6C79A;background:#FFF9E8;color:#574817">Illustrative company skills prototype. Coverage, health, gap and role-fit examples are sample values, not verified workforce records.</aside>
+      <p role="note" class="intel-evidence-panel__message">Authenticated skill-market responses are not company workforce or HRIS records.</p>
       ${companySkillsIntelligence?.answer ? `
         <div class="cmp-card" style="margin-bottom: 14px; padding: 14px 18px; background: #F8F9FD; border-left: 4px solid var(--cmp-primary, #874FFF); font-size: 13px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
@@ -98,12 +107,19 @@ export function renderCompanySkillIntelligence() {
             </div>
           ` : ''}
           ${renderIntelligenceEvidencePanel(companySkillsIntelligence, {
-            title: 'Company skill evidence',
+            title: 'Authenticated skill-market evidence',
             loading: companySkillsLoading,
             error: companySkillsError
           })}
         </div>
       ` : ''}
+      ${!companySkillsIntelligence?.answer && (companySkillsLoading || companySkillsError || companySkillsIntelligence)
+        ? renderIntelligenceEvidencePanel(companySkillsIntelligence, {
+          title: 'Authenticated company skill request',
+          loading: companySkillsLoading,
+          error: companySkillsError
+        })
+        : ''}
       ${cmpAction ? `
         <div class="cmp-card" style="margin-bottom: 14px; padding: 14px 18px; background: #FFFFFF; border: 1px solid var(--cmp-border, #E4E7EC); border-left: 4px solid var(--cmp-primary, #874FFF); font-size: 13px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">

@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node scripts/start-frontend.mjs",
-    "test": "node tests/core-intelligence-client.test.mjs && node tests/intelligence-evidence-panel.test.mjs && node tests/answer-engine-frontend.test.mjs && node tests/g27-end-to-end-integration.test.mjs && node tests/auth-api.test.mjs && node tests/g26-remediation.test.mjs && node tests/assistant-filters.test.mjs",
+    "start:emulators": "firebase emulators:start --only auth,firestore --project demo-talentscope-local",
+    "test": "node tests/core-intelligence-client.test.mjs && node tests/intelligence-evidence-panel.test.mjs && node tests/intelligence-result-details.test.mjs && node tests/career-intelligence.test.mjs && node tests/answer-engine-frontend.test.mjs && node tests/g27-end-to-end-integration.test.mjs && node tests/auth-api.test.mjs && node tests/g26-remediation.test.mjs && node tests/assistant-filters.test.mjs && node tests/assistant-user-identity.test.mjs && node tests/company-feature-safety.test.mjs && node tests/firebase-emulator-config.test.mjs && node tests/api-config.test.mjs && node tests/test-v2-frontend-integration.test.mjs && node tests/phase3b-frontend-auth.test.mjs",
     "test:auth": "node tests/auth-api.test.mjs"
   },
   "devDependencies": {

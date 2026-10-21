@@ -243,6 +243,31 @@ def test_12_insufficient_data_confidence_is_none():
     assert signals[0].confidence is None
 
 
+def test_incomplete_collection_is_not_ready_aggregated_evidence():
+    observation = MarketObservation(
+        id="synthetic-incomplete-1", source="fixture", skill="Python",
+        signal_type="demand", observed_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        period="2026-09", posting_id="synthetic-posting-1", value=1.0,
+        history_type="platform_collected", data_origin="real",
+        quality={"collection_complete": False, "pagination_complete": False},
+    )
+    signal = aggregate_market_signals([observation])[0]
+    assert signal.data_state == "incomplete"
+    assert any("COLLECTION_INCOMPLETE" in warning for warning in signal.warnings)
+
+
+def test_synthetic_observation_remains_non_operational_after_aggregation():
+    observation = MarketObservation(
+        id="synthetic-test-1", source="fixture", skill="Python",
+        signal_type="demand", observed_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        period="2026-09", posting_id="synthetic-test-posting", value=1.0,
+        history_type="platform_collected", data_origin="synthetic",
+    )
+    signal = aggregate_market_signals([observation])[0]
+    assert signal.data_origin == "synthetic"
+    assert signal.data_state == "insufficient_data"
+
+
 def test_13_canonical_skill_normalization():
     now = datetime(2026, 10, 7, tzinfo=timezone.utc)
     obs1 = MarketObservation(

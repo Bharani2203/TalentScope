@@ -1,0 +1,935 @@
+{
+  "q1_demand_trend_python": {
+    "request_id": "req_ca74cfef071c",
+    "user_message": "What is the demand trend for Python?",
+    "portal_type": "individual",
+    "domain": "skill",
+    "intent": "skill_demand_trends",
+    "plan_status": "ready_to_execute",
+    "execution_status": "completed",
+    "status": "partial",
+    "answer": "Developer adoption for Python reached 4,109,495 active pushers in 2026-Q1 (+18.8% vs prior quarter).",
+    "answer_origin": "deterministic",
+    "conversation_id": "conv_014ccff6e3d9",
+    "client_message_id": null,
+    "resolved_entity": "Python",
+    "selected_entities": [
+      {
+        "entity_id": "python",
+        "entity_type": "skill",
+        "canonical_name": "Python",
+        "resolution_status": "resolved"
+      }
+    ],
+    "applied_filters": {
+      "geography": "global"
+    },
+    "unapplied_filters": [],
+    "capabilities": {},
+    "confidence": null,
+    "freshness": {},
+    "history_type": "platform_collected",
+    "source_coverage": {},
+    "facts": [
+      {
+        "fact_id": "fact:adoption_latest:python:2026-Q1",
+        "fact_type": "developer_adoption_latest",
+        "entity_name": "Python",
+        "canonical_entity_id": "python",
+        "entity_type": "skill",
+        "metric_name": "num_pushers",
+        "metric_value": 4109495,
+        "unit": "pushers",
+        "denominator": null,
+        "period": "2026-Q1",
+        "timestamp": null,
+        "source": "GitHub Innovation Graph",
+        "data_origin": "real",
+        "history_type": "backfill",
+        "series_id": null,
+        "panel_version": null,
+        "quality_state": "valid",
+        "readiness_state": "observed",
+        "calculation_version": "v2.0",
+        "provenance_id": null,
+        "evidence_reference": "evi:github_lang:python:2026-Q1",
+        "details": {
+          "quarter_over_quarter_change_pct": 18.84,
+          "geography": "global"
+        }
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "evi:github_lang:python:2026-Q1",
+        "source": "GitHub Innovation Graph",
+        "signal_type": "developer_adoption",
+        "measured_signal_type": "num_pushers",
+        "period": "2026-Q1",
+        "unit": "pushers",
+        "data_origin": "real",
+        "history_type": "backfill",
+        "series_id": "github:lang:python",
+        "location": "global",
+        "scope": "language_adoption",
+        "query_id": null,
+        "panel_version": null,
+        "fetch_run_id": null,
+        "supporting_fetch_run_ids": [],
+        "source_url": "https://github.com/github/innovationgraph",
+        "provenance_id": "dataset:github_innovation_graph:language",
+        "supporting_observation_ids": [],
+        "supporting_source_urls": [
+          "https://github.com/github/innovationgraph"
+        ],
+        "freshness_state": "fresh",
+        "quality": "valid",
+        "confidence": 1.0,
+        "description": "GitHub developer adoption series for 'Python' with 12 quarterly observations through 2026-Q1."
+      },
+      {
+        "evidence_id": "evi:github_topic:python:2026-Q1",
+        "source": "GitHub Innovation Graph",
+        "signal_type": "developer_adoption",
+        "measured_signal_type": "num_pushers",
+        "period": "2026-Q1",
+        "unit": "pushers",
+        "data_origin": "real",
+        "history_type": "backfill",
+        "series_id": "github:topic:python",
+        "location": "global",
+        "scope": "topic_adoption",
+        "query_id": null,
+        "panel_version": null,
+        "fetch_run_id": null,
+        "supporting_fetch_run_ids": [],
+        "source_url": "https://github.com/github/innovationgraph",
+        "provenance_id": "dataset:github_innovation_graph:topic",
+        "supporting_observation_ids": [],
+        "supporting_source_urls": [
+          "https://github.com/github/innovationgraph"
+        ],
+        "freshness_state": "fresh",
+        "quality": "valid",
+        "confidence": 1.0,
+        "description": "GitHub topic adoption series for 'Python' with 12 quarterly observations through 2026-Q1."
+      },
+      {
+        "evidence_id": "evi:hiring_demand_missing:python",
+        "source": "TalentScope Market Observation Pipeline",
+        "signal_type": "hiring_demand",
+        "measured_signal_type": "job_postings",
+        "period": null,
+        "unit": "postings",
+        "data_origin": "unavailable",
+        "history_type": null,
+        "series_id": null,
+        "location": "global",
+        "scope": null,
+        "query_id": null,
+        "panel_version": null,
+        "fetch_run_id": null,
+        "supporting_fetch_run_ids": [],
+        "source_url": null,
+        "provenance_id": null,
+        "supporting_observation_ids": [],
+        "supporting_source_urls": [],
+        "freshness_state": "unavailable",
+        "quality": "insufficient_history",
+        "confidence": null,
+        "description": "No verified monthly hiring demand observations found for 'Python'. Hiring demand series requires minimum 4 completed months of platform-collected data."
+      }
+    ],
+    "metric_results": [
+      {
+        "capability": "skill_demand_trends",
+        "status": "ready",
+        "metric_kind": "observed",
+        "canonical_entity_id": "python",
+        "entity_name": "Python",
+        "series_id": null,
+        "metric_name": "num_pushers",
+        "metric_value": 4109495,
+        "unit": "pushers",
+        "denominator": null,
+        "denominator_unit": null,
+        "source": "GitHub Innovation Graph",
+        "signal_type": null,
+        "location": "global",
+        "scope": null,
+        "query_id": null,
+        "period": "2026-Q1",
+        "observation_periods": [
+          "2026-Q1"
+        ],
+        "latest_observed_at": null,
+        "freshness_state": "fresh",
+        "source_urls": [],
+        "observation_ids": [],
+        "fetch_run_ids": [],
+        "readiness_state": "observed",
+        "method_version": "v2.0",
+        "limitations": [],
+        "reason": ""
+      }
+    ],
+    "planned_primary_capability": "skill_demand_trends",
+    "executed_primary_capability": "skill_demand_trends",
+    "dependency_capabilities": [],
+    "planned_capabilities": [
+      "skill_demand_trends"
+    ],
+    "capabilities_used": [
+      "skill_demand_trends"
+    ],
+    "limitations": [],
+    "reason_codes": [],
+    "follow_up_questions": [],
+    "follow_up_suggestions": [
+      "Would you like to explore career mobility pathways for Software Engineers?",
+      "Would you like to inspect developer adoption trends on GitHub Innovation Graph?"
+    ],
+    "evaluated_at": "2026-10-19T07:15:18.269398Z"
+  },
+  "q2_python_developer_skills": {
+    "request_id": "req_349f820c230d",
+    "user_message": "Which skills are relevant to a Python developer role?",
+    "portal_type": "individual",
+    "domain": "job",
+    "intent": "job_role_requirements",
+    "plan_status": "ready_to_execute",
+    "execution_status": "completed",
+    "status": "ready",
+    "answer": "Role Requirements for Software Developers (O*NET SOC 15-1252.00): 20 verified software and technical competencies cataloged.",
+    "answer_origin": "deterministic",
+    "conversation_id": "conv_844f5d47e998",
+    "client_message_id": null,
+    "resolved_entity": "Python",
+    "selected_entities": [
+      {
+        "entity_id": "role:python_developer",
+        "entity_type": "occupation",
+        "canonical_name": "Software Developers",
+        "resolution_status": "resolved"
+      },
+      {
+        "entity_id": "python",
+        "entity_type": "skill",
+        "canonical_name": "Python",
+        "resolution_status": "resolved"
+      }
+    ],
+    "applied_filters": {
+      "geography": "global"
+    },
+    "unapplied_filters": [],
+    "capabilities": {},
+    "confidence": null,
+    "freshness": {},
+    "history_type": "platform_collected",
+    "source_coverage": {},
+    "facts": [
+      {
+        "fact_id": "fact:role_reqs:software_developers",
+        "fact_type": "role_skill_requirements",
+        "entity_name": "Software Developers",
+        "canonical_entity_id": "15-1252.00",
+        "entity_type": "occupation",
+        "metric_name": "essential_skills_count",
+        "metric_value": 20,
+        "unit": "skills",
+        "denominator": null,
+        "period": "2024",
+        "timestamp": null,
+        "source": "O*NET 28.0",
+        "data_origin": "local_reference_dataset",
+        "history_type": null,
+        "series_id": null,
+        "panel_version": null,
+        "quality_state": "valid",
+        "readiness_state": "observed",
+        "calculation_version": "v2.0",
+        "provenance_id": null,
+        "evidence_reference": null,
+        "details": {
+          "hot_technologies": [
+            "Amazon Web Services AWS software",
+            "Apache Kafka",
+            "Atlassian JIRA",
+            "C",
+            "C#",
+            "C++",
+            "Cascading style sheets CSS",
+            "Docker",
+            "Git",
+            "GitHub",
+            "Go",
+            "Google Angular",
+            "Hypertext markup language HTML",
+            "IBM Terraform",
+            "JavaScript",
+            "Jenkins CI",
+            "Kubernetes",
+            "Linux",
+            "Microsoft Azure software",
+            "Node.js"
+          ],
+          "in_demand": [
+            "Amazon Web Services AWS software",
+            "Apache Kafka",
+            "Atlassian JIRA",
+            "C",
+            "C#",
+            "C++",
+            "Cascading style sheets CSS",
+            "Docker",
+            "Git",
+            "GitHub",
+            "Go",
+            "Google Angular",
+            "Hypertext markup language HTML",
+            "IBM Terraform",
+            "JavaScript",
+            "Jenkins CI",
+            "Kubernetes",
+            "Linux",
+            "Microsoft Azure software",
+            "Node.js"
+          ]
+        }
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "evi:onet_occ:15-1252.00",
+        "source": "O*NET 28.0",
+        "signal_type": "reference_taxonomy",
+        "measured_signal_type": "occupation_definition",
+        "period": "2024",
+        "unit": null,
+        "data_origin": "local_reference_dataset",
+        "history_type": null,
+        "series_id": null,
+        "location": null,
+        "scope": null,
+        "query_id": null,
+        "panel_version": null,
+        "fetch_run_id": null,
+        "supporting_fetch_run_ids": [],
+        "source_url": "https://www.onetcenter.org/taxonomy.html",
+        "provenance_id": "onet:soc:15-1252.00",
+        "supporting_observation_ids": [],
+        "supporting_source_urls": [
+          "https://www.onetcenter.org/taxonomy.html"
+        ],
+        "freshness_state": "fresh",
+        "quality": "valid",
+        "confidence": null,
+        "description": "O*NET official occupation taxonomy for Software Developers (SOC 15-1252.00)."
+      }
+    ],
+    "metric_results": [
+      {
+        "capability": "job_role_requirements",
+        "status": "ready",
+        "metric_kind": "observed",
+        "canonical_entity_id": "15-1252.00",
+        "entity_name": "Software Developers",
+        "series_id": null,
+        "metric_name": "essential_skills_count",
+        "metric_value": 20,
+        "unit": "skills",
+        "denominator": null,
+        "denominator_unit": null,
+        "source": "O*NET 28.0",
+        "signal_type": null,
+        "location": "global",
+        "scope": null,
+        "query_id": null,
+        "period": "2024",
+        "observation_periods": [
+          "2024"
+        ],
+        "latest_observed_at": null,
+        "freshness_state": "fresh",
+        "source_urls": [],
+        "observation_ids": [],
+        "fetch_run_ids": [],
+        "readiness_state": "observed",
+        "method_version": "v2.0",
+        "limitations": [],
+        "reason": ""
+      }
+    ],
+    "planned_primary_capability": "job_role_requirements",
+    "executed_primary_capability": "job_role_requirements",
+    "dependency_capabilities": [],
+    "planned_capabilities": [
+      "job_role_requirements"
+    ],
+    "capabilities_used": [
+      "job_role_requirements"
+    ],
+    "limitations": [],
+    "reason_codes": [],
+    "follow_up_questions": [],
+    "follow_up_suggestions": [
+      "Would you like to explore career mobility pathways for Software Developers?",
+      "Would you like to inspect developer adoption trends on GitHub Innovation Graph?"
+    ],
+    "evaluated_at": "2026-10-19T07:15:18.355906Z"
+  },
+  "q3_jobs_in_india": {
+    "request_id": "req_2b6036b8a3c1",
+    "user_message": "What jobs are available in India?",
+    "portal_type": "individual",
+    "domain": "job",
+    "intent": "job_verified_postings",
+    "plan_status": "ready_to_execute",
+    "execution_status": "completed",
+    "status": "partial",
+    "answer": "Verified Job Postings Inventory (Software Developer): 0 verified postings collected. The live India collector is currently disabled by default in accordance with safety constraints.",
+    "answer_origin": "deterministic",
+    "conversation_id": "conv_2304070e49ca",
+    "client_message_id": null,
+    "resolved_entity": null,
+    "selected_entities": [],
+    "applied_filters": {
+      "geography": "IN"
+    },
+    "unapplied_filters": [],
+    "capabilities": {},
+    "confidence": null,
+    "freshness": {},
+    "history_type": "platform_collected",
+    "source_coverage": {},
+    "facts": [
+      {
+        "fact_id": "fact:job:verified_postings_count",
+        "fact_type": "postings_inventory",
+        "entity_name": null,
+        "canonical_entity_id": null,
+        "entity_type": null,
+        "metric_name": "verified_postings_count",
+        "metric_value": 0,
+        "unit": "postings",
+        "denominator": null,
+        "period": null,
+        "timestamp": null,
+        "source": "TalentScope Market Observation Pipeline",
+        "data_origin": "unavailable",
+        "history_type": null,
+        "series_id": null,
+        "panel_version": null,
+        "quality_state": "valid",
+        "readiness_state": "insufficient_data",
+        "calculation_version": "v2.0",
+        "provenance_id": null,
+        "evidence_reference": null,
+        "details": {
+          "geography": "IN",
+          "filter": "Software Developer"
+        }
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "evi:hiring_demand_missing:software developer",
+        "source": "TalentScope Market Observation Pipeline",
+        "signal_type": "hiring_demand",
+        "measured_signal_type": "job_postings",
+        "period": null,
+        "unit": "postings",
+        "data_origin": "unavailable",
+        "history_type": null,
+        "series_id": null,
+        "location": "IN",
+        "scope": null,
+        "query_id": null,
+        "panel_version": null,
+        "fetch_run_id": null,
+        "supporting_fetch_run_ids": [],
+        "source_url": null,
+        "provenance_id": null,
+        "supporting_observation_ids": [],
+        "supporting_source_urls": [],
+        "freshness_state": "unavailable",
+        "quality": "insufficient_history",
+        "confidence": null,
+        "description": "No verified monthly hiring demand observations found for 'Software Developer'. Hiring demand series requires minimum 4 completed months of platform-collected data."
+      }
+    ],
+    "metric_results": [
+      {
+        "capability": "job_verified_postings",
+        "status": "insufficient_data",
+        "metric_kind": "observed",
+        "canonical_entity_id": null,
+        "entity_name": null,
+        "series_id": null,
+        "metric_name": "verified_postings_count",
+        "metric_value": 0,
+        "unit": "postings",
+        "denominator": null,
+        "denominator_unit": null,
+        "source": "TalentScope Market Observation Pipeline",
+        "signal_type": null,
+        "location": "IN",
+        "scope": null,
+        "query_id": null,
+        "period": null,
+        "observation_periods": [],
+        "latest_observed_at": null,
+        "freshness_state": "stale",
+        "source_urls": [],
+        "observation_ids": [],
+        "fetch_run_ids": [],
+        "readiness_state": "insufficient_data",
+        "method_version": "v2.0",
+        "limitations": [],
+        "reason": ""
+      }
+    ],
+    "planned_primary_capability": "job_verified_postings",
+    "executed_primary_capability": "job_verified_postings",
+    "dependency_capabilities": [],
+    "planned_capabilities": [
+      "job_verified_postings"
+    ],
+    "capabilities_used": [
+      "job_verified_postings"
+    ],
+    "limitations": [],
+    "reason_codes": [],
+    "follow_up_questions": [],
+    "follow_up_suggestions": [
+      "Would you like to explore career mobility pathways for Software Engineers?",
+      "Would you like to inspect developer adoption trends on GitHub Innovation Graph?"
+    ],
+    "evaluated_at": "2026-10-19T07:15:18.438817Z"
+  },
+  "q4_skills_in_job_description": {
+    "request_id": "req_4877f271fc46",
+    "user_message": "What skills are mentioned in this job description?",
+    "portal_type": "individual",
+    "domain": "job",
+    "intent": "job_role_requirements",
+    "plan_status": "ready_to_execute",
+    "execution_status": "completed",
+    "status": "ready",
+    "answer": "Role Requirements for Software Developer (O*NET SOC 15-1252.00): 20 verified software and technical competencies cataloged.",
+    "answer_origin": "deterministic",
+    "conversation_id": null,
+    "client_message_id": null,
+    "resolved_entity": "Software Developer",
+    "selected_entities": [],
+    "applied_filters": {
+      "geography": "global"
+    },
+    "unapplied_filters": [],
+    "capabilities": {},
+    "confidence": null,
+    "freshness": {},
+    "history_type": "platform_collected",
+    "source_coverage": {},
+    "facts": [
+      {
+        "fact_id": "fact:role_reqs:software_developer",
+        "fact_type": "role_skill_requirements",
+        "entity_name": "Software Developer",
+        "canonical_entity_id": "15-1252.00",
+        "entity_type": "occupation",
+        "metric_name": "essential_skills_count",
+        "metric_value": 20,
+        "unit": "skills",
+        "denominator": null,
+        "period": "2024",
+        "timestamp": null,
+        "source": "O*NET 28.0",
+        "data_origin": "local_reference_dataset",
+        "history_type": null,
+        "series_id": null,
+        "panel_version": null,
+        "quality_state": "valid",
+        "readiness_state": "observed",
+        "calculation_version": "v2.0",
+        "provenance_id": null,
+        "evidence_reference": null,
+        "details": {
+          "hot_technologies": [
+            "Amazon Web Services AWS software",
+            "Apache Kafka",
+            "Atlassian JIRA",
+            "C",
+            "C#",
+            "C++",
+            "Cascading style sheets CSS",
+            "Docker",
+            "Git",
+            "GitHub",
+            "Go",
+            "Google Angular",
+            "Hypertext markup language HTML",
+            "IBM Terraform",
+            "JavaScript",
+            "Jenkins CI",
+            "Kubernetes",
+            "Linux",
+            "Microsoft Azure software",
+            "Node.js"
+          ],
+          "in_demand": [
+            "Amazon Web Services AWS software",
+            "Apache Kafka",
+            "Atlassian JIRA",
+            "C",
+            "C#",
+            "C++",
+            "Cascading style sheets CSS",
+            "Docker",
+            "Git",
+            "GitHub",
+            "Go",
+            "Google Angular",
+            "Hypertext markup language HTML",
+            "IBM Terraform",
+            "JavaScript",
+            "Jenkins CI",
+            "Kubernetes",
+            "Linux",
+            "Microsoft Azure software",
+            "Node.js"
+          ]
+        }
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "evi:onet_occ:15-1252.00",
+        "source": "O*NET 28.0",
+        "signal_type": "reference_taxonomy",
+        "measured_signal_type": "occupation_definition",
+        "period": "2024",
+        "unit": null,
+        "data_origin": "local_reference_dataset",
+        "history_type": null,
+        "series_id": null,
+        "location": null,
+        "scope": null,
+        "query_id": null,
+        "panel_version": null,
+        "fetch_run_id": null,
+        "supporting_fetch_run_ids": [],
+        "source_url": "https://www.onetcenter.org/taxonomy.html",
+        "provenance_id": "onet:soc:15-1252.00",
+        "supporting_observation_ids": [],
+        "supporting_source_urls": [
+          "https://www.onetcenter.org/taxonomy.html"
+        ],
+        "freshness_state": "fresh",
+        "quality": "valid",
+        "confidence": null,
+        "description": "O*NET official occupation taxonomy for Software Developers (SOC 15-1252.00)."
+      }
+    ],
+    "metric_results": [
+      {
+        "capability": "job_role_requirements",
+        "status": "ready",
+        "metric_kind": "observed",
+        "canonical_entity_id": "15-1252.00",
+        "entity_name": "Software Developer",
+        "series_id": null,
+        "metric_name": "essential_skills_count",
+        "metric_value": 20,
+        "unit": "skills",
+        "denominator": null,
+        "denominator_unit": null,
+        "source": "O*NET 28.0",
+        "signal_type": null,
+        "location": "global",
+        "scope": null,
+        "query_id": null,
+        "period": "2024",
+        "observation_periods": [
+          "2024"
+        ],
+        "latest_observed_at": null,
+        "freshness_state": "fresh",
+        "source_urls": [],
+        "observation_ids": [],
+        "fetch_run_ids": [],
+        "readiness_state": "observed",
+        "method_version": "v2.0",
+        "limitations": [],
+        "reason": ""
+      }
+    ],
+    "planned_primary_capability": "job_role_requirements",
+    "executed_primary_capability": "job_role_requirements",
+    "dependency_capabilities": [],
+    "planned_capabilities": [
+      "job_role_requirements"
+    ],
+    "capabilities_used": [
+      "job_role_requirements"
+    ],
+    "limitations": [],
+    "reason_codes": [],
+    "follow_up_questions": [],
+    "follow_up_suggestions": [
+      "Would you like to explore career mobility pathways for Software Developer?",
+      "Would you like to inspect developer adoption trends on GitHub Innovation Graph?"
+    ],
+    "evaluated_at": "2026-10-19T07:15:18.566043Z"
+  },
+  "q5_what_should_i_learn_next": {
+    "request_id": "req_b5093a706265",
+    "user_message": "What should I learn next for my target role?",
+    "portal_type": "individual",
+    "domain": "job",
+    "intent": "job_preparation_actions",
+    "plan_status": "ready_to_execute",
+    "execution_status": "completed",
+    "status": "ready",
+    "answer": "Deterministic Career Preparation Plan for Software Developer: 2 technical actions with verification checklists.\n\n\n**Recommended Practice Tasks** (2 actions):\n\n- **[HIGH] Python**: Design, implement, and document a production-grade component or service utilizing 'Python'. Focus on architectural patterns, error handling, and end-to-end testing.\n\n- **[HIGH] Git**: Design, implement, and document a production-grade component or service utilizing 'Git'. Focus on architectural patterns, error handling, and end-to-end testing.\n\n\n*TalentScope does not curate commercial course catalogs or sponsored certifications. All recommended actions are grounded in verified taxonomy competencies (O*NET/ESCO) and direct software engineering tasks.*",
+    "answer_origin": "deterministic",
+    "conversation_id": null,
+    "client_message_id": null,
+    "resolved_entity": "Python",
+    "selected_entities": [
+      {
+        "entity_id": "python",
+        "entity_type": "skill",
+        "canonical_name": "Python",
+        "resolution_status": "resolved"
+      }
+    ],
+    "applied_filters": {
+      "geography": "global"
+    },
+    "unapplied_filters": [],
+    "capabilities": {},
+    "confidence": null,
+    "freshness": {},
+    "history_type": "platform_collected",
+    "source_coverage": {},
+    "facts": [],
+    "evidence": [
+      {
+        "evidence_id": "evi:onet_occ:15-1252.00",
+        "source": "O*NET 28.0",
+        "signal_type": "reference_taxonomy",
+        "measured_signal_type": "occupation_definition",
+        "period": "2024",
+        "unit": null,
+        "data_origin": "local_reference_dataset",
+        "history_type": null,
+        "series_id": null,
+        "location": null,
+        "scope": null,
+        "query_id": null,
+        "panel_version": null,
+        "fetch_run_id": null,
+        "supporting_fetch_run_ids": [],
+        "source_url": "https://www.onetcenter.org/taxonomy.html",
+        "provenance_id": "onet:soc:15-1252.00",
+        "supporting_observation_ids": [],
+        "supporting_source_urls": [
+          "https://www.onetcenter.org/taxonomy.html"
+        ],
+        "freshness_state": "fresh",
+        "quality": "valid",
+        "confidence": null,
+        "description": "O*NET official occupation taxonomy for Software Developers (SOC 15-1252.00)."
+      }
+    ],
+    "metric_results": [],
+    "planned_primary_capability": "job_preparation_actions",
+    "executed_primary_capability": "job_preparation_actions",
+    "dependency_capabilities": [],
+    "planned_capabilities": [
+      "job_preparation_actions"
+    ],
+    "capabilities_used": [
+      "job_preparation_actions"
+    ],
+    "limitations": [],
+    "reason_codes": [],
+    "follow_up_questions": [],
+    "follow_up_suggestions": [
+      "Would you like to explore career mobility pathways for Software Developer?",
+      "Would you like to inspect developer adoption trends on GitHub Innovation Graph?"
+    ],
+    "evaluated_at": "2026-10-19T07:15:18.571126Z"
+  },
+  "q6_historical_skill_signals": {
+    "request_id": "req_a33d5e5643d3",
+    "user_message": "Show my historical skill signals.",
+    "portal_type": "individual",
+    "domain": "skill",
+    "intent": "skill_historical_signals",
+    "plan_status": "ready_to_execute",
+    "execution_status": "completed",
+    "status": "ready",
+    "answer": "Historical developer adoption for Python spans 25 quarters (2020-Q1 to 2026-Q1), peaking at 4,109,495 pushers in 2026-Q1.",
+    "answer_origin": "deterministic",
+    "conversation_id": null,
+    "client_message_id": null,
+    "resolved_entity": "Python",
+    "selected_entities": [
+      {
+        "entity_id": "python",
+        "entity_type": "skill",
+        "canonical_name": "Python",
+        "resolution_status": "resolved"
+      }
+    ],
+    "applied_filters": {
+      "geography": "global"
+    },
+    "unapplied_filters": [],
+    "capabilities": {},
+    "confidence": null,
+    "freshness": {},
+    "history_type": "platform_collected",
+    "source_coverage": {},
+    "facts": [
+      {
+        "fact_id": "fact:hist_summary:python",
+        "fact_type": "historical_adoption_summary",
+        "entity_name": "Python",
+        "canonical_entity_id": "python",
+        "entity_type": "skill",
+        "metric_name": "historical_span",
+        "metric_value": "2020-Q1 to 2026-Q1",
+        "unit": "quarters",
+        "denominator": null,
+        "period": "2020-Q1-2026-Q1",
+        "timestamp": null,
+        "source": "GitHub Innovation Graph",
+        "data_origin": "real",
+        "history_type": "backfill",
+        "series_id": null,
+        "panel_version": null,
+        "quality_state": "valid",
+        "readiness_state": "observed",
+        "calculation_version": "v2.0",
+        "provenance_id": null,
+        "evidence_reference": "evi:github_lang:python:2026-Q1",
+        "details": {
+          "total_quarters": 25,
+          "peak_period": "2026-Q1",
+          "peak_pushers": 4109495,
+          "latest_pushers": 4109495
+        }
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "evi:github_lang:python:2026-Q1",
+        "source": "GitHub Innovation Graph",
+        "signal_type": "developer_adoption",
+        "measured_signal_type": "num_pushers",
+        "period": "2026-Q1",
+        "unit": "pushers",
+        "data_origin": "real",
+        "history_type": "backfill",
+        "series_id": "github:lang:python",
+        "location": "global",
+        "scope": "language_adoption",
+        "query_id": null,
+        "panel_version": null,
+        "fetch_run_id": null,
+        "supporting_fetch_run_ids": [],
+        "source_url": "https://github.com/github/innovationgraph",
+        "provenance_id": "dataset:github_innovation_graph:language",
+        "supporting_observation_ids": [],
+        "supporting_source_urls": [
+          "https://github.com/github/innovationgraph"
+        ],
+        "freshness_state": "fresh",
+        "quality": "valid",
+        "confidence": 1.0,
+        "description": "GitHub developer adoption series for 'Python' with 12 quarterly observations through 2026-Q1."
+      },
+      {
+        "evidence_id": "evi:github_topic:python:2026-Q1",
+        "source": "GitHub Innovation Graph",
+        "signal_type": "developer_adoption",
+        "measured_signal_type": "num_pushers",
+        "period": "2026-Q1",
+        "unit": "pushers",
+        "data_origin": "real",
+        "history_type": "backfill",
+        "series_id": "github:topic:python",
+        "location": "global",
+        "scope": "topic_adoption",
+        "query_id": null,
+        "panel_version": null,
+        "fetch_run_id": null,
+        "supporting_fetch_run_ids": [],
+        "source_url": "https://github.com/github/innovationgraph",
+        "provenance_id": "dataset:github_innovation_graph:topic",
+        "supporting_observation_ids": [],
+        "supporting_source_urls": [
+          "https://github.com/github/innovationgraph"
+        ],
+        "freshness_state": "fresh",
+        "quality": "valid",
+        "confidence": 1.0,
+        "description": "GitHub topic adoption series for 'Python' with 12 quarterly observations through 2026-Q1."
+      }
+    ],
+    "metric_results": [
+      {
+        "capability": "skill_historical_signals",
+        "status": "ready",
+        "metric_kind": "observed",
+        "canonical_entity_id": "python",
+        "entity_name": "Python",
+        "series_id": null,
+        "metric_name": "historical_span",
+        "metric_value": "2020-Q1 to 2026-Q1",
+        "unit": "quarters",
+        "denominator": null,
+        "denominator_unit": null,
+        "source": "GitHub Innovation Graph",
+        "signal_type": null,
+        "location": "global",
+        "scope": null,
+        "query_id": null,
+        "period": "2020-Q1-2026-Q1",
+        "observation_periods": [
+          "2020-Q1-2026-Q1"
+        ],
+        "latest_observed_at": null,
+        "freshness_state": "fresh",
+        "source_urls": [],
+        "observation_ids": [],
+        "fetch_run_ids": [],
+        "readiness_state": "observed",
+        "method_version": "v2.0",
+        "limitations": [],
+        "reason": ""
+      }
+    ],
+    "planned_primary_capability": "skill_historical_signals",
+    "executed_primary_capability": "skill_historical_signals",
+    "dependency_capabilities": [],
+    "planned_capabilities": [
+      "skill_historical_signals"
+    ],
+    "capabilities_used": [
+      "skill_historical_signals"
+    ],
+    "limitations": [],
+    "reason_codes": [],
+    "follow_up_questions": [],
+    "follow_up_suggestions": [
+      "Would you like to explore career mobility pathways for Software Engineers?",
+      "Would you like to inspect developer adoption trends on GitHub Innovation Graph?"
+    ],
+    "evaluated_at": "2026-10-19T07:15:18.720067Z"
+  }
+}

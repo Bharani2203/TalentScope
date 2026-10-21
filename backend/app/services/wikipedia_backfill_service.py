@@ -10,6 +10,8 @@ Guarantees:
 from __future__ import annotations
 
 import logging
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,7 @@ from app.services.market_data.wikipedia_provider import (
     resolve_wikipedia_article_for_skill,
 )
 from app.storage.market_store import MarketDataStore
+from app.storage.fetch_run_store import SQLiteFetchRunStore
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +72,21 @@ async def run_wikipedia_backfill(
     resolved_start, resolved_end, target_periods = get_completed_month_range(start_period, end_period)
     store = MarketDataStore(db_path)
     provider = provider or WikipediaPageviewsProvider()
+    run_id = f"wikipedia-backfill-{uuid.uuid4().hex}"
+    started_at = datetime.now(timezone.utc)
+    run_store = SQLiteFetchRunStore(db_path)
+    if not dry_run:
+        run_store.start(run_id, {
+            "source": "wikipedia",
+            "collection_run_id": run_id,
+            "status": "running",
+            "started_at": started_at,
+            "source_period_start": resolved_start,
+            "source_period_end": resolved_end,
+            "panel_version": provider.panel_version,
+            "extractor_version": provider.extractor_version,
+            "collection_scope": "global canonical skill allowlist",
+        })
 
     results: list[dict[str, Any]] = []
     total_new_observations = 0
@@ -122,6 +140,15 @@ async def run_wikipedia_backfill(
             observations = await provider.fetch_observations_for_skill(
                 definition.skill_id, resolved_start, resolved_end,
             )
+            collected_at = datetime.now(timezone.utc)
+            observations = [obs.model_copy(update={
+                "fetch_run_id": run_id,
+                "created_at": collected_at,
+                "metadata": {
+                    **(obs.metadata or {}),
+                    "collection_timestamp_utc": collected_at.isoformat(),
+                },
+            }) for obs in observations]
             inserted = store.insert_observations(observations)
             total_new_observations += inserted
             results.append({
@@ -132,6 +159,7 @@ async def run_wikipedia_backfill(
                 "observations_fetched": len(observations),
                 "observations_inserted": inserted,
                 "periods_covered": [obs.period for obs in observations],
+                "fetch_run_id": run_id,
             })
         except Exception as err:
             results.append({
@@ -142,6 +170,21 @@ async def run_wikipedia_backfill(
                 "error": str(err),
             })
 
+    failed_results = [item for item in results if item["status"] in {"failed", "unmapped"}]
+    successful_results = [item for item in results if item["status"] in {"success", "already_complete"}]
+    run_status = (
+        "planned" if dry_run else
+        "partial" if failed_results and successful_results else
+        "failed" if failed_results else
+        "success"
+    )
+    if not dry_run:
+        run_store.finish(run_id, {
+            "status": run_status,
+            "completed_at": datetime.now(timezone.utc),
+            "observations_inserted": total_new_observations,
+            "results": results,
+        })
     return {
         "source": "wikipedia",
         "signal_type": "interest",
@@ -152,5 +195,7 @@ async def run_wikipedia_backfill(
         "db_path": str(db_path),
         "total_new_observations": total_new_observations,
         "total_skipped_existing": total_skipped_existing,
+        "fetch_run_id": run_id,
+        "collection_status": run_status,
         "results": results,
     }

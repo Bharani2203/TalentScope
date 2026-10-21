@@ -21,6 +21,8 @@ def observation(period: str, value: float, denominator: float | None):
         scope="global", location="Global", value=value, posting_id=f"job:{period}:{value}",
         denominator=denominator, data_origin="real", history_type="platform_collected",
         series_id="jsearch:demand:python", panel_version="v1", unit="job_postings",
+        denominator_unit="postings",
+        quality={"collection_complete": True, "pagination_complete": True, "sampling_frame": "test-frame"},
     )
 
 

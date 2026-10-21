@@ -20,28 +20,57 @@ def _job_document_id(job_id: str) -> str:
     return hashlib.sha256(job_id.encode("utf-8")).hexdigest()
 
 
-def store_jsearch_jobs(jobs: list[Job]) -> int:
+def store_jsearch_jobs(jobs: list[Job], *, firestore_client=None) -> int:
     """Upsert normalized provider jobs under jobs/{provider}:{job_id}."""
-    identified_jobs = [job for job in jobs if job.job_id]
+    identified_by_source_id: dict[tuple[str, str], Job] = {}
+    for job in jobs:
+        if not job.job_id:
+            continue
+        identity = (job.source.casefold(), job.job_id)
+        prior = identified_by_source_id.get(identity)
+        if prior is not None:
+            prior_shape = prior.model_dump(mode="json", exclude={"fetched_at", "fetch_run_id"})
+            current_shape = job.model_dump(mode="json", exclude={"fetched_at", "fetch_run_id"})
+            if prior_shape != current_shape:
+                raise ValueError("Conflicting job records share a provider identity.")
+            continue
+        identified_by_source_id[identity] = job
+    identified_jobs = list(identified_by_source_id.values())
     if not identified_jobs:
         return 0
 
-    firestore = get_firestore_client()
+    firestore = firestore_client if firestore_client is not None else get_firestore_client()
     collection = firestore.collection("jobs")
     for offset in range(0, len(identified_jobs), 450):
         batch = firestore.batch()
         for job in identified_jobs[offset:offset + 450]:
             document_id = _job_document_id(f"{job.source}:{job.job_id}")
-            record = job.model_dump(mode="json", exclude_none=True)
+            # Write the complete normalized shape, including null optional
+            # values, so an upsert cannot leave stale fields from an older
+            # version of the same provider posting.
+            record = job.model_dump(mode="json")
             record["source_job_id"] = job.job_id
             batch.set(collection.document(document_id), record, merge=True)
         batch.commit()
+
+    # A completed batch commit is not sufficient evidence that every canonical
+    # posting can be retrieved. Confirm each stable document before reporting
+    # the upsert as successful.
+    for job in identified_jobs:
+        document_id = _job_document_id(f"{job.source}:{job.job_id}")
+        snapshot = collection.document(document_id).get()
+        stored = snapshot.to_dict() if getattr(snapshot, "exists", False) else None
+        expected = job.model_dump(mode="json")
+        expected["source_job_id"] = job.job_id
+        if not isinstance(stored, dict) or any(stored.get(key) != value for key, value in expected.items()):
+            raise RuntimeError("Stored job read-back verification failed.")
     return len(identified_jobs)
 
 
-def get_jsearch_job(job_id: str) -> Job | None:
+def get_jsearch_job(job_id: str, *, firestore_client=None) -> Job | None:
     """Read back a JSearch job from its stable Firestore document."""
-    snapshot = get_firestore_client().collection("jobs").document(_job_document_id(f"jsearch:{job_id}")).get()
+    firestore = firestore_client if firestore_client is not None else get_firestore_client()
+    snapshot = firestore.collection("jobs").document(_job_document_id(f"jsearch:{job_id}")).get()
     if not snapshot.exists:
         return None
     record = snapshot.to_dict()
@@ -56,9 +85,12 @@ def store_collected_market_jobs(
     *,
     fetched_at: datetime,
     fetch_run_id: str | None = None,
+    firestore_client=None,
 ) -> int:
     jobs = [Job(
-        job_id=posting.provider_job_id,
+        # Providers may lack a native ID; adapters then supply a deterministic
+        # content-derived posting_id which remains stable for storage/search.
+        job_id=posting.provider_job_id or posting.posting_id,
         title=posting.title,
         company_name=posting.company_name,
         location=posting.location,
@@ -73,18 +105,23 @@ def store_collected_market_jobs(
         region=posting.region,
         category=posting.category,
         fetched_at=fetched_at,
-    ) for posting in postings if posting.source in {"jsearch", "adzuna"} and posting.provider_job_id]
-    return store_jsearch_jobs(jobs)
+    ) for posting in postings if posting.source in {"jsearch", "adzuna"} and (posting.provider_job_id or posting.posting_id)]
+    if firestore_client is None:
+        return store_jsearch_jobs(jobs)
+    return store_jsearch_jobs(jobs, firestore_client=firestore_client)
 
 
-def search_stored_jsearch_jobs(*, query: str, country: str | None = None, limit: int = 100) -> list[Job]:
+def search_stored_jsearch_jobs(
+    *, query: str, country: str | None = None, limit: int = 100, firestore_client=None,
+) -> list[Job]:
     """Search a bounded, recent Firestore job snapshot without contacting providers."""
     normalized = query.casefold().strip()
     result_limit = max(1, min(int(limit), 100))
     candidate_limit = MAX_JOB_SEARCH_CANDIDATES
     normalized_country = country.casefold().strip() if country else None
 
-    query_ref = get_firestore_client().collection("jobs")
+    firestore = firestore_client if firestore_client is not None else get_firestore_client()
+    query_ref = firestore.collection("jobs")
     if normalized_country:
         query_ref = query_ref.where(
             filter=FieldFilter("country_code", "==", normalized_country)

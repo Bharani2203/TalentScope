@@ -48,7 +48,7 @@ class ObservationEvidence(EvidenceModel):
     scope: str
     value: float
     unit: str | None = None
-    data_origin: Literal["real", "demo", "mixed", "unavailable"] = "real"
+    data_origin: Literal["real", "demo", "synthetic", "test", "mixed", "unavailable"] = "real"
     history_type: Literal["platform_collected", "backfill", "snapshot", "mixed", "unavailable"] = "platform_collected"
     fetch_run_id: str | None = None
     series_id: str | None = None
@@ -95,7 +95,7 @@ class SkillEvidenceItem(EvidenceModel):
     calculation_version: str
     series_id: str | None = None
     panel_version: str | None = None
-    data_origin: Literal["real", "demo", "mixed", "unavailable"] = "real"
+    data_origin: Literal["real", "demo", "synthetic", "test", "mixed", "unavailable"] = "real"
     history_type: Literal["platform_collected", "backfill", "snapshot", "mixed", "unavailable"] = "platform_collected"
     
     # Provenance links

@@ -95,6 +95,7 @@ def get_skill_evidence(
     sources_seen: set[str] = set()
     signal_types_seen: set[str] = set()
     overall_states: set[str] = set()
+    calculation_records_by_source_period: dict[tuple[str, str], list[Any]] = {}
 
     for sig in agg_signals:
         sources_seen.add(sig.source)
@@ -195,13 +196,15 @@ def get_skill_evidence(
         from google.cloud.firestore_v1 import FieldFilter
         calculations_list: list[CalculationRecordEvidence] = []
         calc_record_ids: list[str] = []
-        calc_query = (
-            fs_client.collection("calculation_records")
-            .where(filter=FieldFilter("source", "==", sig.source))
-            .where(filter=FieldFilter("period", "==", sig.period))
-            .stream()
-        )
-        for c_doc in calc_query:
+        calculation_key = (sig.source, sig.period)
+        if calculation_key not in calculation_records_by_source_period:
+            calculation_records_by_source_period[calculation_key] = list(
+                fs_client.collection("calculation_records")
+                .where(filter=FieldFilter("source", "==", sig.source))
+                .where(filter=FieldFilter("period", "==", sig.period))
+                .stream()
+            )
+        for c_doc in calculation_records_by_source_period[calculation_key]:
             c_data = c_doc.to_dict() or {}
             params = c_data.get("formula_parameters") or {}
             if params.get("canonical_name", "").casefold() == sig.canonical_name.casefold():

@@ -156,6 +156,8 @@ def calculate_skill_half_life(
     as_of: date | None = None,
 ) -> SkillHalfLifeResult:
     """Calculate Skill Half-Life for a single named signal family from normalized share observations."""
+    # Keep the operational policy fixed even if an internal caller requests a lower floor.
+    min_periods = max(DEFAULT_HALF_LIFE_MIN_PERIODS, min_periods)
     matching = [
         s for s in signals
         if getattr(s, "signal_type", None) == signal_family

@@ -19,7 +19,7 @@ class AggregatedMarketSignal(BaseModel):
     normalized_value: float | None = None
     denominator: float | None = None
     observation_count: int = 1
-    data_origin: Literal["real", "demo", "mixed", "unavailable"] = "real"
+    data_origin: Literal["real", "demo", "synthetic", "test", "mixed", "unavailable"] = "real"
     history_type: Literal["platform_collected", "backfill", "backfilled", "snapshot", "mixed", "unavailable"] = "platform_collected"
     data_state: Literal[
         "ready", "fresh", "stale", "insufficient_data", "building", "unavailable", "error",
@@ -67,6 +67,7 @@ class SkillTrendVelocityResult(BaseModel):
         "incomparable", "configuration_changed", "incomplete", "low_coverage"
     ]
     periods_used: list[str]
+    series: list[dict[str, Any]] = Field(default_factory=list)
     observation_count: int
     observation_ids: list[str]
     fetch_run_ids: list[str]
@@ -80,7 +81,7 @@ class SkillTrendVelocityResult(BaseModel):
     scope: str | None = None
     location: str | None = None
     query_id: str | None = None
-    data_origin: Literal["real", "demo", "mixed", "unavailable"] = "real"
+    data_origin: Literal["real", "demo", "synthetic", "test", "mixed", "unavailable"] = "real"
     history_type: Literal["platform_collected", "backfill", "backfilled", "snapshot", "mixed", "unavailable"] = "platform_collected"
     metric: Literal["raw_count", "normalized_share", "adoption_snapshot", "composite_demand"]
     calculation_version: str = "trend-velocity-theil-sen-v2-comparable-units"

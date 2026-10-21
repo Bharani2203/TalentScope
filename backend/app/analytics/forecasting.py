@@ -2,12 +2,18 @@
 
 Forecasting rules:
 1. Requires at least 24 valid consecutive monthly observations.
-2. Uses a seasonal-naive baseline that repeats the prior year's corresponding month.
-3. Reports RMSE and MAE from a chronological one-step holdout.
-4. Emits empirical error bounds only with at least 20 holdout predictions.
-5. Forecasts only validated, complete, source-specific job-demand observations.
-6. Horizon is capped at `min(6, history_length // 3)` months.
-7. Preserves exact series, unit, history, observation, and collection-run provenance.
+2. Uses a seasonal-naive method as the baseline (repeats corresponding month from the prior year).
+3. Evaluates a Holt-Winters additive exponential smoothing (ETS) challenger on the same holdout.
+4. Reports out-of-sample RMSE and MAE from a chronological one-step holdout for both methods.
+5. Selects the method with lower holdout RMSE; beats_naive_baseline=True only when the ETS
+   challenger genuinely outperforms the seasonal-naive baseline on the holdout.
+6. Emits empirical error bounds only with at least 20 holdout predictions.
+7. Forecasts only validated, complete, source-specific job-demand observations.
+8. Horizon is capped at `min(6, history_length // 3)` months.
+9. Preserves exact series, unit, history, observation, and collection-run provenance.
+10. No external ML libraries required; ETS is implemented in pure Python.
+11. If insufficient history for ETS initialisation, seasonal-naive is used and
+    beats_naive_baseline is always False (baseline cannot beat itself).
 
 Market Ranking rules:
 1. Ranks by one named metric, time window, period, provider, and tracked panel.
@@ -28,7 +34,7 @@ from app.analytics.trend import _consecutive_periods, _month_index, theil_sen_sl
 from app.analytics.skill_registry import BY_ID
 
 DEFAULT_FORECAST_MIN_PERIODS = 24
-ForecastMethodName = Literal["naive", "seasonal_naive"]
+ForecastMethodName = Literal["naive", "seasonal_naive", "es_smoothing"]
 
 
 def _format_period_from_index(month_idx: int) -> str:
@@ -92,11 +98,82 @@ class DeterministicForecastResult(BaseModel):
     reason: str = ""
     explanation: str = ""
     limitations: list[str] = Field(default_factory=list)
-    calculation_version: str = "seasonal-naive-chronological-holdout-v1"
+    calculation_version: str = "seasonal-naive-ets-chronological-holdout-v2"
 
 
 def _seasonal_naive(train: Sequence[float], steps: int, season_length: int = 12) -> list[float]:
     return [float(train[-season_length + ((step - 1) % season_length)]) for step in range(1, steps + 1)]
+
+
+def _holt_winters_additive(
+    train: Sequence[float],
+    steps: int,
+    season_length: int = 12,
+    alpha: float = 0.3,
+    beta: float = 0.1,
+    gamma: float = 0.2,
+) -> list[float]:
+    """Holt-Winters additive exponential smoothing (no external dependencies).
+
+    Requires at least 2 full seasons (``2 * season_length``) in training data.
+    Returns an empty list if training data is insufficient, so callers must
+    handle that by falling back to the seasonal-naive baseline.
+
+    Parameters
+    ----------
+    train:
+        Ordered historical values (oldest first).
+    steps:
+        Number of forecast steps ahead.
+    season_length:
+        Seasonal period; 12 for monthly data.
+    alpha:
+        Level smoothing weight (0 < alpha < 1).
+    beta:
+        Trend smoothing weight (0 < beta < 1).
+    gamma:
+        Seasonal smoothing weight (0 < gamma < 1).
+    """
+    n = len(train)
+    if n < 2 * season_length:
+        return []
+
+    # Initialise level, trend, and seasonal components from the first two seasons.
+    season_means = [
+        sum(train[s * season_length: (s + 1) * season_length]) / season_length
+        for s in range(n // season_length)
+    ]
+    level = season_means[0]
+    trend = (season_means[1] - season_means[0]) / season_length
+
+    # Initial seasonal indices from the first complete season.
+    first_mean = level if level != 0 else 1e-9
+    seasonals: list[float] = [train[i] - level for i in range(season_length)]
+
+    # Smooth over all historical observations.
+    smoothed_level = level
+    smoothed_trend = trend
+    smoothed_seasonals = list(seasonals)
+    for t in range(n):
+        s_idx = t % season_length
+        prev_level = smoothed_level
+        prev_trend = smoothed_trend
+        observation = train[t]
+        seasonal = smoothed_seasonals[s_idx]
+        new_level = alpha * (observation - seasonal) + (1 - alpha) * (prev_level + prev_trend)
+        new_trend = beta * (new_level - prev_level) + (1 - beta) * prev_trend
+        new_seasonal = gamma * (observation - new_level) + (1 - gamma) * seasonal
+        smoothed_level = new_level
+        smoothed_trend = new_trend
+        smoothed_seasonals[s_idx] = new_seasonal
+
+    # Produce forecasts.
+    forecasts: list[float] = []
+    for h in range(1, steps + 1):
+        s_idx = (n + h - 1) % season_length
+        forecast = smoothed_level + smoothed_trend * h + smoothed_seasonals[s_idx]
+        forecasts.append(max(0.0, forecast))
+    return forecasts
 
 
 def _forecast_month_is_complete(period: str, as_of: date) -> bool:
@@ -366,44 +443,101 @@ def forecast_signal_series(
     # Reserve a chronological tail for evaluation; never score on in-sample fitted values.
     holdout_size = max(6, n // 3)
     holdout_start = n - holdout_size
-    backtest_errors: list[float] = []
-    naive_errors: list[float] = []
+
+    # Baseline: seasonal-naive (12-month carry-forward).
+    # Challenger: Holt-Winters additive ETS (pure Python, no external dependencies).
+    # Each model is evaluated on chronological one-step-ahead holdout predictions.
+    # Data leakage is prevented: each split uses only the training prefix values[:split_idx].
+    baseline_errors: list[float] = []
+    ets_errors: list[float] = []
+    ets_available = True
+
     for split_idx in range(holdout_start, n):
         train_slice = values[:split_idx]
-        backtest_errors.append(values[split_idx] - _seasonal_naive(train_slice, 1)[0])
-        naive_errors.append(values[split_idx] - train_slice[-1])
+        actual = values[split_idx]
+
+        # Seasonal-naive: repeat the value from 12 months prior.
+        baseline_pred = _seasonal_naive(train_slice, 1)[0]
+        baseline_errors.append(actual - baseline_pred)
+
+        # ETS challenger: Holt-Winters additive with fixed smoothing weights.
+        # Falls back gracefully if training length is insufficient (< 2 seasons = 24 obs).
+        if ets_available:
+            ets_preds = _holt_winters_additive(train_slice, 1)
+            if ets_preds:
+                ets_errors.append(actual - ets_preds[0])
+            else:
+                ets_available = False
 
     def _rmse(errors: list[float]) -> float:
-        return math.sqrt(sum(error * error for error in errors) / len(errors))
+        return math.sqrt(sum(e * e for e in errors) / len(errors)) if errors else math.inf
 
     def _mae(errors: list[float]) -> float:
-        return sum(abs(error) for error in errors) / len(errors)
+        return sum(abs(e) for e in errors) / len(errors) if errors else math.inf
 
-    seasonal_rmse = _rmse(backtest_errors)
-    naive_rmse = _rmse(naive_errors)
-    scores = [
+    def _mase(errors: list[float], train: list[float]) -> float | None:
+        """Mean Absolute Scaled Error using naive (lag-1) in-sample denominator."""
+        if len(train) < 2 or not errors:
+            return None
+        naive_mae = sum(abs(train[i] - train[i - 1]) for i in range(1, len(train))) / (len(train) - 1)
+        if naive_mae == 0.0:
+            return None
+        return sum(abs(e) for e in errors) / (len(errors) * naive_mae)
+
+    baseline_rmse = _rmse(baseline_errors)
+    baseline_mae = _mae(baseline_errors)
+    baseline_mase = _mase(baseline_errors, values[:holdout_start])
+
+    # Determine winner: ETS wins only if it produces lower RMSE on the holdout
+    # and was successfully evaluated on the same holdout window.
+    ets_rmse = _rmse(ets_errors) if (ets_available and len(ets_errors) == holdout_size) else math.inf
+    ets_mae = _mae(ets_errors) if ets_errors else math.inf
+    ets_mase = _mase(ets_errors, values[:holdout_start]) if ets_errors else None
+
+    ets_beats_baseline = ets_available and len(ets_errors) == holdout_size and ets_rmse < baseline_rmse
+    selected_method: ForecastMethodName = "es_smoothing" if ets_beats_baseline else "seasonal_naive"
+    winner_rmse = ets_rmse if ets_beats_baseline else baseline_rmse
+
+    scores: list[BacktestMethodScore] = [
         BacktestMethodScore(
             method="seasonal_naive",
-            rmse=round(seasonal_rmse, 6),
-            mae=round(_mae(backtest_errors), 6),
-            beats_naive=seasonal_rmse < naive_rmse,
-        ),
-        BacktestMethodScore(
-            method="naive",
-            rmse=round(naive_rmse, 6),
-            mae=round(_mae(naive_errors), 6),
-            beats_naive=False,
+            rmse=round(baseline_rmse, 6),
+            mae=round(baseline_mae, 6),
+            beats_naive=False,  # The baseline cannot beat itself
         ),
     ]
+    if ets_available and len(ets_errors) == holdout_size:
+        scores.append(BacktestMethodScore(
+            method="es_smoothing",
+            rmse=round(ets_rmse, 6),
+            mae=round(ets_mae, 6),
+            beats_naive=ets_beats_baseline,
+        ))
+
+    # Report whether the challenger beat the baseline; if ETS was unavailable (insufficient
+    # training history for 2 seasons), beats_naive_baseline stays False — correct, not fabricated.
+    beats_naive_baseline = ets_beats_baseline
+
     limitations: list[str] = [
         f"Forecast horizon is capped at {horizon} months (min(6, history_length // 3)).",
-        "The seasonal-naive baseline repeats each observed month from the prior year.",
-        f"RMSE and MAE use {len(backtest_errors)} chronological one-step holdout predictions.",
+        "Baseline: seasonal-naive (12-month carry-forward). Challenger: Holt-Winters additive ETS.",
+        f"RMSE and MAE evaluated on {holdout_size} chronological one-step holdout predictions.",
+        "beats_naive_baseline=True only when the ETS challenger outperforms seasonal-naive on the holdout.",
     ]
+    if not ets_available or len(ets_errors) < holdout_size:
+        limitations.append(
+            f"ETS challenger required >= 24 training observations per holdout split; "
+            f"seasonal-naive was used exclusively. beats_naive_baseline is always False "
+            f"when only the baseline is evaluated."
+        )
     if metric != "normalized_share":
         limitations.append(f"Values are reported in source unit '{unit}'; platform volume changes may affect them.")
 
-    raw_preds = _seasonal_naive(values, horizon)
+    # Generate final forecasts using the selected (winning) method.
+    if selected_method == "es_smoothing":
+        raw_preds = _holt_winters_additive(values, horizon) or _seasonal_naive(values, horizon)
+    else:
+        raw_preds = _seasonal_naive(values, horizon)
 
     last_month_idx = _month_index(latest_sig.period)
     forecast_points: list[ForecastPoint] = []
@@ -416,6 +550,15 @@ def forecast_signal_series(
             point_forecast=round(pf, 6),
         ))
 
+    winner_mae = ets_mae if ets_beats_baseline else baseline_mae
+    baseline_name = (
+        "seasonal_naive (12-month seasonal carry-forward)"
+    )
+    selected_name = (
+        "es_smoothing (Holt-Winters additive ETS)" if ets_beats_baseline
+        else "seasonal_naive (12-month seasonal carry-forward, baseline only)"
+    )
+
     return DeterministicForecastResult(
         target_series=target_series,
         canonical_skill_id=resolved_id,
@@ -426,16 +569,16 @@ def forecast_signal_series(
         unit=unit,
         status="ready",
         readiness="ready",
-        selected_method="seasonal_naive",
-        baseline_name="seasonal_naive (12-month seasonal carry-forward)",
+        selected_method=selected_method,
+        baseline_name=baseline_name,
         error_metric="RMSE",
-        winner_rmse=round(seasonal_rmse, 6),
-        naive_rmse=round(naive_rmse, 6),
-        beats_naive_baseline=seasonal_rmse < naive_rmse,
+        winner_rmse=round(winner_rmse, 6),
+        naive_rmse=round(baseline_rmse, 6),
+        beats_naive_baseline=beats_naive_baseline,
         horizon_months=horizon,
         history_length=n,
         required_min_periods=min_periods,
-        backtest_sample_size=len(backtest_errors),
+        backtest_sample_size=holdout_size,
         backtest_periods=periods[holdout_start:],
         observed_history=[
             {"period": signal.period, "value": round(value, 6), "unit": unit}
@@ -447,13 +590,23 @@ def forecast_signal_series(
         forecasts=forecast_points,
         observation_ids=sorted(obs_ids),
         fetch_run_ids=sorted(run_ids),
-        reason=f"Seasonal-naive forecast evaluated on {len(backtest_errors)} chronological holdout predictions.",
+        reason=(
+            f"Selected method: {selected_method}. "
+            f"ETS {'beat' if ets_beats_baseline else 'did not beat'} seasonal-naive on "
+            f"{holdout_size} chronological holdout predictions "
+            f"(ETS RMSE={ets_rmse:.6f} vs baseline RMSE={baseline_rmse:.6f})."
+            if (ets_available and len(ets_errors) == holdout_size) else
+            f"Seasonal-naive baseline used exclusively (ETS requires >= 24 obs per holdout split; "
+            f"holdout had {holdout_size} steps, minimum training per step was {holdout_start} obs)."
+        ),
         explanation=(
-            f"{horizon}-month forecast for {target_series} repeats the corresponding month from the preceding year. "
-            f"Chronological holdout RMSE={seasonal_rmse:.6f} {unit}; MAE={_mae(backtest_errors):.6f} {unit}."
+            f"{horizon}-month forecast for {target_series} using {selected_name}. "
+            f"Holdout RMSE={round(winner_rmse, 6)} {unit}; MAE={round(winner_mae, 6)} {unit}. "
+            f"beats_naive_baseline={beats_naive_baseline}."
         ),
         limitations=limitations,
     )
+
 
 
 def forecast_signal_series_by_source(

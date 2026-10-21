@@ -171,6 +171,11 @@ function renderCompactEvidence(response, metrics, limitations) {
       <span>${link}</span>
       ${item.measured_signal_type || item.signal_type ? `<span>${esc(evidenceSignalLabel(item.measured_signal_type || item.signal_type, item.source))}</span>` : ''}
       ${item.period ? `<span>${esc(item.period)}</span>` : ''}
+      ${item.unit ? `<span>Unit: ${esc(item.unit)}</span>` : ''}
+      ${item.location || item.scope ? `<span>Geography: ${esc(item.location || 'unspecified')}${item.scope ? ` (${esc(item.scope)})` : ''}</span>` : ''}
+      ${item.data_origin || item.history_type ? `<span>Origin/history: ${esc(item.data_origin || 'unspecified')} / ${esc(item.history_type || 'unspecified')}</span>` : ''}
+      ${item.query_id ? `<small>Query: ${esc(item.query_id)}</small>` : ''}
+      ${item.panel_version ? `<small>Panel: ${esc(item.panel_version)}</small>` : ''}
       ${item.description ? `<p>${esc(item.description)}</p>` : ''}
       ${item.evidence_id ? `<small>Evidence ID: ${esc(item.evidence_id)}</small>` : ''}
       ${item.series_id ? `<small>Series: ${esc(item.series_id)}</small>` : ''}
@@ -331,6 +336,10 @@ export function renderIntelligenceEvidencePanel(response, {
     : loading
       ? 'Loading verified intelligence…'
       : response?.history_completeness_reason || response?.unavailable_reason || '';
+
+  // General Gemini B guidance has no platform measurements. Avoid rendering an
+  // empty evidence panel that could imply the answer is grounded in evidence.
+  if (response?.source_mode === 'ai_general_guidance' && metricItems.length === 0 && !loading && !error) return '';
 
   return `<section class="intel-evidence-panel" aria-label="${esc(title)}">
     <header class="intel-evidence-panel__header">

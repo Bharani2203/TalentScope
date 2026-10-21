@@ -9,16 +9,7 @@ export function normalizeDomainKey(rawDomain) {
 }
 
 export function normalizeTimeRange(rawRange) {
-  if (!rawRange) return '30d';
-  const str = String(rawRange).trim().toLowerCase();
-  if (str === '7d' || str === '7 days' || str === '7day' || str === '7-day') return '7d';
-  if (str === '30d' || str === '30 days' || str === '30day' || str === '30-day' || str === '1m' || str === '1 month') return '30d';
-  if (str === '3m' || str === '3 months' || str === '3month' || str === '90d' || str === '90 days') return '3m';
-  if (str === '6m' || str === '6 months' || str === '6month' || str === '180d' || str === '180 days') return '6m';
-  if (str === '12m' || str === '12 months' || str === '1y' || str === '1 year' || str === '365d') return '6m';
-  if (str === 'max' || str === 'auto' || str.includes('max available')) return '6m';
-  if (str === 'custom' || str.startsWith('custom')) return 'custom';
-  return '30d';
+  return normalizeAnswerTimeRange(rawRange);
 }
 
 export function normalizeAnswerTimeRange(rawRange) {
@@ -598,9 +589,18 @@ export function adaptCoreIntelligenceAnswerResponse(raw) {
       execution_status: 'failed',
       answer: 'No response received from intelligence service.',
       answer_origin: 'deterministic',
+      answer_title: null,
+      answer_type: 'other',
+      source_mode: 'platform_data',
+      visualization: null,
+      next_actions: [],
       facts: [],
       evidence: [],
       metric_results: [],
+      planned_primary_capability: null,
+      executed_primary_capability: null,
+      dependency_capabilities: [],
+      planned_capabilities: [],
       capabilities_used: [],
       capabilities: {},
       applied_filters: {},
@@ -639,9 +639,20 @@ export function adaptCoreIntelligenceAnswerResponse(raw) {
     execution_status: raw.execution_status || 'unavailable',
     answer: raw.answer || '',
     answer_origin: raw.answer_origin === 'gemini' ? 'gemini' : 'deterministic',
+    answer_title: typeof raw.answer_title === 'string' ? raw.answer_title : null,
+    answer_type: ['explanation', 'comparison', 'recommendations', 'roadmap', 'other'].includes(raw.answer_type) ? raw.answer_type : 'other',
+    source_mode: ['platform_data', 'ai_general_guidance', 'mixed'].includes(raw.source_mode)
+      ? raw.source_mode
+      : (raw.answer_origin === 'gemini' ? 'mixed' : 'platform_data'),
+    visualization: raw.visualization && typeof raw.visualization === 'object' ? raw.visualization : null,
+    next_actions: Array.isArray(raw.next_actions) ? raw.next_actions.slice(0, 5) : [],
     facts: rawFacts.map(adaptFactItem).filter(Boolean),
     evidence: rawEvidence.map(adaptEvidenceItem).filter(Boolean),
     metric_results: Array.isArray(raw.metric_results) ? raw.metric_results : [],
+    planned_primary_capability: typeof raw.planned_primary_capability === 'string' ? raw.planned_primary_capability : null,
+    executed_primary_capability: typeof raw.executed_primary_capability === 'string' ? raw.executed_primary_capability : null,
+    dependency_capabilities: Array.isArray(raw.dependency_capabilities) ? raw.dependency_capabilities : [],
+    planned_capabilities: Array.isArray(raw.planned_capabilities) ? raw.planned_capabilities : [],
     capabilities_used: Array.isArray(raw.capabilities_used) ? raw.capabilities_used : [],
     capabilities: raw.capabilities || {},
     applied_filters: raw.applied_filters || {},
@@ -658,7 +669,59 @@ export function adaptCoreIntelligenceAnswerResponse(raw) {
   };
 }
 
+export async function queryGuestIntelligenceAnswer(requestData, options = {}) {
+  const payload = buildAnswerRequest(requestData);
+  payload.conversation_id = null;
+  payload.company_id = null;
+  payload.user_id = null;
+
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    ...options.headers
+  };
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/intelligence/guest/answer`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      ...options,
+      headers
+    });
+  } catch (err) {
+    const networkError = new Error('Could not reach the guest intelligence answer service. Please check your network connection.');
+    networkError.name = 'CoreIntelligenceNetworkError';
+    throw networkError;
+  }
+
+  if (response.status === 403) {
+    const authReqError = new Error('This capability requires an authenticated account. Please sign in to access personalized profile and workforce insights.');
+    authReqError.name = 'CoreIntelligenceAuthRequiredError';
+    authReqError.status = 403;
+    throw authReqError;
+  }
+
+  if (!response.ok) {
+    let errorDetail = null;
+    try {
+      const errJson = await response.json();
+      errorDetail = typeof errJson?.detail === 'string' ? errJson.detail : null;
+    } catch {}
+    const httpError = new Error(errorDetail || `Guest intelligence query failed (${response.status}).`);
+    httpError.name = 'CoreIntelligenceHttpError';
+    httpError.status = response.status;
+    throw httpError;
+  }
+
+  const rawJson = await response.json();
+  return adaptCoreIntelligenceAnswerResponse(rawJson);
+}
+
 export async function queryCoreIntelligenceAnswer(requestData, options = {}) {
+  if (options.guest) {
+    return queryGuestIntelligenceAnswer(requestData, options);
+  }
   const payload = buildAnswerRequest(requestData);
   const token = await getAuthIdToken(options.token);
   const headers = {
@@ -908,6 +971,13 @@ export async function fetchIntelligenceConversations(options = {}) {
     authError.name = 'CoreIntelligenceAuthError';
     authError.status = response.status;
     throw authError;
+  }
+
+  if (response.status === 503) {
+    const serviceError = new Error('Authentication service is temporarily unavailable. Please retry shortly.');
+    serviceError.name = 'CoreIntelligenceServiceUnavailableError';
+    serviceError.status = 503;
+    throw serviceError;
   }
 
   if (!response.ok) {

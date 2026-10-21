@@ -38,7 +38,7 @@ class AnalyticalReadinessReport(BaseModel):
     unit: str | None = None
     denominator_unit: str | None = None
     extractor_version: str | None = None
-    data_origin: Literal["real", "demo"] | None = "real"
+    data_origin: Literal["real", "demo", "synthetic", "test"] | None = "real"
     history_type: Literal["platform_collected", "backfill", "snapshot"] | None = "platform_collected"
     periods_available: list[str] = Field(default_factory=list)
     consecutive_valid_periods: int = 0
@@ -84,12 +84,15 @@ class ForecastObservationInput(BaseModel):
     value: float
     normalized_value: float | None = None
     denominator: float | None = None
+    unit: str | None = None
+    denominator_unit: str | None = None
     series_id: str | None = None
     panel_version: str | None = None
     query_id: str | None = None
     scope: str | None = None
+    location: str | None = None
     extractor_version: str | None = None
-    data_origin: Literal["real", "demo"] | None = "real"
+    data_origin: Literal["real", "demo", "synthetic", "test"] | None = "real"
     history_type: Literal["platform_collected", "backfill", "snapshot"] | None = "platform_collected"
     observation_id: str
     readiness_state: ReadinessState
@@ -106,6 +109,9 @@ class ForecastSeriesInput(BaseModel):
     canonical_name: str | None = None
     provider: str
     signal_type: Literal["demand", "adoption", "interest", "context"]
+    unit: str | None = None
+    denominator_unit: str | None = None
+    location: str | None = None
     panel_version: str | None = None
     query_id: str | None = None
     scope: str | None = None

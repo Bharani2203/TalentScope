@@ -1,0 +1,29 @@
+name: Market collection fixture verification
+
+on:
+  schedule:
+    - cron: "15 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: market-collection-fixture
+  cancel-in-progress: false
+
+jobs:
+  fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+      - name: Run fixture collection
+        working-directory: backend
+        env:
+          FIXTURE_DATABASE: ${{ runner.temp }}/talentscope-fixture-${{ github.run_id }}-${{ github.run_attempt }}.sqlite3
+        run: |
+          echo "trigger=${{ github.event_name }} fixture_only=true"
+          python -m app.scripts.collect_market_data --fixture --database-path "$FIXTURE_DATABASE" --trigger-type "${{ github.event_name }}" --workflow-run-id "${{ github.run_id }}" --workflow-attempt "${{ github.run_attempt }}" --provider adzuna --query "software developer" --location Chennai --country in --limit 10

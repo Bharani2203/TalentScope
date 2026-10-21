@@ -18,7 +18,13 @@ const {
   DOMAIN_CAPABILITY_REGISTRY,
   getDomainCapabilities,
   getAssistantComposerMode,
-  resolveNextJourneyStep
+  resolveActiveCapabilityId,
+  resolveNextJourneyStep,
+  formatUnappliedFilterDisclosure,
+  resolveDisplayedCapabilityId,
+  shouldShowUnappliedFilterDisclosure,
+  buildFollowUpRequestContext,
+  renderTurnChartOrBaselineHTML
 } = await import('../src/pages/individual/ai-assistant/AIAssistant.js');
 const {
   buildAnswerRequest,
@@ -120,9 +126,9 @@ assert.equal(regenerateRequest.conversation_id, 'conv-1');
 const focusedTrendRequest = buildAnswerRequest({
   message: 'ui/ux trend',
   domain: 'skill',
-  capabilityId: 'trend_velocity_analysis'
+  capabilityId: 'skill_future_relevance_score'
 });
-assert.equal(focusedTrendRequest.capability_id, 'trend_velocity_analysis', 'focused Skill Demand Trends selection reaches the backend as its canonical capability ID');
+assert.equal(focusedTrendRequest.capability_id, 'skill_future_relevance_score', 'focused Skill Future Relevance Score selection reaches the backend as its canonical capability ID');
 
 const previousFetch = globalThis.fetch;
 const conversationUrls = [];
@@ -180,7 +186,6 @@ assert.match(appSource, /\{ label: 'AI Assistant', icon: 'sparkles', route: '\/i
 assert.match(assistantSource, /data-action="regenerate_answer"/, 'answers expose a regeneration action');
 assert.match(assistantSource, /replaceTurnId: turn\.id/, 'regeneration replaces the original local turn');
 assert.match(assistantSource, /ai-ref-feature-card--\$\{featureIndex \+ 1\}/, 'feature cards use distinct visual treatments');
-assert.match(assistantSource, /resolveCanonicalAssistantEntity\(dom, name\)/, 'selected entities are sent as canonical IDs when catalogue metadata is available');
 assert.match(assistantSource, /capabilityId: selectedCapabilityId/, 'focused capability is included in the answer request');
 assert.match(assistantSource, /reasonCodes\.includes\('INTELLIGENCE_SOURCE_UNAVAILABLE'\)[\s\S]*'data_source_unavailable'/, 'provider outages render as data-source failures rather than unsupported capabilities');
 assert.match(assistantSource, /\['error', 'failed', 'data_source_unavailable'\]\.includes\(statusKey\)[\s\S]*Retry this question/, 'provider outages offer a retry for the original question');
@@ -188,7 +193,11 @@ assert.match(assistantSource, /\['unsupported', 'requires_clarification'\]\.incl
 assert.match(assistantSource, /data-open-explainer/, 'discovery cards open a preview without attaching a capability');
 assert.match(assistantSource, /available_ranges[\s\S]*Max Available/, 'time choices are based on catalogue coverage with a Max Available fallback');
 assert.doesNotMatch(assistantSource, /scope === 'My Skills'/, 'My scope is not used by the assistant');
-assert.match(assistantSource, /} else {\s*selectedSkillsPayload = \[\];\s*}\s*} else if \(dom === 'market'\)/, 'all-skill requests remain unscoped when no skill is selected');
+assert.doesNotMatch(assistantSource, /selectedSkillsPayload|selectedCompaniesPayload/, 'the composer no longer carries hidden selected-entity request state');
+assert.match(assistantSource, /function buildSupportedInsightChips\(turn, activeDomain\)[\s\S]*turn\.facts/, 'suggested insight questions use the current turn evidence');
+assert.doesNotMatch(assistantSource.slice(assistantSource.indexOf('function buildSupportedInsightChips'), assistantSource.indexOf('function renderTurnHTML')), /domState\.filters/, 'suggestions do not reuse stale filter selections');
+const createConversationSource = assistantSource.slice(assistantSource.indexOf('createIntelligenceConversation({'), assistantSource.indexOf('});', assistantSource.indexOf('createIntelligenceConversation({')));
+assert.doesNotMatch(createConversationSource, /filters\s*:/, 'new conversations do not persist hidden filter state');
 assert.doesNotMatch(assistantSource, /focusSkill\s*\?/, 'default skill queries do not reference an undefined legacy variable');
 
 const skillPage = await readFile(new URL('../src/pages/individual/skills/SkillIntelligence.js', import.meta.url), 'utf8');
@@ -239,9 +248,141 @@ for (const capabilities of Object.values(DOMAIN_CAPABILITY_REGISTRY)) {
 }
 const backendCatalog = { capabilities: [...catalogRecords.values()] };
 assert.equal(getDomainCapabilities('skill').length, 0, 'capabilities are not advertised before the authenticated backend catalog loads');
-assert.equal(getDomainCapabilities('skill', backendCatalog).length, 6, 'Skill presentation is filtered by backend registrations');
-assert.equal(getDomainCapabilities('market', backendCatalog).length, 4, 'Market presentation uses backend-supported operations');
-assert.equal(getDomainCapabilities('job', backendCatalog).length, 5, 'Job presentation uses backend-supported operations');
+assert.equal(getDomainCapabilities('skill', backendCatalog).length, 3, 'Skill presentation is filtered by backend registrations to exactly 3 features');
+assert.equal(getDomainCapabilities('market', backendCatalog).length, 2, 'Market presentation uses backend-supported operations with exactly 2 features');
+assert.equal(getDomainCapabilities('job', backendCatalog).length, 2, 'Job presentation uses backend-supported operations with exactly 2 features');
+assert.equal(resolveActiveCapabilityId({
+  executed_primary_capability: 'skill_change_alert',
+  planned_primary_capability: 'skill_future_relevance_score',
+  capabilities_used: ['skill_change_alert'],
+  planned_capabilities: ['skill_future_relevance_score']
+}, 'skill', backendCatalog), 'skill_change_alert', 'executed route takes precedence over the selected-feature hint');
+assert.equal(resolveActiveCapabilityId({
+  capabilities_used: [],
+  planned_capabilities: ['skill_change_alert']
+}, 'skill', backendCatalog), 'skill_change_alert', 'planned route updates the active feature even while asking for missing context');
+assert.equal(resolveActiveCapabilityId({
+  capabilities_used: [],
+  planned_capabilities: []
+}, 'skill', backendCatalog), null, 'unmatched requests do not activate or attribute a capability');
+const skillCapabilities = getDomainCapabilities('skill', backendCatalog);
+const marketCapabilities = getDomainCapabilities('market', backendCatalog);
+const jobCapabilities = getDomainCapabilities('job', backendCatalog);
+for (const capability of [...skillCapabilities, ...marketCapabilities, ...jobCapabilities]) {
+  assert.ok(capability.suggestedQuestions.length >= 3, `${capability.id} has contextual optional suggestions`);
+  assert.ok(capability.suggestedQuestions.every(question => typeof question === 'string' && question.length > 0));
+}
+assert.deepEqual(skillCapabilities.map(capability => capability.id), [
+  'skill_future_relevance_score',
+  'skill_change_alert',
+  'adaptive_skill_roadmap'
+], 'Skill suggestions are attached only to the 3 approved Skill capabilities');
+assert.deepEqual(marketCapabilities.map(capability => capability.id), [
+  'technology_adoption_shift_detector',
+  'technology_impact_explorer'
+], 'Market suggestions are attached only to the 2 approved Market capabilities');
+assert.deepEqual(jobCapabilities.map(capability => capability.id), [
+  'skill_based_job_match',
+  'career_transition_opportunity'
+], 'Job suggestions are attached only to the 2 approved Job capabilities');
+const sfrCapability = skillCapabilities.find(capability => capability.id === 'skill_future_relevance_score');
+const scaCapability = skillCapabilities.find(capability => capability.id === 'skill_change_alert');
+const asrCapability = skillCapabilities.find(capability => capability.id === 'adaptive_skill_roadmap');
+const tasdCapability = marketCapabilities.find(capability => capability.id === 'technology_adoption_shift_detector');
+const tieCapability = marketCapabilities.find(capability => capability.id === 'technology_impact_explorer');
+const sbjmCapability = jobCapabilities.find(capability => capability.id === 'skill_based_job_match');
+const ctoCapability = jobCapabilities.find(capability => capability.id === 'career_transition_opportunity');
+assert.equal(sfrCapability.title, 'Skill Future Relevance Score');
+assert.equal(sfrCapability.category, 'Skill Relevance');
+assert.match(sfrCapability.defaultPrompt, /future relevance score/i);
+assert.match(sfrCapability.explainer.limitations, /bounded by observable data/i);
+assert.equal(scaCapability.title, 'Skill Change Alert');
+assert.equal(scaCapability.category, 'Skill Alerts');
+assert.match(scaCapability.defaultPrompt, /change alerts/i);
+assert.equal(asrCapability.title, 'Adaptive Skill Roadmap');
+assert.equal(asrCapability.category, 'Skill Pathways');
+assert.match(asrCapability.defaultPrompt, /adaptive skill roadmap/i);
+assert.equal(tasdCapability.title, 'Technology Adoption Shift Detector');
+assert.equal(tasdCapability.category, 'Market Shifts');
+assert.match(tasdCapability.explainer.limitations, /developer activity is not conflated with employer demand/i);
+assert.equal(tieCapability.title, 'Technology Impact Explorer');
+assert.equal(tieCapability.category, 'Market Impact');
+assert.equal(sbjmCapability.title, 'Skill-Based Job Match');
+assert.equal(sbjmCapability.category, 'Job Matching');
+assert.match(sbjmCapability.explainer.limitations, /verified job postings/i);
+assert.equal(ctoCapability.title, 'Career Transition Opportunity');
+assert.equal(ctoCapability.category, 'Career Pathways');
+assert.match(ctoCapability.explainer.limitations, /O\*NET\/ESCO/i);
+assert.equal(shouldShowUnappliedFilterDisclosure({
+  intent: 'lookup_skill_reference',
+  planned_capabilities: ['skill_technology_reference'],
+  unapplied_filters: [{ filter: 'salary_band' }]
+}), false, 'irrelevant filters do not dominate a taxonomy answer');
+assert.equal(shouldShowUnappliedFilterDisclosure({
+  intent: 'search_jobs',
+  planned_capabilities: ['job_posting_search'],
+  unapplied_filters: [{ filter: 'salary_band' }]
+}), true, 'posting filter limitations remain visible');
+assert.equal(
+  resolveDisplayedCapabilityId({ capabilities_used: ['trend_velocity_analysis'] }),
+  'trend_velocity_analysis',
+  'automatically classified answers are attributed to the capability actually executed'
+);
+assert.equal(
+  resolveDisplayedCapabilityId({
+    capabilityId: 'skill_health_analysis',
+    capabilities_used: [],
+    planned_capabilities: ['skill_technology_reference']
+  }),
+  'skill_technology_reference',
+  'the active feature follows the routed capability even when its data gate is not ready'
+);
+assert.equal(
+  resolveDisplayedCapabilityId({ capabilityId: 'skill_technology_reference', capabilities_used: ['trend_velocity_analysis'] }),
+  'trend_velocity_analysis',
+  'execution attribution takes precedence when it differs from the requested capability'
+);
+assert.equal(
+  resolveDisplayedCapabilityId({ capabilityId: 'trend_velocity_analysis', capabilities_used: [] }),
+  null,
+  'unexecuted capability requests do not claim an executed feature'
+);
+assert.equal(resolveDisplayedCapabilityId({
+  capabilityId: 'market_snapshot',
+  status: 'insufficient_data',
+  capabilities_used: []
+}), null, 'insufficient-data responses do not claim a capability was executed');
+const priorTurnContext = {
+  domain: 'skill',
+  capabilityId: 'trend_velocity_analysis',
+  capability_id: 'trend_velocity_analysis',
+  timeRange: '6m',
+  selectedSkills: ['Python'],
+  filters: {
+    domain: 'skill',
+    selected_feature: 'trend_velocity_analysis',
+    selected_skills: ['Python'],
+    requested_time_window: '6m'
+  }
+};
+const followUpContext = buildFollowUpRequestContext(priorTurnContext);
+assert.equal('capabilityId' in followUpContext, false, 'follow-up questions are routed from their own intent');
+assert.equal('capability_id' in followUpContext, false, 'snake-case capability IDs are also cleared');
+assert.equal('filters' in followUpContext, false, 'follow-ups do not carry legacy hidden filters');
+assert.equal(followUpContext.timeRange, 'max', 'follow-ups use the full available history');
+assert.equal('selectedSkills' in followUpContext, false, 'follow-ups rely on conversation context rather than hidden entity selections');
+const technicalDisclosure = formatUnappliedFilterDisclosure({
+  filter: 'selected_feature',
+  reason: 'CAPABILITY_NOT_SUPPORTED_IN_DOMAIN'
+});
+assert.match(technicalDisclosure, /not supported for this request/i);
+assert.doesNotMatch(technicalDisclosure, /selected_feature|CAPABILITY_NOT_SUPPORTED_IN_DOMAIN/);
+const salaryDisclosure = formatUnappliedFilterDisclosure({
+  filter: 'salary_band',
+  reason: "Filter 'salary_band' is not supported by current normalized market series."
+});
+assert.match(salaryDisclosure, /Salary range/i);
+assert.match(salaryDisclosure, /stored market data/i);
 assert.equal(getAssistantComposerMode({}), 'normal', 'empty composer state is normal chat');
 assert.equal(getAssistantComposerMode({ selectedFeature: 'skill_health' }), 'feature', 'a single capability activates feature mode');
 assert.equal(getAssistantComposerMode({ selectedFeature: 'skill_health', guidedJourney: { id: 'guided' } }), 'guided', 'guided mode has precedence over an incidental current-step capability');
@@ -298,8 +439,31 @@ assert.match(assistantSource, /guidedJourney = null;\s*domState\.selectedFeature
 assert.match(assistantSource, /await executeAiQuery\(query, \{ selectedFeatureId \}\);\s*\}/, 'submitting preserves the selected capability mode for conversation follow-ups');
 assert.match(assistantSource, /guidedJourneyId: savedJourney\?\.completedCapabilityIds\?\.includes\(capabilityId\)/, 'restored completed guided steps retain a locally persisted journey when available');
 assert.match(assistantSource, /usedCapability \?/, 'conversation responses identify the capability that produced them');
+assert.doesNotMatch(assistantSource, /ai-res-unapplied-banner/, 'the individual assistant no longer renders legacy hidden-filter disclosures');
+const executeQuerySource = assistantSource.slice(assistantSource.indexOf('async function executeAiQuery'));
+assert.match(executeQuerySource, /timeRange: 'max'/, 'individual assistant requests use the maximum supported historical window');
+assert.doesNotMatch(executeQuerySource, /scope_empty|selectedSkillsPayload|selectedCompaniesPayload|filters:\s*\{/, 'invisible legacy filters and scope state are not sent to the answer endpoint');
+assert.doesNotMatch(assistantSource, /escapeHTML\(u\.filter\).*escapeHTML\(u\.reason\)/, 'raw filter identifiers and backend diagnostics are not rendered directly');
 assert.match(conversationAnswerSource, /label: 'Could not complete'/, 'failed requests have an explicit non-success label');
 assert.match(conversationAnswerSource, /role="\$\{\['blocked', 'error', 'failed'\]/, 'access and execution failures use an alert');
+
+const realTrendChart = renderTurnChartOrBaselineHTML({}, {
+  readiness_state: 'ready',
+  data_origin: 'real',
+  period: '2024-01_to_2024-04',
+  details: { series: [{ period: '2024-01', value: 0.2 }, { period: '2024-04', value: 0.4 }], provider: 'jsearch', signal_type: 'demand', metric: 'normalized_share', value_unit: 'share' }
+}, [], []);
+assert.ok(realTrendChart.includes('2024-01') && realTrendChart.includes('2024-04'));
+assert.ok(realTrendChart.includes('jsearch') && realTrendChart.includes('normalized_share') && realTrendChart.includes('share'));
+assert.ok(!renderTurnChartOrBaselineHTML({}, { period: 'window', details: { observation_count: 4 } }, [], []).includes('<svg'), 'no chart is drawn unless actual series points are returned');
+assert.equal(renderTurnChartOrBaselineHTML({}, {
+  readiness_state: 'insufficient_data', data_origin: 'real',
+  details: { series: [{ period: '2024-01', value: 0.2 }, { period: '2024-04', value: 0.4 }] }
+}, [], []), '', 'an unready trend cannot produce a measured chart');
+assert.equal(renderTurnChartOrBaselineHTML({}, {
+  readiness_state: 'ready', data_origin: 'benchmark',
+  details: { series: [{ period: '2024-01', value: 0.2 }, { period: '2024-04', value: 0.4 }] }
+}, [], []), '', 'benchmark data cannot be presented as a real measured chart');
 
 // Conversational AI Turn Flow & Actions
 assert.match(assistantSource, /class="ai-user-turn-wrapper"/, 'User turn is right-aligned in conversation stream');
@@ -309,36 +473,42 @@ assert.match(assistantSource, /data-action="copy_answer"/, 'Turn footer includes
 assert.match(assistantSource, /data-feedback="up"/, 'Turn footer includes thumbs-up feedback');
 assert.match(assistantSource, /data-feedback="down"/, 'Turn footer includes thumbs-down feedback');
 assert.match(assistantSource, /data-feedback="up" data-turn-index="\$\{index\}"/, 'Feedback actions are bound to their assistant turn');
-assert.match(assistantSource, /requestContext: turn\?\.requestContext/, 'follow-up questions preserve the originating turn context');
+assert.match(assistantSource, /requestContext: buildFollowUpRequestContext\(turn\?\.requestContext\)/, 'follow-ups preserve context without pinning the previous capability');
 assert.match(assistantSource, /writeText\(cleanConversationAnswer/, 'copy actions omit hidden internal fields');
 
 // Guided Intelligence Journey & backend-driven recommendation checks
 assert.match(assistantSource, /queryCoreIntelligencePlan\(/, 'recommendations are planned by the authenticated backend engine');
 assert.match(assistantSource, /plan\.selected_capabilities/, 'recommendation uses the planner-selected capability');
 assert.match(assistantSource, /readiness\.can_execute/, 'unready capabilities are not silently attached');
+assert.match(assistantSource, /data-feature-prompt/, 'suggestion chips use the assistant composer prompt attribute');
+assert.match(assistantSource, /input\.value = prompt;\s+domState\.draftQuestion = prompt;/, 'suggestion clicks populate the regular composer draft');
+assert.match(assistantSource, /domState\.selectedFeature = activeCapability\.id;/, 'automatic capability routing updates the active feature');
+assert.match(assistantSource, /planned_capabilities/, 'clarification and readiness responses can identify the planned feature without claiming execution');
+assert.match(assistantSource, /capabilityId: routedCapabilityId/, 'turn context is attributed to the capability actually executed');
+assert.match(assistantSource, /capabilities_used[\s\S]*getDomainCapabilities\(dom\)/, 'active feature follows backend execution attribution');
 
 // Guided journeys suggest only a registered, uncompleted next operation.
 const journey = {
   id: 'journey-test',
-  originalQuestion: 'What is the demand trend for Python?',
-  completedCapabilityIds: ['trend_velocity_analysis'],
-  currentCapabilityId: 'trend_velocity_analysis',
-  remainingCapabilityIds: ['historical_signal_retrieval', 'evidence_provenance_retrieval'],
+  originalQuestion: 'What is the future relevance score for Python?',
+  completedCapabilityIds: ['skill_future_relevance_score'],
+  currentCapabilityId: 'skill_future_relevance_score',
+  remainingCapabilityIds: ['skill_change_alert', 'adaptive_skill_roadmap'],
   readinessEvaluated: true,
-  readinessCapabilityId: 'historical_signal_retrieval',
+  readinessCapabilityId: 'skill_change_alert',
   nextCapabilityReady: true
 };
 const initialTurn = {
-  userQuestion: 'What is the demand trend for Python?',
+  userQuestion: 'What is the future relevance score for Python?',
   status: 'ready',
-  selectedFeature: 'trend_velocity_analysis',
-  capabilityId: 'trend_velocity_analysis',
+  selectedFeature: 'skill_future_relevance_score',
+  capabilityId: 'skill_future_relevance_score',
   guidedJourneyId: journey.id,
-  capabilities_used: ['trend_velocity_analysis']
+  capabilities_used: ['skill_future_relevance_score']
 };
 const step1 = resolveNextJourneyStep(initialTurn, 'skill', [initialTurn], journey, backendCatalog);
-assert.ok(step1 && !step1.isComplete, 'Next step after skill_health should be provided');
-assert.equal(step1.nextCapability.id, 'historical_signal_retrieval');
+assert.ok(step1 && !step1.isComplete, 'Next step after skill_future_relevance_score should be provided');
+assert.equal(step1.nextCapability.id, 'skill_change_alert');
 assert.equal(resolveNextJourneyStep(initialTurn, 'skill', [initialTurn], {
   ...journey,
   readinessEvaluated: false
@@ -349,13 +519,13 @@ assert.ok(resolveNextJourneyStep(initialTurn, 'skill', [initialTurn], {
 }, backendCatalog)?.isComplete, 'journey does not suggest a capability that fails readiness');
 const skippedStep = resolveNextJourneyStep(initialTurn, 'skill', [initialTurn], {
   ...journey,
-  skippedCapabilityIds: ['historical_signal_retrieval'],
-  readinessCapabilityId: 'evidence_provenance_retrieval'
+  skippedCapabilityIds: ['skill_change_alert'],
+  readinessCapabilityId: 'adaptive_skill_roadmap'
 }, backendCatalog);
-assert.equal(skippedStep?.nextCapability.id, 'evidence_provenance_retrieval', 'journey advances past an unready step without repeating it');
+assert.equal(skippedStep?.nextCapability.id, 'adaptive_skill_roadmap', 'journey advances past an unready step without repeating it');
 assert.equal(resolveNextJourneyStep(initialTurn, 'skill', [initialTurn], null, backendCatalog), null, 'normal chat has no automatic guided step');
 
-const completeJourney = { ...journey, completedCapabilityIds: [...journey.completedCapabilityIds, 'historical_signal_retrieval'], remainingCapabilityIds: [] };
+const completeJourney = { ...journey, completedCapabilityIds: [...journey.completedCapabilityIds, 'skill_change_alert'], remainingCapabilityIds: [] };
 const completedStep = resolveNextJourneyStep(initialTurn, 'skill', [initialTurn], completeJourney, backendCatalog);
 assert.ok(completedStep?.isComplete, 'journey does not repeat steps after the eligible sequence is exhausted');
 

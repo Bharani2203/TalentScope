@@ -35,6 +35,7 @@ from app.analytics.shared_intelligence import (
 from app.analytics.skill_half_life import calculate_skill_half_life
 from app.analytics.skill_health import evaluate_skill_health
 from app.analytics.skill_registry import canonical_skill_id
+from app.analytics.job_skill_extraction import extract_posting_skills
 from app.analytics.trend import G14_CALCULATION_VERSION
 from app.core.config import Settings, get_settings
 from app.models.auth import AuthenticatedUser
@@ -78,6 +79,37 @@ from app.storage.reference_store import ReferenceDataStore
 
 logger = logging.getLogger(__name__)
 
+
+def _offline_general_explanation(message: str) -> str | None:
+    """Small, explicitly non-market fallback for common technology concepts."""
+    normalized = message.casefold()
+    if re.search(r"\bjava\b", normalized) and re.search(r"\bpython\b", normalized) and re.search(r"\bdifference between\b", normalized):
+        return (
+            "Java and Python are both general-purpose programming languages. Java is commonly "
+            "used for large applications and Android development; Python is often chosen for "
+            "automation, data work, and concise scripting. The best fit depends on the project. "
+            "This is general guidance, not a TalentScope market finding."
+        )
+    if re.search(r"\bpython\b", normalized):
+        return (
+            "Python is a general-purpose programming language used to build web services, "
+            "automate tasks, analyze data, and develop machine-learning applications. "
+            "This is a general explanation, not a TalentScope market finding."
+        )
+    if re.search(r"\bjava\b", normalized):
+        return (
+            "Java is a general-purpose programming language commonly used for backend services, "
+            "enterprise applications, and Android development. This is a general explanation, "
+            "not a TalentScope market finding."
+        )
+    if re.search(r"\bui\s*/\s*ux\b|\buser (?:interface|experience)\b", normalized):
+        return (
+            "UI/UX design is the work of shaping how a digital product looks and how people use it. "
+            "A trend means a pattern designers are adopting; this explanation does not verify which "
+            "approaches are currently most common."
+        )
+    return None
+
 _IDEMPOTENT_ANSWER_CACHE: dict[tuple[str, str, str], CoreIntelligenceAnswerResponse] = {}
 
 
@@ -97,6 +129,11 @@ class ExecutionOrchestratorService:
         entity_service: EntityRegistryService | None = None,
         observation_store: Any | None = None,
         workforce_store: Any | None = None,
+        reference_store: Any | None = None,
+        market_store: Any | None = None,
+        conversation_store: Any | None = None,
+        llm_service: Any | None = None,
+        job_searcher: Callable[..., Sequence[Any]] | None = None,
     ):
         self.settings = settings or get_settings()
         if db_path is not None:
@@ -111,19 +148,21 @@ class ExecutionOrchestratorService:
         self.entity_service = entity_service or EntityRegistryService(
             db_path=self.db_path,
         )
+        self.reference_store = reference_store or ReferenceDataStore(self.db_path)
         self.capability_service = capability_service or CapabilityRegistryService(
             entity_service=self.entity_service,
+            reference_store=self.reference_store,
             db_path=self.db_path,
         )
         self.intent_planner = intent_planner or IntentPlannerService(
             entity_service=self.entity_service,
             capability_service=self.capability_service,
         )
-        self.reference_store = ReferenceDataStore(self.db_path)
-        self.market_store = MarketDataStore(self.db_path)
+        self.market_store = market_store or MarketDataStore(self.db_path)
         self.workforce_store = workforce_store or FirestoreCompanyWorkforceStore()
-        self.conversation_store = ConversationStore.get_instance()
-        self.llm_service = LLMExplanationService()
+        self.conversation_store = conversation_store or ConversationStore.get_instance()
+        self.llm_service = llm_service or LLMExplanationService()
+        self.job_searcher = job_searcher
         # Production intelligence reads follow the configured source of truth.
         # Unit tests must inject an explicit observation store.
         self.firestore_store = observation_store
@@ -220,7 +259,26 @@ class ExecutionOrchestratorService:
         return filtered
 
     @staticmethod
+    def _extract_question_country(message: str) -> str | None:
+        known_countries = (
+            "United States|United Kingdom|South Korea|North Korea|South Africa|New Zealand|Saudi Arabia|"
+            "United Arab Emirates|India|Canada|Australia|Germany|France|Brazil|Japan|China|Singapore|"
+            "Ireland|Netherlands|Sweden|Norway|Denmark|Finland|Spain|Italy|Mexico|Argentina|Nigeria|Kenya|"
+            "Indonesia|Pakistan|Bangladesh|Philippines|Vietnam|Thailand|Malaysia|Israel|Switzerland|Poland"
+        )
+        country_match = re.search(
+            rf"\b(?:in|within)\s+({known_countries})\b",
+            message,
+            re.IGNORECASE,
+        )
+        if country_match:
+            return country_match.group(1)
+
+    @staticmethod
     def _extract_trend_question_location(message: str) -> str | None:
+        country = ExecutionOrchestratorService._extract_question_country(message)
+        if country:
+            return country
         match = re.search(
             r"\b(?:in|within)\s+([A-Za-z][A-Za-z .'-]*?)\s*(?:[?.!]+)?$",
             message.strip(),
@@ -350,6 +408,7 @@ class ExecutionOrchestratorService:
         context = dict(request.context_override)
         context.pop("_authenticated_learning_profile", None)
         context.pop("_learning_profile_state", None)
+        context.pop("_learning_skill_source", None)
         if (
             portal_type != "individual"
             or authenticated_user is None
@@ -392,6 +451,9 @@ class ExecutionOrchestratorService:
             selected_roles = target_roles[:20]
 
         context["_learning_profile_state"] = "available"
+        context["_learning_skill_source"] = (
+            "request_supplied_skills" if request.selected_skills else "authenticated_individual_profile"
+        )
         context["_authenticated_learning_profile"] = {
             "uid": authenticated_user.uid,
             "target_roles": target_roles,
@@ -455,15 +517,15 @@ class ExecutionOrchestratorService:
                     plan_status="blocked",
                     execution_status="blocked",
                     status="error",
-                    answer=deny_reason or "Access denied to conversation.",
+                    answer="Access denied to conversation.",
                     facts=[],
                     evidence=[],
                     capabilities_used=[],
-                    limitations=[deny_reason or "Access denied to conversation."],
+                    limitations=["The requested conversation is unavailable or access is not authorized."],
                     reason_codes=["UNAUTHORIZED_CONVERSATION_ACCESS"],
                     follow_up_questions=[],
                     follow_up_suggestions=[],
-                    conversation_id=request.conversation_id,
+                    conversation_id=None,
                     client_message_id=request.client_message_id,
                 )
 
@@ -817,7 +879,35 @@ class ExecutionOrchestratorService:
         ):
             request = request.model_copy(update={"time_range": "6m"})
             plan.context_summary["time_range"] = "6m"
-        if getattr(plan, "intent", None) == "rank_skill_trends":
+        market_capabilities = {
+            "market_snapshot", "historical_signal_retrieval", "trend_velocity_analysis",
+            "evidence_provenance_retrieval",
+        }
+        if request.domain == "market" or market_capabilities.intersection(plan.selected_capabilities):
+            trend_location = request.location or self._extract_trend_question_location(request.message)
+            if trend_location:
+                request = request.model_copy(update={"location": trend_location})
+                plan.context_summary["location"] = trend_location
+        elif "job_posting_search" in plan.selected_capabilities:
+            job_location = request.location or self._extract_question_country(request.message)
+            if job_location:
+                filters = dict(request.filters or {})
+                country_codes = {
+                    "india": "IN", "united states": "US", "usa": "US", "united kingdom": "GB",
+                    "uk": "GB", "canada": "CA", "australia": "AU", "germany": "DE",
+                    "france": "FR", "brazil": "BR", "japan": "JP", "china": "CN",
+                    "singapore": "SG", "ireland": "IE", "netherlands": "NL", "sweden": "SE",
+                    "norway": "NO", "denmark": "DK", "finland": "FI", "spain": "ES",
+                    "italy": "IT", "mexico": "MX", "argentina": "AR", "south korea": "KR",
+                    "new zealand": "NZ", "south africa": "ZA", "united arab emirates": "AE",
+                    "switzerland": "CH", "poland": "PL",
+                }
+                normalized_country = job_location.casefold().strip()
+                if not filters.get("country") and normalized_country in country_codes:
+                    filters["country"] = country_codes[normalized_country]
+                request = request.model_copy(update={"location": job_location, "filters": filters})
+                plan.context_summary["location"] = job_location
+        elif getattr(plan, "intent", None) == "rank_skill_trends":
             trend_location = request.location or self._extract_trend_question_location(request.message)
             if trend_location:
                 request = request.model_copy(update={"location": trend_location})
@@ -972,6 +1062,76 @@ class ExecutionOrchestratorService:
             )
             return self._enrich_answer_response(resp, request, plan, authenticated_user)
 
+        # General knowledge answers have no platform evidence. Keep this path
+        # separate from capability execution so empty evidence cannot be mistaken
+        # for an insufficient or measured TalentScope result.
+        if plan.intent == "general_explanation":
+            general_text = None
+            try:
+                if self.llm_service.is_available():
+                    general_text = self.llm_service.generate_grounded_explanation(
+                        user_message=request.message,
+                        intent=plan.intent,
+                        facts=[],
+                        evidence=[],
+                        portal_type="general",
+                        user_id=user_id,
+                        general_knowledge=True,
+                    )
+            except Exception as exc:
+                logger.debug("General explanation generation skipped/fallback: %s", type(exc).__name__)
+            used_provider = bool(general_text)
+            if not general_text:
+                general_text = _offline_general_explanation(request.message)
+            if general_text:
+                resp = CoreIntelligenceAnswerResponse(
+                    request_id=request_id,
+                    user_message=request.message,
+                    portal_type=portal_type,
+                    domain=request.domain,
+                    intent=plan.intent,
+                    plan_status="ready_to_execute",
+                    execution_status="completed",
+                    status="ready",
+                    answer=(
+                        ("General AI explanation (not a TalentScope data finding): " + general_text)
+                        if used_provider
+                        else "General explanation (offline fallback; not a TalentScope data finding): " + general_text
+                    ),
+                    answer_origin=("gemini" if used_provider else "deterministic"),
+                    facts=[],
+                    evidence=[],
+                    planned_capabilities=[],
+                    capabilities_used=[],
+                    limitations=["This is general knowledge, not a measured TalentScope market or hiring result."],
+                    reason_codes=["GENERAL_KNOWLEDGE_EXPLANATION"],
+                    conversation_id=request.conversation_id,
+                    client_message_id=request.client_message_id,
+                )
+            else:
+                resp = CoreIntelligenceAnswerResponse(
+                    request_id=request_id,
+                    user_message=request.message,
+                    portal_type=portal_type,
+                    domain=request.domain,
+                    intent=plan.intent,
+                    plan_status="ready_to_execute",
+                    execution_status="unsupported",
+                    status="unavailable",
+                    answer="General AI explanation is unavailable right now. No TalentScope market or hiring result was produced.",
+                    answer_origin="deterministic",
+                    facts=[],
+                    evidence=[],
+                    planned_capabilities=[],
+                    capabilities_used=[],
+                    limitations=["Gemini is unavailable, over budget, or returned an answer that failed validation."],
+                    reason_codes=["GENERAL_EXPLANATION_UNAVAILABLE"],
+                    conversation_id=request.conversation_id,
+                    client_message_id=request.client_message_id,
+                )
+            self._record_conversation_turn(request, plan, resp, authenticated_user, portal_type)
+            return resp
+
         if (
             plan.intent == "analyze_company_workforce"
             and authenticated_user is not None
@@ -1112,22 +1272,40 @@ class ExecutionOrchestratorService:
             # additional cohorts or make execution depend on arbitrary ordering.
             executable_caps = list(plan.selected_capabilities)
         else:
+            capability_context = dict(request.context_override)
+            if plan.context_summary.get("_historical_signal_context"):
+                capability_context["_historical_signal_context"] = plan.context_summary["_historical_signal_context"]
+            primary_entity = next((item.canonical_entity for item in plan.entities if item.canonical_entity), None)
+            if primary_entity and primary_entity.source == "ref_esco_occupations":
+                capability_context.update({"taxonomy": "esco", "occupation_uri": primary_entity.source_record_id})
+            elif primary_entity and primary_entity.source == "ref_esco_skills":
+                capability_context.update({"taxonomy": "esco", "skill_uri": primary_entity.source_record_id})
             for cap_id in plan.selected_capabilities:
                 eval_req = CapabilityEvaluationRequest(
                     capability_id=cap_id,
-                    entity_name=plan.context_summary.get("primary_entity"),
+                    entity_name=(
+                        request.target_role
+                        or (request.selected_roles[0] if request.selected_roles else None)
+                        or plan.context_summary.get("primary_entity")
+                        or (request.message if cap_id == "job_posting_search" else None)
+                    ),
                     portal_type=portal_type,  # type: ignore[arg-type]
                     time_range=request.time_range,
                     location=request.location,
                     target_role=request.target_role,
-                    selected_skills=request.selected_skills,
+                    selected_skills=request.selected_skills or [
+                        item.canonical_entity.canonical_name
+                        for item in plan.entities
+                        if item.canonical_entity
+                        and item.canonical_entity.entity_type in {"skill", "technology"}
+                    ],
                     observations=(
                         shared_analysis.observations if shared_analysis is not None
                         else request.observations
                     ),
                     task_exposure_records=request.task_exposure_records,
                     dataset_provenance=request.dataset_provenance,
-                    context_override=request.context_override,
+                    context_override=capability_context,
                 )
                 eval_resp = self.capability_service.evaluate(eval_req)
                 if eval_resp.results:
@@ -1154,11 +1332,6 @@ class ExecutionOrchestratorService:
                     or "skill_gap_role_fit" in plan.selected_capabilities
                     or plan.intent in {"synthesize_actions", "analyze_skill_gap"}
                 )
-                observed_periods = sorted({
-                    observation.period
-                    for observation in (shared_analysis.observations if shared_analysis else [])
-                    if observation.period
-                })
                 if forecast_requested and not (shared_analysis and shared_analysis.observations):
                     answer_text = (
                         f"No measured demand observations are currently available for '{ent_name}' "
@@ -1240,6 +1413,17 @@ class ExecutionOrchestratorService:
                         *all_limitations,
                         "Task exposure analysis requires verified task mapping records for the target occupation or skill.",
                     ]
+                elif "market_snapshot" in plan.selected_capabilities and not (shared_analysis and shared_analysis.observations):
+                    answer_text = (
+                        f"No stored market observations are available to verify current hiring demand for '{ent_name}'. "
+                        "No demand level or trend can be inferred from static occupational taxonomy data."
+                    )
+                    insufficient_limitations = [
+                        "A current demand conclusion requires persisted empirical market observations.",
+                        "ESCO and O*NET taxonomy associations are reference relationships, not live hiring evidence.",
+                        *all_limitations,
+                    ]
+                    reason_code = "NO_STORED_MARKET_OBSERVATIONS"
                 elif trend_requested and not (shared_analysis and shared_analysis.observations):
                     answer_text = (
                         f"No measured trend observations are currently available for '{ent_name}' "
@@ -1252,21 +1436,60 @@ class ExecutionOrchestratorService:
                     ]
                     reason_code = "NO_OBSERVATIONS_FOR_SERIES"
                 elif trend_requested:
-                    period_summary = (
-                        f" Available matched periods: {observed_periods[0]} through {observed_periods[-1]} "
-                        f"({len(observed_periods)} distinct periods)."
-                        if observed_periods else ""
+                    trend_readiness = next(
+                        (
+                            result for result in readiness_results
+                            if result.capability_id == "trend_velocity_analysis"
+                        ),
+                        None,
+                    )
+                    reason_code = (
+                        trend_readiness.reason_codes[0]
+                        if trend_readiness and trend_readiness.reason_codes
+                        else "INSUFFICIENT_TREND_HISTORY"
                     )
                     answer_text = (
-                        f"The available history for '{ent_name}' is insufficient to calculate a "
-                        f"directional trend.{period_summary} At least four consecutive comparable "
-                        "monthly periods are required."
+                        trend_readiness.explanation
+                        if trend_readiness and trend_readiness.explanation
+                        else (
+                            f"The available history for '{ent_name}' is insufficient to calculate a "
+                            "directional trend. At least four consecutive comparable completed "
+                            "monthly periods are required."
+                        )
                     )
                     insufficient_limitations = [
                         *all_limitations,
+                        *(
+                            trend_readiness.missing_requirements
+                            if trend_readiness else []
+                        ),
                         "Trend direction requires at least four consecutive comparable monthly periods.",
                     ]
-                    reason_code = "INSUFFICIENT_TREND_HISTORY"
+                elif "historical_signal_retrieval" in plan.selected_capabilities:
+                    historical_readiness = next(
+                        (
+                            result for result in readiness_results
+                            if result.capability_id == "historical_signal_retrieval"
+                        ),
+                        None,
+                    )
+                    reason_code = (
+                        historical_readiness.reason_codes[0]
+                        if historical_readiness and historical_readiness.reason_codes
+                        else "INSUFFICIENT_HISTORICAL_PERIODS"
+                    )
+                    answer_text = (
+                        historical_readiness.explanation
+                        if historical_readiness and historical_readiness.explanation
+                        else f"Historical observations for '{ent_name}' require at least two distinct periods."
+                    )
+                    insufficient_limitations = [
+                        *all_limitations,
+                        *(
+                            historical_readiness.missing_requirements
+                            if historical_readiness else []
+                        ),
+                    ]
                 elif learning_requested:
                     readiness = next(
                         (
@@ -1371,6 +1594,12 @@ class ExecutionOrchestratorService:
                 capabilities_used.append(cap_id)
 
         except DataSourceUnavailableError as exc:
+            logger.warning(
+                "Intelligence data source unavailable request_id=%s capability=%s error_type=%s",
+                request_id,
+                cap_id if "cap_id" in locals() else "unknown",
+                type(exc).__name__,
+            )
             return CoreIntelligenceAnswerResponse(
                 request_id=request_id,
                 user_message=request.message,
@@ -1384,14 +1613,24 @@ class ExecutionOrchestratorService:
                 facts=[],
                 evidence=[],
                 capabilities_used=[],
-                limitations=[str(exc)],
+                limitations=["The configured intelligence data source could not provide this request."],
                 reason_codes=["INTELLIGENCE_SOURCE_UNAVAILABLE"],
                 follow_up_questions=[],
+                planned_primary_capability=plan.primary_capability,
+                executed_primary_capability=None,
+                planned_capabilities=list(plan.selected_capabilities),
+                dependency_capabilities=list(plan.dependency_capabilities),
                 conversation_id=request.conversation_id,
                 client_message_id=request.client_message_id,
             )
         except Exception as exc:
-            logger.exception("Handler execution failed for request %s: %s", request_id, exc)
+            failed_capability = cap_id if "cap_id" in locals() else "unknown"
+            logger.error(
+                "Intelligence handler failed request_id=%s capability=%s error_type=%s",
+                request_id,
+                failed_capability,
+                type(exc).__name__,
+            )
             return CoreIntelligenceAnswerResponse(
                 request_id=request_id,
                 user_message=request.message,
@@ -1400,13 +1639,17 @@ class ExecutionOrchestratorService:
                 plan_status=plan.plan_status,
                 execution_status="failed",
                 status="error",
-                answer="An unexpected error occurred during capability execution. Execution aborted safely without returning unverified data.",
+                answer=f"I couldn't complete this analysis. Please try again later. Reference: {request_id}.",
                 facts=[],
                 evidence=[],
                 capabilities_used=[],
-                limitations=[f"Execution failed: {type(exc).__name__}"],
+                limitations=["The analysis stopped before verified results could be produced."],
                 reason_codes=["HANDLER_EXECUTION_FAILED"],
                 follow_up_questions=[],
+                planned_primary_capability=plan.primary_capability,
+                executed_primary_capability=None,
+                planned_capabilities=list(plan.selected_capabilities),
+                dependency_capabilities=list(plan.dependency_capabilities),
                 conversation_id=request.conversation_id,
                 client_message_id=request.client_message_id,
             )
@@ -1416,7 +1659,10 @@ class ExecutionOrchestratorService:
 
         # Optional LLM Grounded Explanation if available
         answer_origin = "deterministic"
-        if self.llm_service.is_available():
+        if (
+            self.llm_service.is_available()
+            and plan.intent not in {"lookup_skill_reference", "explain_concept", "lookup_github_adoption"}
+        ):
             try:
                 llm_ans = self.llm_service.generate_grounded_explanation(
                     user_message=request.message,
@@ -1438,7 +1684,11 @@ class ExecutionOrchestratorService:
                         answer_text = llm_ans
                         answer_origin = "gemini"
             except Exception as exc:
-                logger.debug("LLM explanation generation skipped/fallback: %s", exc)
+                logger.debug(
+                    "LLM explanation skipped request_id=%s error_type=%s",
+                    request_id,
+                    type(exc).__name__,
+                )
 
         # 9. Deterministic Response Validation
         val_status, val_reasons = self._validate_response(
@@ -1450,6 +1700,11 @@ class ExecutionOrchestratorService:
         )
 
         if val_status != "completed":
+            logger.warning(
+                "Intelligence response validation failed request_id=%s reason_codes=%s",
+                request_id,
+                ",".join(val_reasons[:5]),
+            )
             return CoreIntelligenceAnswerResponse(
                 request_id=request_id,
                 user_message=request.message,
@@ -1458,18 +1713,39 @@ class ExecutionOrchestratorService:
                 plan_status=plan.plan_status,
                 execution_status=val_status,
                 status="error",
-                answer="The generated response could not be verified against the structured evidence facts.",
-                facts=facts,
-                evidence=evidence,
-                capabilities_used=capabilities_used,
-                limitations=limitations,
+                answer=f"I couldn't verify this analysis against its evidence. Please try again later. Reference: {request_id}.",
+                facts=[],
+                evidence=[],
+                capabilities_used=[],
+                limitations=["The response failed evidence validation; no analysis results are available."],
                 reason_codes=val_reasons,
                 follow_up_questions=[],
+                planned_primary_capability=plan.primary_capability,
+                executed_primary_capability=None,
+                planned_capabilities=list(plan.selected_capabilities),
+                dependency_capabilities=list(plan.dependency_capabilities),
                 conversation_id=request.conversation_id,
                 client_message_id=request.client_message_id,
             )
 
         follow_ups = self._generate_follow_up_questions(plan.intent, facts, plan, request)
+        no_stored_job_postings = (
+            plan.intent == "search_jobs"
+            and any(
+                fact.fact_type == "stored_job_postings"
+                and (fact.metric_value == 0 or fact.readiness_state == "insufficient_data")
+                for fact in facts
+            )
+        )
+        no_market_snapshot = (
+            plan.intent == "retrieve_snapshot"
+            and any(
+                fact.fact_type == "analysis_readiness"
+                and fact.metric_name == "market_evidence_readiness"
+                and fact.readiness_state == "insufficient_data"
+                for fact in facts
+            )
+        )
         is_empty_scoped_job_search = (
             plan.intent == "search_jobs"
             and bool(request.selected_companies or (request.filters or {}).get("scope_empty"))
@@ -1581,6 +1857,14 @@ class ExecutionOrchestratorService:
                 )
             )
         )
+        evidence_summary_fact = next(
+            (fact for fact in facts if fact.fact_type == "evidence_summary"), None
+        )
+        insufficient_evidence_retrieval = bool(
+            "evidence_provenance_retrieval" in plan.selected_capabilities
+            and evidence_summary_fact is not None
+            and evidence_summary_fact.metric_value == 0
+        )
         company_workforce_readiness_fact = next(
             (
                 fact for fact in facts
@@ -1594,6 +1878,9 @@ class ExecutionOrchestratorService:
             and company_workforce_readiness_fact.readiness_state == "insufficient_data"
         )
         insufficient_answer = (
+            no_stored_job_postings
+            or no_market_snapshot
+            or
             is_empty_scoped_job_search
             or no_eligible_skill_trends
             or unavailable_focused_trend
@@ -1647,7 +1934,8 @@ class ExecutionOrchestratorService:
             )
         )
         insufficient_answer = (
-            is_empty_scoped_job_search
+            no_stored_job_postings
+            or is_empty_scoped_job_search
             or no_eligible_skill_trends
             or unavailable_focused_trend
             or unavailable_focused_health
@@ -1657,6 +1945,7 @@ class ExecutionOrchestratorService:
             or unavailable_focused_learning
             or insufficient_focused_learning
             or insufficient_company_workforce
+            or insufficient_evidence_retrieval
         )
         forecast_reason_code = (
             forecast_readiness_fact.details.get("reason_code")
@@ -1674,6 +1963,12 @@ class ExecutionOrchestratorService:
             plan_status=plan.plan_status,
             execution_status=(
                 "completed" if (
+                    # A zero-result stored-job search is still a successful
+                    # execution: the handler queried its configured store and
+                    # returned an evidence-backed count of zero. Data status
+                    # remains insufficient_data below.
+                    no_stored_job_postings
+                    or
                     unavailable_focused_trend
                     or unavailable_focused_health
                     or unavailable_focused_half_life
@@ -1707,6 +2002,8 @@ class ExecutionOrchestratorService:
             limitations=limitations,
             reason_codes=(
                 ["INSUFFICIENT_SCOPED_JOB_POSTINGS"] if is_empty_scoped_job_search
+                else ["NO_STORED_JOB_POSTINGS"] if no_stored_job_postings
+                else ["NO_STORED_MARKET_OBSERVATIONS"] if no_market_snapshot
                 else ["NO_ELIGIBLE_SKILL_TRENDS"] if no_eligible_skill_trends
                 else [trend_reason_code] if unavailable_focused_trend
                 else [health_reason_code] if unavailable_focused_health
@@ -1720,6 +2017,7 @@ class ExecutionOrchestratorService:
                     if learning_summary_fact and learning_summary_fact.details
                     else "LEARNING_RECOMMENDATION_NOT_READY"
                 )] if (unavailable_focused_learning or insufficient_focused_learning)
+                else ["NO_VERIFIED_EVIDENCE"] if insufficient_evidence_retrieval
                 else [str(
                     company_workforce_readiness_fact.details.get("reason_code")
                     if company_workforce_readiness_fact and company_workforce_readiness_fact.details
@@ -1746,29 +2044,37 @@ class ExecutionOrchestratorService:
     ) -> CoreIntelligenceAnswerResponse:
         """Populate canonical status, applied/unapplied filters, capabilities, confidence, freshness, and source coverage."""
         if resp.status in {"unavailable", "error"}:
-            return resp
+            return resp.model_copy(update={
+                "planned_primary_capability": plan.primary_capability if plan else None,
+                "executed_primary_capability": None,
+                "dependency_capabilities": list(plan.dependency_capabilities) if plan else [],
+                "planned_capabilities": list(plan.selected_capabilities) if plan else [],
+            })
 
         primary_ent = plan.context_summary.get("primary_entity") if plan else None
 
         # Applied vs Unapplied filters
         effective_domain = request.domain or (request.filters.get("domain") if request.filters else None) or "skill"
+        disclosure_suppressed = bool(
+            plan and plan.intent in {"general_explanation", "explain_concept", "lookup_skill_reference"}
+        )
         applied_filters: dict[str, Any] = {
             "portal_type": resp.portal_type,
             "domain": effective_domain,
             "query": request.message,
         }
         unapplied_filters: list[dict[str, str]] = []
-        if request.location:
+        if request.location and not disclosure_suppressed:
             applied_filters["location"] = request.location
-        if request.time_range:
+        if request.time_range and not disclosure_suppressed:
             applied_filters["time_range"] = request.time_range
-        if request.target_role:
+        if request.target_role and not disclosure_suppressed:
             applied_filters["target_role"] = request.target_role
-        if request.selected_skills:
+        if request.selected_skills and not disclosure_suppressed:
             applied_filters["selected_skills"] = list(request.selected_skills)
-        if request.selected_roles:
+        if request.selected_roles and not disclosure_suppressed:
             applied_filters["selected_roles"] = list(request.selected_roles)
-        if request.selected_companies:
+        if request.selected_companies and not disclosure_suppressed:
             if effective_domain == "market":
                 unapplied_filters.append({
                     "filter": "selected_companies",
@@ -1779,9 +2085,13 @@ class ExecutionOrchestratorService:
                 applied_filters["selected_companies"] = list(request.selected_companies)
 
         extra_limitations: list[str] = []
-        if request.filters:
+        if request.filters and not disclosure_suppressed:
             for fk, fv in request.filters.items():
                 if fv is None or fv == "":
+                    continue
+                # Routing metadata and profile skill context are not applied
+                # request filters and should not produce a discarded-filter warning.
+                if fk in {"selected_feature", "selected_skills", "feature_id"}:
                     continue
                 if fk in {"salary_band", "seniority_level", "remote_mode", "visa_sponsorship"}:
                     unapplied_filters.append({
@@ -1898,102 +2208,100 @@ class ExecutionOrchestratorService:
                         "reason": "This filter is not supported by the shared intelligence pipeline.",
                     })
 
-        analysis = self._shared_market_analysis(request, plan)
+        planned_capabilities = set(plan.selected_capabilities if plan else [])
+        executed_capabilities = set(resp.capabilities_used or [])
+        response_capabilities = planned_capabilities | executed_capabilities
+        market_analysis_capabilities = {
+            "market_snapshot",
+            "historical_signal_retrieval",
+            "trend_velocity_analysis",
+            "skill_health_analysis",
+            "skill_half_life_analysis",
+            "skill_forecasting_half_life",
+        }
+        needs_market_analysis = bool(response_capabilities & market_analysis_capabilities)
+        # Reference, job, profile, and general responses must not retrieve or
+        # attach unrelated market analytics. Feature projections below are
+        # limited to capabilities selected for this request.
+        analysis = (
+            self._shared_market_analysis(request, plan)
+            if needs_market_analysis and plan is not None
+            else SharedIntelligenceAnalysis([], [], [], history_complete=True)
+        )
         obs = analysis.observations
         agg_signals = analysis.aggregated_signals
         trends = analysis.trend_results
 
         target_skill = primary_ent or (request.selected_skills[0] if request.selected_skills else "")
         target_canon_id = canonical_skill_id(target_skill) if target_skill else None
-
-        skill_health_res = evaluate_skill_health(
-            agg_signals,
-            canonical_skill_id=target_canon_id,
-            canonical_name=target_skill,
-            history_complete=analysis.history_complete,
-        )
         sig_fam = (
             "demand" if any(s.signal_type == "demand" for s in agg_signals)
             else "adoption" if any(s.signal_type == "adoption" for s in agg_signals)
             else "interest"
         )
-        half_life_res = calculate_skill_half_life(
-            agg_signals,
-            canonical_skill_id=target_canon_id,
-            canonical_name=target_skill,
-            signal_family=sig_fam,
-            min_periods=36,
-            history_complete=analysis.history_complete,
-        )
-        forecast_res = forecast_signal_series(
-            agg_signals,
-            canonical_skill_id=target_canon_id,
-            canonical_name=target_skill,
-            signal_family=sig_fam,
-            min_periods=24,
-            history_complete=analysis.history_complete,
-        )
-        primary_trend = trends[0] if trends else None
-        demand_dir = (primary_trend.trend_direction or primary_trend.trend) if primary_trend else "Insufficient Data"
-        ai_disruption_res = evaluate_ai_task_disruption(
-            entity_name=request.target_role or target_skill,
-            entity_type="skill",
-            canonical_id=target_canon_id,
-            empirical_demand_direction=demand_dir,
-        )
-        workforce_impact_res = evaluate_market_to_person_to_company_impact(
-            skill_name=target_skill,
-            skill_health_category=skill_health_res.health_category,
-            demand_trend_direction=demand_dir,
-            demand_slope=(primary_trend.trend_slope if primary_trend and primary_trend.trend_slope is not None else (primary_trend.slope if primary_trend else None)),
-            half_life_status=half_life_res.status,
-            half_life_months=half_life_res.half_life_months,
-            user_skills=list(request.selected_skills or []),
-            user_target_role=request.target_role,
-            company_skill_inventory=None,
-            company_open_roles=[],
-            observation_ids=[o.id for o in obs],
-        )
+        skill_health_res = None
+        half_life_res = None
+        forecast_res = None
+        capabilities_dict: dict[str, Any] = {}
 
-        capabilities_dict: dict[str, Any] = {
-            "skill_health": {
+        if "skill_health_analysis" in response_capabilities:
+            skill_health_res = evaluate_skill_health(
+                agg_signals,
+                canonical_skill_id=target_canon_id,
+                canonical_name=target_skill,
+                history_complete=analysis.history_complete,
+            )
+            capabilities_dict["skill_health"] = {
                 "status": skill_health_res.status,
                 "payload": skill_health_res.model_dump(),
                 "reason": skill_health_res.explanation,
-            },
-            "skill_half_life": {
+            }
+        if "skill_half_life_analysis" in response_capabilities:
+            half_life_res = calculate_skill_half_life(
+                agg_signals,
+                canonical_skill_id=target_canon_id,
+                canonical_name=target_skill,
+                signal_family=sig_fam,
+                min_periods=36,
+                history_complete=analysis.history_complete,
+            )
+            capabilities_dict["skill_half_life"] = {
                 "status": half_life_res.status,
                 "payload": half_life_res.model_dump(),
                 "reason": half_life_res.reason,
-            },
-            "forecast": {
+            }
+        if "skill_forecasting_half_life" in response_capabilities:
+            forecast_res = forecast_signal_series(
+                agg_signals,
+                canonical_skill_id=target_canon_id,
+                canonical_name=target_skill,
+                signal_family=sig_fam,
+                min_periods=24,
+                history_complete=analysis.history_complete,
+            )
+            capabilities_dict["forecast"] = {
                 "status": forecast_res.status,
                 "payload": forecast_res.model_dump(),
                 "reason": forecast_res.reason,
-            },
-            "ai_disruption": {
-                "status": ai_disruption_res.status,
-                "payload": ai_disruption_res.model_dump(),
-                "reason": ai_disruption_res.reason,
-            },
-            "workforce_impact": {
-                "status": workforce_impact_res.status,
-                "payload": workforce_impact_res.model_dump(),
-                "reason": "Connected market-to-person-to-company impact evaluation.",
-            },
-        }
+            }
 
         latest_obs_dt = max((o.observed_at for o in obs if o.observed_at), default=None)
         latest_obs_iso = latest_obs_dt.isoformat() if latest_obs_dt else None
         max_periods = max((len(t.periods_used) for t in trends), default=len(obs))
 
         conf_res = compute_evidence_confidence(
-            period_count=max_periods if max_periods > 0 else (4 if resp.facts else 0),
-            ready_signal_families=skill_health_res.ready_families if skill_health_res.ready_families else (["reference"] if resp.facts else []),
-            family_directions=[r.direction for r in skill_health_res.component_table if r.is_eligible_share],
+            period_count=max_periods,
+            ready_signal_families=(
+                skill_health_res.ready_families
+                if skill_health_res is not None else []
+            ),
+            family_directions=(
+                [r.direction for r in skill_health_res.component_table if r.is_eligible_share]
+                if skill_health_res is not None else []
+            ),
             latest_observed_at=latest_obs_dt,
             has_valid_denominator=any(s.metric == "normalized_share" for s in agg_signals),
-            quality_valid=True,
+            quality_valid=bool(obs) or not needs_market_analysis,
         )
 
         history_types = sorted({o.history_type for o in obs if o.history_type} | {f.history_type for f in resp.facts if f.history_type})
@@ -2010,7 +2318,7 @@ class ExecutionOrchestratorService:
         }
         source_coverage = {
             "providers_present": sources_list,
-            "signal_families_ready": len(skill_health_res.ready_families),
+            "signal_families_ready": len(skill_health_res.ready_families) if skill_health_res else 0,
             "total_observations": len(obs),
         }
 
@@ -2022,6 +2330,11 @@ class ExecutionOrchestratorService:
         for lim in extra_limitations:
             if lim not in merged_limitations:
                 merged_limitations.append(lim)
+
+        unapplied_by_filter: dict[str, dict[str, str]] = {}
+        for item in unapplied_filters:
+            unapplied_by_filter.setdefault(item.get("filter", "selected_option"), item)
+        unapplied_filters = list(unapplied_by_filter.values())
 
         metric_results = [
             *fact_metric_results(
@@ -2068,6 +2381,14 @@ class ExecutionOrchestratorService:
                 "unapplied_filters": unapplied_filters,
                 "capabilities": capabilities_dict,
                 "metric_results": metric_results,
+                "planned_primary_capability": plan.primary_capability if plan else None,
+                "executed_primary_capability": (
+                    plan.primary_capability
+                    if plan and plan.primary_capability in executed_capabilities
+                    else next(iter(resp.capabilities_used), None)
+                ),
+                "dependency_capabilities": list(plan.dependency_capabilities) if plan else [],
+                "planned_capabilities": list(plan.selected_capabilities) if plan else [],
                 "confidence": conf_res.model_dump(),
                 "freshness": freshness,
                 "history_type": history_type_val,
@@ -2238,21 +2559,291 @@ class ExecutionOrchestratorService:
 
         return facts, evidence, limitations
 
+    def _handle_github_adoption(
+        self,
+        request: CoreIntelligenceAnswerRequest,
+        plan: IntelligencePlanResponse,
+    ) -> tuple[list[StructuredFact], list[EvidenceItem], list[str]]:
+        """Describe local GitHub Innovation Graph series at their native quarter grain."""
+        entity = next((
+            item.canonical_entity for item in plan.entities
+            if item.canonical_entity and item.is_primary
+        ), None)
+        skill_name = entity.canonical_name if entity else plan.context_summary.get("primary_entity")
+        if not skill_name:
+            return [], [], ["A recognized skill or technology is required to select a GitHub series."]
+
+        country = str((request.filters or {}).get("country") or "").strip().upper() or None
+        requested_geography = request.location
+        if not requested_geography:
+            location_match = re.search(r"\b(?:in|within)\s+([A-Za-z][A-Za-z .'-]*?)\s*[?.!]*$", request.message, re.IGNORECASE)
+            requested_geography = location_match.group(1).strip() if location_match else None
+        if not country and requested_geography:
+            country_codes = {
+                "india": "IN", "in": "IN", "united states": "US", "usa": "US", "us": "US",
+                "united kingdom": "GB", "uk": "GB", "great britain": "GB", "gb": "GB",
+                "canada": "CA", "ca": "CA", "australia": "AU", "au": "AU",
+                "germany": "DE", "de": "DE", "france": "FR", "fr": "FR",
+                "brazil": "BR", "br": "BR",
+            }
+            country = country_codes.get(requested_geography.casefold())
+        candidates = [skill_name]
+        if entity and entity.entity_type in {"skill", "technology"}:
+            candidates.extend(entity.aliases)
+        rows: list[dict[str, Any]] = []
+        for candidate in dict.fromkeys(item for item in candidates if item):
+            rows = self.reference_store.get_github_adoption_series(
+                language=candidate, iso2_code=country
+            )
+            if not rows:
+                rows = self.reference_store.get_github_adoption_series(
+                    language=candidate.title(), iso2_code=country
+                )
+            if not rows:
+                rows = self.reference_store.get_github_adoption_series(
+                    topic=candidate.casefold(), iso2_code=country
+                )
+            if rows:
+                break
+
+        facts: list[StructuredFact] = []
+        evidence: list[EvidenceItem] = []
+        limitations = [
+            "GitHub Innovation Graph is developer activity, not hiring demand or job-posting volume.",
+            "Quarterly raw developer counts are not converted to monthly data and do not qualify for monthly Skill Health, forecast, or half-life gates.",
+        ]
+        if not rows:
+            evidence_id = "ev_github_adoption_series_unavailable"
+            facts.append(StructuredFact(
+                fact_id="fact_github_adoption_series_unavailable",
+                fact_type="analysis_readiness",
+                entity_name=skill_name,
+                metric_name="github_adoption_readiness",
+                metric_value="insufficient_data",
+                unit="status",
+                source="ref_github_language_adoption+ref_github_topic_adoption",
+                data_origin="unavailable",
+                history_type="reference_dataset",
+                readiness_state="insufficient_data",
+                evidence_reference=evidence_id,
+                details={"reason": f"No local GitHub Innovation Graph series matched {skill_name} for the requested geography."},
+            ))
+            evidence.append(EvidenceItem(
+                evidence_id=evidence_id,
+                source="local_github_innovation_graph",
+                signal_type="evidence_readiness",
+                data_origin="unavailable",
+                quality="unavailable",
+                description=f"No local quarterly developer-activity series matched {skill_name}.",
+            ))
+            return facts, evidence, limitations
+
+        available_geographies = sorted({str(row.get("iso2_code") or "unknown") for row in rows})
+        if not country and len(available_geographies) > 1:
+            evidence_id = "ev_github_adoption_geography_required"
+            reason = (
+                "The local GitHub series contains separate country-level observations. "
+                "Choose a country so unlike geographic populations are not pooled."
+            )
+            facts.append(StructuredFact(
+                fact_id="fact_github_adoption_geography_required",
+                fact_type="analysis_readiness",
+                entity_name=skill_name,
+                canonical_entity_id=entity.entity_id if entity else None,
+                entity_type="skill" if entity else "technology",
+                metric_name="github_adoption_geography_readiness",
+                metric_value="geography_required",
+                unit="status",
+                source="ref_github_language_adoption+ref_github_topic_adoption",
+                data_origin="local_reference_dataset",
+                history_type="reference_dataset",
+                readiness_state="requires_clarification",
+                evidence_reference=evidence_id,
+                details={"reason": reason, "available_country_count": len(available_geographies), "available_country_codes_sample": available_geographies[:20]},
+            ))
+            evidence.append(EvidenceItem(
+                evidence_id=evidence_id,
+                source="local_github_innovation_graph",
+                signal_type="geography_readiness",
+                data_origin="local_reference_dataset",
+                history_type="reference_dataset",
+                quality="valid",
+                description=reason,
+            ))
+            return facts, evidence, [*limitations, reason]
+
+        # Language and topic metrics, and each geography, remain separate series.
+        grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        for row in rows:
+            table = "language" if row.get("language") else "topic"
+            label = str(row.get("language") or row.get("topic") or skill_name)
+            grouped.setdefault((table, str(row.get("iso2_code") or "unknown")), []).append(row)
+
+        for (kind, geo), series in grouped.items():
+            series.sort(key=lambda row: str(row.get("period") or ""))
+            label = str(series[-1].get("language") or series[-1].get("topic") or skill_name)
+            points = [
+                row for row in series
+                if isinstance(row.get("num_pushers"), (int, float)) and row.get("period")
+            ]
+            if not points:
+                continue
+            latest = points[-1]
+            latest_period = str(latest["period"])
+            series_id = f"github_innovation_graph:{kind}:{geo}:{label.casefold()}"
+            snapshot_id = f"ev_{series_id}_{latest_period}"
+            facts.append(StructuredFact(
+                fact_id=f"fact_{series_id}_{latest_period}",
+                fact_type="developer_activity_snapshot",
+                entity_name=label,
+                canonical_entity_id=entity.entity_id if entity else None,
+                entity_type="skill" if entity else "technology",
+                metric_name="github_unique_developers",
+                metric_value=int(latest["num_pushers"]),
+                unit="unique developers per quarter",
+                period=latest_period,
+                source=f"ref_github_{kind}_adoption",
+                data_origin="local_reference_dataset",
+                history_type="backfill",
+                series_id=series_id,
+                quality_state="valid",
+                readiness_state="observed",
+                provenance_id=str(latest.get("id") or series_id),
+                evidence_reference=snapshot_id,
+                details={"time_grain": "quarter", "iso2_code": geo, "series_kind": kind},
+            ))
+            evidence.append(EvidenceItem(
+                evidence_id=snapshot_id,
+                source=f"ref_github_{kind}_adoption",
+                signal_type="adoption",
+                period=latest_period,
+                unit="unique developers per quarter",
+                data_origin="local_reference_dataset",
+                history_type="backfill",
+                series_id=series_id,
+                provenance_id=str(latest.get("id") or series_id),
+                quality="valid",
+                description=f"GitHub Innovation Graph {kind} activity for {label}: {latest['num_pushers']} unique developers in {latest_period} ({geo}).",
+            ))
+
+            def quarter_index(period: str) -> int | None:
+                match = re.fullmatch(r"(\d{4})-Q([1-4])", period)
+                return int(match.group(1)) * 4 + int(match.group(2)) - 1 if match else None
+
+            if len(points) >= 2:
+                previous = points[-2]
+                prev_idx = quarter_index(str(previous.get("period") or ""))
+                curr_idx = quarter_index(latest_period)
+                if prev_idx is not None and curr_idx == prev_idx + 1:
+                    difference = int(latest["num_pushers"]) - int(previous["num_pushers"])
+                    change_id = f"ev_{series_id}_change_{previous['period']}_{latest_period}"
+                    facts.append(StructuredFact(
+                        fact_id=f"fact_{series_id}_change_{latest_period}",
+                        fact_type="developer_activity_change",
+                        entity_name=label,
+                        canonical_entity_id=entity.entity_id if entity else None,
+                        entity_type="skill" if entity else "technology",
+                        metric_name="quarter_over_quarter_change",
+                        metric_value=difference,
+                        unit="unique developers",
+                        period=f"{previous['period']}_to_{latest_period}",
+                        source=f"ref_github_{kind}_adoption",
+                        data_origin="local_reference_dataset",
+                        history_type="backfill",
+                        series_id=series_id,
+                        quality_state="valid",
+                        provenance_id=str(latest.get("id") or series_id),
+                        evidence_reference=change_id,
+                        details={"previous_value": int(previous["num_pushers"]), "latest_value": int(latest["num_pushers"]), "iso2_code": geo, "time_grain": "quarter"},
+                    ))
+                    evidence.append(EvidenceItem(
+                        evidence_id=change_id,
+                        source=f"ref_github_{kind}_adoption",
+                        signal_type="adoption_change",
+                        period=f"{previous['period']}_to_{latest_period}",
+                        unit="unique developers",
+                        data_origin="local_reference_dataset",
+                        history_type="backfill",
+                        series_id=series_id,
+                        quality="valid",
+                        description=f"Quarter-over-quarter change computed from {int(previous['num_pushers'])} in {previous['period']} and {int(latest['num_pushers'])} in {latest_period}.",
+                    ))
+
+            contiguous = [points[-1]]
+            for row in reversed(points[:-1]):
+                if quarter_index(str(contiguous[0].get("period") or "")) is None or quarter_index(str(row.get("period") or "")) != quarter_index(str(contiguous[0]["period"])) - 1:
+                    break
+                contiguous.insert(0, row)
+            if len(contiguous) >= 4:
+                first_value = int(contiguous[0]["num_pushers"])
+                last_value = int(contiguous[-1]["num_pushers"])
+                direction = "increased" if last_value > first_value else "decreased" if last_value < first_value else "was unchanged"
+                trend_id = f"ev_{series_id}_trend_{contiguous[0]['period']}_{latest_period}"
+                facts.append(StructuredFact(
+                    fact_id=f"fact_{series_id}_trend_{latest_period}",
+                    fact_type="developer_activity_trend",
+                    entity_name=label,
+                    canonical_entity_id=entity.entity_id if entity else None,
+                    entity_type="skill" if entity else "technology",
+                    metric_name="quarterly_descriptive_change",
+                    metric_value=direction,
+                    unit="unique developers",
+                    period=f"{contiguous[0]['period']}_to_{latest_period}",
+                    source=f"ref_github_{kind}_adoption",
+                    data_origin="local_reference_dataset",
+                    history_type="backfill",
+                    series_id=series_id,
+                    quality_state="valid",
+                    provenance_id=series_id,
+                    evidence_reference=trend_id,
+                    details={"first_value": first_value, "latest_value": last_value, "periods": [str(row["period"]) for row in contiguous], "iso2_code": geo, "time_grain": "quarter"},
+                ))
+                evidence.append(EvidenceItem(
+                    evidence_id=trend_id,
+                    source=f"ref_github_{kind}_adoption",
+                    signal_type="adoption_trend",
+                    period=f"{contiguous[0]['period']}_to_{latest_period}",
+                    unit="unique developers per quarter",
+                    data_origin="local_reference_dataset",
+                    history_type="backfill",
+                    series_id=series_id,
+                    quality="valid",
+                    description=f"Descriptive comparison of {len(contiguous)} consecutive quarterly observations; {first_value} to {last_value} unique developers.",
+                ))
+
+        return facts, evidence, limitations
+
     def _handle_skill_technology_reference(
         self,
         request: CoreIntelligenceAnswerRequest,
         plan: IntelligencePlanResponse,
     ) -> tuple[list[StructuredFact], list[EvidenceItem], list[str]]:
+        if getattr(plan, "intent", None) == "lookup_github_adoption":
+            return self._handle_github_adoption(request, plan)
         facts: list[StructuredFact] = []
         evidence: list[EvidenceItem] = []
-        limitations: list[str] = [
+        is_reference_lookup = getattr(plan, "intent", None) in {
+            "lookup_skill_reference", "explain_concept",
+        }
+        limitations: list[str] = [] if is_reference_lookup else [
             "GitHub Innovation Graph measures open-source developer activity, not employer hiring demand.",
         ]
 
         # Gather distinct entities from plan
         entities_to_lookup: list[tuple[str, Any]] = []
         if plan.entities:
-            for item in plan.entities:
+            candidate_entities = plan.entities
+            if is_reference_lookup:
+                # Intent planning also carries profile skills as secondary
+                # context. A taxonomy answer is scoped to the explicit primary
+                # entity, never every skill present in the user's profile.
+                candidate_entities = [
+                    item for item in plan.entities
+                    if getattr(item, "is_primary", False) and item.canonical_entity
+                ][:1]
+                if not candidate_entities and len(plan.entities) == 1:
+                    candidate_entities = [plan.entities[0]]
+            for item in candidate_entities:
                 if item.canonical_entity:
                     if not any(e[0] == item.canonical_entity.canonical_name for e in entities_to_lookup):
                         entities_to_lookup.append((item.canonical_entity.canonical_name, item.canonical_entity))
@@ -2264,13 +2855,82 @@ class ExecutionOrchestratorService:
             ent = resolved.entity if resolved.status == "resolved" else None
             entities_to_lookup.append((fallback_token, ent))
 
+        # Skill Reference also exposes actual ESCO occupation-to-skill taxonomy
+        # links when the selected feature and question explicitly request them.
+        occupation_entity = next((
+            entity for _name, entity in entities_to_lookup
+            if entity and entity.entity_type == "occupation"
+            and entity.source == "ref_esco_occupations"
+        ), None)
+        if is_reference_lookup and occupation_entity and re.search(
+            r"\b(?:skills?\s+(?:(?:are|is)\s+)?(?:associated|linked|related)|occupation\s+skills?)\b",
+            request.message,
+            re.IGNORECASE,
+        ):
+            occupation_uri = occupation_entity.source_record_id
+            occupation_label = occupation_entity.canonical_name
+            occupation_rows = self.reference_store.get_esco_occupations(
+                concept_uri=occupation_uri, limit=1
+            )
+            if occupation_rows:
+                occupation_label = occupation_rows[0]["preferred_label"]
+            relation_type = (
+                "essential" if re.search(r"\bessential\b", request.message, re.IGNORECASE)
+                else "optional" if re.search(r"\boptional\b", request.message, re.IGNORECASE)
+                else None
+            )
+            relations = self.reference_store.get_esco_occupation_skills(
+                occupation_uri, limit=10, relation_type=relation_type
+            )
+            evidence_id = f"ev_esco_links_{hashlib.sha256(occupation_uri.encode()).hexdigest()[:16]}"
+            for row in relations:
+                skill_uri = row["skill_uri"]
+                facts.append(StructuredFact(
+                    fact_id=f"fact_esco_link_{hashlib.sha256((occupation_uri + skill_uri + row['relation_type']).encode()).hexdigest()[:20]}",
+                    fact_type="occupation_skill_association",
+                    entity_name=row["preferred_label"] or row["relation_skill_label"],
+                    canonical_entity_id=f"skill:esco:{skill_uri}",
+                    entity_type="skill",
+                    metric_name="relation_type",
+                    metric_value=row["relation_type"],
+                    source="ref_esco_occupation_skill_relations",
+                    data_origin="real",
+                    history_type="reference_taxonomy",
+                    quality_state="valid",
+                    provenance_id=f"{occupation_uri}|{skill_uri}|{row['relation_type']}",
+                    evidence_reference=evidence_id,
+                    details={
+                        "occupation_title": occupation_label,
+                        "occupation_uri": occupation_uri,
+                        "skill_uri": skill_uri,
+                        "skill_type": row["skill_type"],
+                        "source_version": row["source_version"],
+                    },
+                ))
+            evidence.append(EvidenceItem(
+                evidence_id=evidence_id,
+                source="ref_esco_occupation_skill_relations",
+                signal_type="taxonomy_association",
+                quality="valid" if relations else "unavailable",
+                description=f"ESCO occupation-skill taxonomy associations for {occupation_label}: {len(relations)} relationships retrieved.",
+            ))
+            limitations.extend([
+                "ESCO essential/optional associations are taxonomy mappings, not proof that a person has a skill or is qualified for the occupation.",
+                "ESCO taxonomy associations are not live employer hiring demand.",
+            ])
+            return facts, evidence, limitations
+
         for token, primary_ent in entities_to_lookup:
-            # Check in reference store for GitHub topics or languages
+            # GitHub observations belong to adoption/activity questions. A
+            # canonical taxonomy lookup must not append them to its evidence.
             topic_token = token.lower() if token else ""
-            topics = self.reference_store.get_github_adoption_series(topic=topic_token)
-            languages = self.reference_store.get_github_adoption_series(language=token)
-            if not languages and token:
-                languages = self.reference_store.get_github_adoption_series(language=token.title())
+            topics = []
+            languages = []
+            if not is_reference_lookup:
+                topics = self.reference_store.get_github_adoption_series(topic=topic_token)
+                languages = self.reference_store.get_github_adoption_series(language=token)
+                if not languages and token:
+                    languages = self.reference_store.get_github_adoption_series(language=token.title())
 
             if topics:
                 latest_topic = topics[-1]
@@ -2345,6 +3005,9 @@ class ExecutionOrchestratorService:
                 if primary_ent and primary_ent.source == "canonical_registry"
                 else canonical_skill_id(token)
             )
+            # Historical developer series are not reference taxonomy fields.
+            if is_reference_lookup:
+                skill_id = None
             if skill_id:
                 from app.services.intelligence_catalog_service import get_local_github_skill_series
 
@@ -2526,23 +3189,70 @@ class ExecutionOrchestratorService:
                     canonical_entity_id=primary_ent.entity_id,
                     entity_type=primary_ent.entity_type,
                     metric_name="taxonomy_category",
-                    metric_value=primary_ent.category or "Skill",
+                    metric_value=primary_ent.category,
                     source=primary_ent.source,
                     data_origin="real",
                     history_type="reference_taxonomy",
                     quality_state="valid",
                     provenance_id=primary_ent.source_record_id,
                     evidence_reference=ev_ent_id,
+                    details={
+                        "aliases": list(primary_ent.aliases),
+                        **(
+                            {
+                                "esco_uri": primary_ent.source_record_id,
+                                "taxonomy": "ESCO",
+                                "source_version": primary_ent.metadata.get("source_version"),
+                                "description": primary_ent.metadata.get("description"),
+                            }
+                            if primary_ent.source == "ref_esco_skills" else {}
+                        ),
+                        **(
+                            {"definition": primary_ent.metadata.get("definition")}
+                            if primary_ent.metadata.get("definition") else {}
+                        ),
+                    },
                 ))
                 evidence.append(EvidenceItem(
                     evidence_id=ev_ent_id,
                     source=primary_ent.source or "entity_registry",
                     signal_type="taxonomy_lookup",
                     quality="valid",
-                    description=f"Canonical entity registry record: {primary_ent.canonical_name} ({primary_ent.entity_type}).",
+                    provenance_id=primary_ent.source_record_id,
+                    description=(
+                        f"ESCO {primary_ent.metadata.get('source_version')} skill taxonomy entry: {primary_ent.canonical_name}."
+                        if primary_ent.source == "ref_esco_skills"
+                        else f"Canonical entity registry record: {primary_ent.canonical_name} ({primary_ent.entity_type})."
+                    ),
+                ))
+            elif is_reference_lookup:
+                unavailable_evidence_id = f"ev_ref_unavailable_{canonical_skill_id(token) or 'entity'}"
+                facts.append(StructuredFact(
+                    fact_id=f"fact_ref_unavailable_{canonical_skill_id(token) or 'entity'}",
+                    fact_type="analysis_readiness",
+                    entity_name=token,
+                    entity_type="skill",
+                    metric_name="canonical_reference_readiness",
+                    metric_value="unavailable",
+                    unit="status",
+                    source="reference_taxonomy",
+                    data_origin="real",
+                    history_type="reference_taxonomy",
+                    quality_state="unavailable",
+                    readiness_state="unavailable",
+                    evidence_reference=unavailable_evidence_id,
+                    details={
+                        "reason": "No canonical reference record was found; definition and category are unavailable.",
+                    },
+                ))
+                evidence.append(EvidenceItem(
+                    evidence_id=unavailable_evidence_id,
+                    source="reference_taxonomy",
+                    signal_type="taxonomy_lookup",
+                    quality="unavailable",
+                    description="No canonical reference record was found; definition and category are unavailable.",
                 ))
             elif not topics and not languages:
-                # Add baseline reference fact for token
                 ev_tok_id = f"ev_ref_{token}"
                 facts.append(StructuredFact(
                     fact_id=f"fact_ref_{token}",
@@ -2579,10 +3289,31 @@ class ExecutionOrchestratorService:
         limitations: list[str] = ["O*NET is an occupational taxonomy baseline, not real-time labor market hiring demand."]
 
         target_soc = None
+        esco_uri = None
         for ent in plan.entities:
             if ent.canonical_entity and ent.canonical_entity.entity_type == "occupation":
-                target_soc = ent.canonical_entity.metadata.get("soc_code") or ent.canonical_entity.source_record_id
+                esco_uri = ent.canonical_entity.metadata.get("esco_uri")
+                if not esco_uri and ent.canonical_entity.source == "ref_esco_occupations":
+                    esco_uri = ent.canonical_entity.source_record_id
+                target_soc = ent.canonical_entity.metadata.get("soc_code") or (None if esco_uri else ent.canonical_entity.source_record_id)
                 break
+
+        if esco_uri:
+            occupation = self.reference_store.get_esco_occupations(concept_uri=esco_uri, limit=1)
+            if occupation:
+                row = occupation[0]
+                evidence_id = f"ev_esco_occ_{hashlib.sha256(esco_uri.encode()).hexdigest()[:16]}"
+                facts.append(StructuredFact(
+                    fact_id=f"fact_esco_occ_{hashlib.sha256(esco_uri.encode()).hexdigest()[:16]}",
+                    fact_type="occupation", entity_name=row["preferred_label"],
+                    canonical_entity_id=f"occupation:esco:{esco_uri}", entity_type="occupation",
+                    metric_name="esco_concept_uri", metric_value=esco_uri,
+                    source="ref_esco_occupations", data_origin="real", history_type="reference_taxonomy",
+                    quality_state="valid", provenance_id=esco_uri, evidence_reference=evidence_id,
+                    details={"description": row["description"], "taxonomy": "ESCO", "source_version": row["source_version"], "isco_group": row["isco_group"]},
+                ))
+                evidence.append(EvidenceItem(evidence_id=evidence_id, source="ref_esco_occupations", signal_type="taxonomy_lookup", quality="valid", description=f"ESCO {row['source_version']} occupation taxonomy entry: {row['preferred_label']}."))
+            return facts, evidence, ["ESCO is a static occupational reference taxonomy, not real-time hiring demand."]
 
         if not target_soc and request.target_role:
             occs = self.reference_store.get_onet_occupations(title=request.target_role)
@@ -2636,11 +3367,41 @@ class ExecutionOrchestratorService:
 
         target_soc = None
         target_title = None
+        esco_uri = None
         for ent in plan.entities:
             if ent.canonical_entity and ent.canonical_entity.entity_type == "occupation":
-                target_soc = ent.canonical_entity.metadata.get("soc_code") or ent.canonical_entity.source_record_id
+                esco_uri = ent.canonical_entity.metadata.get("esco_uri")
+                if not esco_uri and ent.canonical_entity.source == "ref_esco_occupations":
+                    esco_uri = ent.canonical_entity.source_record_id
+                target_soc = ent.canonical_entity.metadata.get("soc_code") or (None if esco_uri else ent.canonical_entity.source_record_id)
                 target_title = ent.canonical_entity.canonical_name
                 break
+
+        if esco_uri:
+            occupation = self.reference_store.get_esco_occupations(concept_uri=esco_uri, limit=1)
+            target_title = occupation[0]["preferred_label"] if occupation else target_title
+            requested_relation = (
+                "essential" if re.search(r"\bessential\b", request.message, re.IGNORECASE)
+                else "optional" if re.search(r"\boptional\b", request.message, re.IGNORECASE)
+                else None
+            )
+            rows = self.reference_store.get_esco_occupation_skills(
+                esco_uri, limit=10, relation_type=requested_relation
+            )
+            evidence_id = f"ev_esco_links_{hashlib.sha256(esco_uri.encode()).hexdigest()[:16]}"
+            for row in rows:
+                uri = row["skill_uri"]
+                facts.append(StructuredFact(
+                    fact_id=f"fact_esco_link_{hashlib.sha256((esco_uri + uri + row['relation_type']).encode()).hexdigest()[:20]}",
+                    fact_type="occupation_skill_association", entity_name=row["preferred_label"] or row["relation_skill_label"],
+                    canonical_entity_id=f"skill:esco:{uri}", entity_type="skill",
+                    metric_name="relation_type", metric_value=row["relation_type"],
+                    source="ref_esco_occupation_skill_relations", data_origin="real", history_type="reference_taxonomy",
+                    quality_state="valid", provenance_id=f"{esco_uri}|{uri}|{row['relation_type']}", evidence_reference=evidence_id,
+                    details={"occupation_title": target_title, "occupation_uri": esco_uri, "skill_uri": uri, "skill_type": row["skill_type"], "source_version": row["source_version"]},
+                ))
+            evidence.append(EvidenceItem(evidence_id=evidence_id, source="ref_esco_occupation_skill_relations", signal_type="taxonomy_association", quality="valid", description=f"ESCO occupation-skill taxonomy associations for {target_title}: {len(rows)} relationships retrieved."))
+            return facts, evidence, ["ESCO essential/optional associations are taxonomy mappings, not proof that a person has a skill or is qualified for the occupation.", "ESCO taxonomy associations are not live employer hiring demand."]
 
         if not target_soc and request.target_role:
             occs = self.reference_store.get_onet_occupations(title=request.target_role)
@@ -2752,56 +3513,138 @@ class ExecutionOrchestratorService:
         limitations: list[str] = ["Snapshots represent samples observed through provider queries, not total universe of postings."]
 
         obs = self._shared_market_analysis(request, plan).observations
+        requested_signal = (request.filters or {}).get("signal_type")
+        hiring_question = bool(re.search(
+            r"\b(?:hiring|job postings?|vacancies|employment demand|employer demand)\b",
+            request.message,
+            re.IGNORECASE,
+        ))
+        if isinstance(requested_signal, str):
+            obs = [observation for observation in obs if observation.signal_type == requested_signal]
+        elif hiring_question:
+            # A hiring question can only be answered from sampled posting-demand
+            # observations. Community, pageview, adoption and taxonomy records
+            # must not qualify as employer hiring evidence.
+            obs = [
+                observation for observation in obs
+                if observation.signal_type == "demand"
+                and observation.source.casefold() in {"jsearch", "adzuna"}
+            ]
 
         if obs:
-            latest_obs = max(obs, key=lambda o: (o.period, o.observed_at))
-            facts.append(StructuredFact(
-                fact_id=f"fact_snap_{latest_obs.id}",
-                fact_type="market_snapshot",
-                entity_name=latest_obs.skill,
-                canonical_entity_id=latest_obs.skill_id,
-                entity_type="skill",
-                metric_name="observed_metric_value",
-                metric_value=latest_obs.value,
-                denominator=latest_obs.denominator,
-                period=latest_obs.period,
-                timestamp=latest_obs.observed_at,
-                source=latest_obs.source,
-                data_origin=latest_obs.data_origin or "unavailable",
-                history_type=latest_obs.history_type,
-                series_id=latest_obs.series_id,
-                quality_state=latest_obs.quality or "valid",
-                provenance_id=latest_obs.id,
-                evidence_reference=latest_obs.id,
-                details={
+            from app.analytics.freshness import assess_freshness
+            from app.analytics.observation_period import is_completed_month
+
+            # Keep unlike source series separate. A snapshot summarizes the
+            # records found for each identity; it does not calculate a trend.
+            groups: dict[tuple[Any, ...], list[MarketObservation]] = {}
+            for observation in obs:
+                identity = (
+                    observation.source, observation.signal_type, observation.unit,
+                    observation.denominator_unit, observation.scope, observation.location,
+                    observation.series_id, observation.query_id, observation.panel_version,
+                    observation.skill_id,
+                )
+                groups.setdefault(identity, []).append(observation)
+
+            for series_obs in groups.values():
+                ordered = sorted(series_obs, key=lambda item: (item.period or "", item.observed_at))
+                latest_obs = ordered[-1]
+                periods = sorted({item.period for item in ordered if item.period})
+                completed_periods = [period for period in periods if is_completed_month(period)]
+                freshness = assess_freshness(series_obs)
+                completeness_flags = [
+                    item.quality.get("collection_complete")
+                    for item in ordered
+                    if isinstance(item.quality, dict)
+                    and isinstance(item.quality.get("collection_complete"), bool)
+                ]
+                if any(flag is False for flag in completeness_flags):
+                    completeness = "partial"
+                    quality_state = "partial"
+                elif completeness_flags and all(completeness_flags):
+                    completeness = "complete"
+                    quality_state = "valid"
+                else:
+                    completeness = "unknown"
+                    quality_state = (
+                        latest_obs.quality
+                        if isinstance(latest_obs.quality, str) and latest_obs.quality
+                        else "unknown"
+                    )
+                if completeness == "partial":
+                    limitations.append(
+                        f"The {latest_obs.source} {latest_obs.signal_type} series has partial collection coverage; "
+                        "its observed sample is not a complete provider result set."
+                    )
+                observation_ids = [item.id for item in ordered if item.id]
+                fetch_run_ids = sorted({item.fetch_run_id for item in ordered if item.fetch_run_id})
+                details = {
                     "signal_type": latest_obs.signal_type,
+                    "metric_name": "observed_metric_value",
+                    "unit": latest_obs.unit,
+                    "denominator_unit": latest_obs.denominator_unit,
                     "location": latest_obs.location,
-                    "denominator": latest_obs.denominator,
-                },
-            ))
-            evidence.append(EvidenceItem(
-                evidence_id=latest_obs.id,
-                source=latest_obs.source,
-                signal_type=latest_obs.signal_type,
-                period=latest_obs.period,
-                unit=latest_obs.unit,
-                data_origin=latest_obs.data_origin or "unavailable",
-                history_type=latest_obs.history_type,
-                series_id=latest_obs.series_id,
-                location=latest_obs.location,
-                scope=latest_obs.scope,
-                query_id=latest_obs.query_id,
-                panel_version=latest_obs.panel_version,
-                fetch_run_id=latest_obs.fetch_run_id,
-                source_url=latest_obs.source_url,
-                quality=latest_obs.quality or "valid",
-                provenance_id=latest_obs.id,
-                confidence=latest_obs.confidence,
-                description=f"Observed {latest_obs.signal_type} for '{latest_obs.skill}' ({latest_obs.value}) in {latest_obs.period}.",
-            ))
+                    "scope": latest_obs.scope,
+                    "source": latest_obs.source,
+                    "observation_count": len(ordered),
+                    "period_frequency": "monthly" if periods and all(re.fullmatch(r"\d{4}-\d{2}", p) for p in periods) else "unspecified",
+                    "time_coverage_start": periods[0] if periods else None,
+                    "time_coverage_end": periods[-1] if periods else None,
+                    "latest_completed_period": completed_periods[-1] if completed_periods else None,
+                    "current_period_included": bool(periods and not is_completed_month(periods[-1])),
+                    "data_origins": sorted({item.data_origin or "unavailable" for item in ordered}),
+                    "history_types": sorted({item.history_type or "unavailable" for item in ordered}),
+                    "collection_completeness": completeness,
+                    "freshness": {
+                        "state": freshness.state,
+                        "fresh_count": freshness.fresh_count,
+                        "stale_count": freshness.stale_count,
+                        "unknown_count": freshness.unknown_count,
+                        "excluded_count": freshness.excluded_count,
+                    },
+                    "collection_status": completeness,
+                    "fetch_run_ids_available": bool(fetch_run_ids),
+                    "fetch_run_ids": fetch_run_ids,
+                    "sample_is_not_market_universe": True,
+                }
+                facts.append(StructuredFact(
+                    fact_id=f"fact_snap_{latest_obs.id or latest_obs.series_id or latest_obs.source}",
+                    fact_type="market_snapshot", entity_name=latest_obs.skill,
+                    canonical_entity_id=latest_obs.skill_id, entity_type="skill",
+                    metric_name="observed_metric_value", metric_value=latest_obs.value,
+                    unit=latest_obs.unit, denominator=latest_obs.denominator,
+                    period=latest_obs.period, timestamp=latest_obs.observed_at,
+                    source=latest_obs.source, data_origin=latest_obs.data_origin or "unavailable",
+                    history_type=latest_obs.history_type, series_id=latest_obs.series_id,
+                    quality_state=quality_state, provenance_id=latest_obs.id,
+                    evidence_reference=latest_obs.id, details=details,
+                ))
+                evidence.append(EvidenceItem(
+                    evidence_id=latest_obs.id or f"snapshot-{latest_obs.source}-{latest_obs.period}",
+                    source=latest_obs.source, signal_type=latest_obs.signal_type,
+                    measured_signal_type=latest_obs.signal_type, period=latest_obs.period,
+                    unit=latest_obs.unit, data_origin=latest_obs.data_origin or "unavailable",
+                    history_type=latest_obs.history_type, series_id=latest_obs.series_id,
+                    location=latest_obs.location, scope=latest_obs.scope,
+                    query_id=latest_obs.query_id, panel_version=latest_obs.panel_version,
+                    fetch_run_id=latest_obs.fetch_run_id, supporting_fetch_run_ids=fetch_run_ids,
+                    source_url=latest_obs.source_url, provenance_id=latest_obs.id,
+                    supporting_observation_ids=observation_ids,
+                    supporting_source_urls=sorted({item.source_url for item in ordered if item.source_url}),
+                    freshness_state=freshness.state, quality=quality_state,
+                    confidence=latest_obs.confidence,
+                    description=(f"Observed {latest_obs.signal_type} for '{latest_obs.skill}' "
+                                 f"({latest_obs.value} {latest_obs.unit or ''}) in {latest_obs.period}; "
+                                 f"{len(ordered)} observation(s) in this source-specific series."),
+                ))
         else:
-            readiness_id = "ev_market_snapshot_unavailable"
             source = "firestore_skill_market_signals" if self.firestore_store is not None else "sqlite_skill_market_signals"
+            missing_reason = (
+                "No JSearch or Adzuna sampled job-posting demand observations matched the requested skill, geography, and time filters. Other signal families are not hiring evidence."
+                if hiring_question
+                else "No persisted market observations matched the canonical skill, location, and time filters."
+            )
             facts.append(StructuredFact(
                 fact_id="fact_market_snapshot_unavailable",
                 fact_type="analysis_readiness",
@@ -2812,20 +3655,12 @@ class ExecutionOrchestratorService:
                 source=source,
                 data_origin="unavailable",
                 readiness_state="insufficient_data",
-                evidence_reference=readiness_id,
+                evidence_reference=None,
                 details={
-                    "reason": "No persisted market observations matched the canonical skill, location, and time filters.",
+                    "reason": missing_reason,
                     "domain": "market",
                     "reference_data_is_not_market_evidence": True,
                 },
-            ))
-            evidence.append(EvidenceItem(
-                evidence_id=readiness_id,
-                source=source,
-                signal_type="evidence_readiness",
-                data_origin="unavailable",
-                quality="unavailable",
-                description="No persisted market observation matched the requested filters.",
             ))
 
         return facts, evidence, limitations
@@ -2837,9 +3672,141 @@ class ExecutionOrchestratorService:
     ) -> tuple[list[StructuredFact], list[EvidenceItem], list[str]]:
         facts: list[StructuredFact] = []
         evidence: list[EvidenceItem] = []
-        limitations: list[str] = ["Only verified empirical periods are returned; zero interpolation across missing periods."]
+        from app.analytics.historical_signals import (
+            historical_series_identity,
+            missing_periods,
+            observation_is_eligible_history,
+            period_grain,
+        )
 
-        obs = self._shared_market_analysis(request, plan).observations
+        limitations: list[str] = [
+            "Only verified empirical periods are returned; missing periods are not interpolated or replaced with zero.",
+            "Each source, metric, unit, geography, query, panel, and series identity remains separate.",
+        ]
+        history_context = plan.context_summary.get("_historical_signal_context") or {}
+        selected_source = history_context.get("source")
+        selected_signal = history_context.get("signal_type")
+        country = history_context.get("country")
+
+        if selected_source in {"jsearch", "adzuna"}:
+            explanation = (
+                f"{selected_source} records are stored job-posting snapshots, not a source-aggregated historical "
+                "skill-demand series. Historical Skill Signals cannot use them as a time series."
+            )
+            facts.append(StructuredFact(
+                fact_id="fact_historical_source_ineligible", fact_type="analysis_readiness",
+                entity_name=plan.context_summary.get("primary_entity"), metric_name="historical_series_readiness",
+                metric_value="unsupported_source", unit="status", source=selected_source,
+                data_origin="unavailable", readiness_state="unsupported",
+                details={"signal_type": "demand", "reason": explanation},
+            ))
+            evidence.append(EvidenceItem(
+                evidence_id="ev_historical_source_ineligible", source=selected_source,
+                signal_type="demand", data_origin="unavailable", quality="unavailable",
+                description=explanation,
+            ))
+            return facts, evidence, limitations + [explanation]
+
+        if selected_source == "github_innovation_graph":
+            if not country:
+                explanation = "GitHub Innovation Graph history is country-specific; select a country before retrieving its quarterly developer-activity series."
+                facts.append(StructuredFact(
+                    fact_id="fact_github_country_required", fact_type="analysis_readiness",
+                    entity_name=history_context.get("skill_name"), metric_name="historical_series_readiness",
+                    metric_value="requires_clarification", unit="status", source=selected_source,
+                    data_origin="unavailable", readiness_state="requires_clarification",
+                    details={"signal_type": "adoption", "reason": explanation},
+                ))
+                return facts, evidence, limitations + [explanation]
+            from app.analytics.skill_registry import canonical_skill_id
+            from app.storage.reference_store import ReferenceDataStore
+
+            skill_name = history_context.get("skill_name") or plan.context_summary.get("primary_entity") or ""
+            skill_id = canonical_skill_id(skill_name)
+            reference_store = ReferenceDataStore(self.db_path, read_only=True)
+            rows = reference_store.get_github_adoption_series_for_country(country)
+            rows = [row for row in rows if skill_id and row.get("canonical_skill_id") == skill_id]
+            current = datetime.now(timezone.utc)
+            current_quarter = (current.month - 1) // 3 + 1
+            rows = [row for row in rows if re.fullmatch(r"\d{4}-Q[1-4]", str(row.get("period") or ""))
+                    and tuple(map(int, re.fullmatch(r"(\d{4})-Q([1-4])", str(row["period"])).groups())) < (current.year, current_quarter)
+                    and row.get("value") is not None]
+            grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+            for row in rows:
+                key = (str(row.get("metric") or ""), str(row.get("label") or ""), str(row.get("unit") or ""))
+                grouped.setdefault(key, []).append(row)
+            for (metric, label, unit), series_rows in grouped.items():
+                series_id = f"github_innovation_graph:{metric}:{skill_id}:{country}:{label.casefold()}"
+                ordered_rows = sorted(series_rows, key=lambda item: item["period"])
+                quarter_indexes = [
+                    int(row["period"][:4]) * 4 + int(row["period"][-1]) - 1
+                    for row in ordered_rows
+                ]
+                period_gaps = [
+                    f"{value // 4:04d}-Q{value % 4 + 1}"
+                    for start, end in zip(quarter_indexes, quarter_indexes[1:])
+                    for value in range(start + 1, end)
+                ]
+                for row in ordered_rows:
+                    period = row["period"]
+                    evidence_id = f"ev_{series_id}_{period}"
+                    facts.append(StructuredFact(
+                        fact_id=f"fact_{series_id}_{period}", fact_type="historical_observation",
+                        entity_name=label or skill_name, canonical_entity_id=skill_id, entity_type="skill",
+                        metric_name=metric, metric_value=row["value"], unit=unit, period=period,
+                        source="github_innovation_graph", data_origin="real", history_type="backfill",
+                        series_id=series_id, quality_state="valid", provenance_id=evidence_id,
+                        evidence_reference=evidence_id,
+                        details={"signal_type": "adoption", "geography": country, "location": country,
+                                 "scope": "country", "frequency": "quarterly", "label": label,
+                                 "missing_periods": period_gaps,
+                                 "source_dataset": "local GitHub Innovation Graph reference tables"},
+                    ))
+                    evidence.append(EvidenceItem(
+                        evidence_id=evidence_id, source="github_innovation_graph",
+                        signal_type="adoption", period=period, unit=unit, data_origin="real",
+                        history_type="backfill", series_id=series_id, location=country, scope="country",
+                        provenance_id=evidence_id,
+                        description=f"Local GitHub Innovation Graph {metric} for {label} in {country}: {row['value']} {unit} during {period}; developer activity, not hiring demand.",
+                    ))
+            if not facts:
+                explanation = f"No mapped GitHub Innovation Graph quarterly adoption history was found for {skill_name or 'the requested skill'} in {country} in the local reference data."
+                facts.append(StructuredFact(
+                    fact_id="fact_github_history_unavailable", fact_type="analysis_readiness",
+                    entity_name=skill_name or None, metric_name="historical_series_readiness",
+                    metric_value="insufficient_data", unit="status", source="github_innovation_graph",
+                    data_origin="unavailable", readiness_state="insufficient_data",
+                    details={"signal_type": "adoption", "geography": country, "frequency": "quarterly", "reason": explanation},
+                ))
+                evidence.append(EvidenceItem(
+                    evidence_id="ev_github_history_unavailable", source="github_innovation_graph",
+                    signal_type="adoption", data_origin="unavailable", quality="unavailable",
+                    location=country, description=explanation,
+                ))
+                limitations.append(explanation)
+            limitations.append("GitHub Innovation Graph measures quarterly developer activity (adoption) by country; it is not hiring demand.")
+            return facts, evidence, limitations
+
+        # Use the maximum supported window here: Historical Skill Signals is a
+        # history retrieval feature, independent of the default 30-day snapshot window.
+        observations = self._get_market_observations(
+            request_obs=request.observations, skill=plan.context_summary.get("primary_entity"),
+            time_range="max", source=selected_source, signal_type=selected_signal,
+        )
+        eligible = [item for item in observations if observation_is_eligible_history(item)]
+        if selected_source in {"stackexchange", "wikipedia"}:
+            # Both configured series are global. A country request cannot turn a
+            # global observation into country-level evidence.
+            eligible = [item for item in eligible if not item.location]
+            if country:
+                limitations.append(f"{selected_source} history is global in the stored series; no {country}-specific series is available.")
+        identities = {historical_series_identity(item) for item in eligible}
+        observations_by_series: dict[tuple[str, ...], list[Any]] = {}
+        for item in eligible:
+            observations_by_series.setdefault(historical_series_identity(item), []).append(item)
+        if len(identities) > 1:
+            limitations.append(f"Found {len(identities)} incompatible source-specific series. Their values are shown only within their original series and are never merged or compared.")
+        obs = sorted(eligible, key=lambda item: (item.period or "", item.id or ""))
 
         for o in obs:
             facts.append(StructuredFact(
@@ -2868,8 +3835,14 @@ class ExecutionOrchestratorService:
                     "query_id": o.query_id,
                     "panel_version": o.panel_version,
                     "source_url": o.source_url,
+                    "frequency": period_grain(o.period),
+                    "signal_type": o.signal_type,
+                    "data_origin": o.data_origin,
+                    "history_type": o.history_type,
+                    "missing_periods": missing_periods(observations_by_series[historical_series_identity(o)]),
                 },
             ))
+
             evidence.append(EvidenceItem(
                 evidence_id=o.id,
                 source=o.source,
@@ -2887,12 +3860,22 @@ class ExecutionOrchestratorService:
                 source_url=o.source_url,
                 provenance_id=o.id,
                 quality=o.quality or "valid",
-                description=f"Historical {o.signal_type} observation for '{o.skill}' in {o.period}.",
+                description=f"Historical {o.signal_type} observation for '{o.skill}' from {o.source} in {o.period}, unit {o.unit or 'unspecified'}, series {o.series_id or 'unidentified'}.",
             ))
 
         if not obs:
             readiness_id = "ev_historical_series_unavailable"
             source = "firestore_skill_market_signals" if self.firestore_store is not None else "sqlite_skill_market_signals"
+            reason = (
+                f"No eligible {selected_source or 'supported source'} {selected_signal or 'historical signal'} observations matched the selected skill. "
+                "Eligible history consists of completed real monthly Stack Exchange question counts or Wikipedia pageviews, "
+                "and completed real quarterly GitHub developer-activity series. Snapshots and incomplete or untracked series are excluded."
+            )
+            if selected_signal == "demand" and selected_source in {None, "jsearch", "adzuna"}:
+                reason = (
+                    f"No supported historical skill-demand series is available for '{plan.context_summary.get('primary_entity') or 'the requested skill'}'. "
+                    "JSearch and Adzuna records are job-posting snapshots, not source-aggregated historical demand observations."
+                )
             facts.append(StructuredFact(
                 fact_id="fact_historical_series_unavailable",
                 fact_type="analysis_readiness",
@@ -2905,7 +3888,7 @@ class ExecutionOrchestratorService:
                 readiness_state="insufficient_data",
                 evidence_reference=readiness_id,
                 details={
-                    "reason": "No persisted observations matched the selected skill and committed filters.",
+                    "reason": reason,
                     "periods": [],
                 },
             ))
@@ -2915,7 +3898,7 @@ class ExecutionOrchestratorService:
                 signal_type="evidence_readiness",
                 data_origin="unavailable",
                 quality="unavailable",
-                description="No historical observations matched the request.",
+                description=reason,
             ))
 
         return facts, evidence, limitations
@@ -2951,6 +3934,7 @@ class ExecutionOrchestratorService:
                 and trend.data_origin == "real"
                 and trend.history_type == "platform_collected"
                 and trend.canonical_skill_id
+                and (request.domain != "skill" or trend.signal_type != "interest")
             ]
             signal_priority = {"demand": 0, "adoption": 1, "interest": 2}
             eligible_trends.sort(key=lambda trend: signal_priority.get(trend.signal_type, 3))
@@ -3065,6 +4049,7 @@ class ExecutionOrchestratorService:
                     "latest_mom_pct_change": trend_res.latest_mom_pct_change,
                     "periods_count": len(trend_res.periods_used),
                     "periods_used": trend_res.periods_used,
+                    "series": trend_res.series,
                     "start_period": start_p,
                     "end_period": end_p,
                     "latest_movement": (
@@ -3149,7 +4134,12 @@ class ExecutionOrchestratorService:
                     key=lambda trend: signal_priority.get(trend.signal_type, 3),
                 )[0]
                 readiness_id = f"ev_trend_{trend_res.series_id or 'series'}_blocked"
-                if trend_res.data_origin != "real":
+                if request.domain == "skill" and trend_res.signal_type == "interest":
+                    reason = (
+                        "Skill Demand Trends cannot substitute an interest series for hiring-demand evidence; "
+                        "the available interest series is not eligible for this feature."
+                    )
+                elif trend_res.data_origin != "real":
                     reason = "Observation provenance is missing or non-production; it cannot support a measured trend."
                 elif trend_res.history_type != "platform_collected":
                     reason = "Only eligible platform-collected observations can support this measured trend."
@@ -3192,6 +4182,7 @@ class ExecutionOrchestratorService:
                     evidence_id=readiness_id,
                     source=trend_res.provider or "configured_market_observation_store",
                     signal_type="analysis_readiness",
+                    measured_signal_type=trend_res.signal_type,
                     period="_to_".join(trend_res.periods_used) if trend_res.periods_used else None,
                     data_origin=trend_res.data_origin or "unavailable",
                     history_type=trend_res.history_type,
@@ -4626,51 +5617,196 @@ class ExecutionOrchestratorService:
         )
 
         for o in obs:
+            if not o.id:
+                continue
             evidence.append(EvidenceItem(
                 evidence_id=o.id,
                 source=o.source,
                 signal_type=o.signal_type,
                 period=o.period,
+                unit=o.unit,
                 data_origin=o.data_origin or "unavailable",
                 history_type=o.history_type,
                 series_id=o.series_id,
+                location=o.location,
+                scope=o.scope,
+                query_id=o.query_id,
+                panel_version=o.panel_version,
                 fetch_run_id=o.fetch_run_id,
+                supporting_fetch_run_ids=[o.fetch_run_id] if o.fetch_run_id else [],
+                source_url=o.source_url,
+                provenance_id=o.series_id,
                 quality=o.quality or "valid",
-                description=f"Verified observation artifact {o.id} ({o.source}).",
+                description=(
+                    f"Stored {o.signal_type} observation {o.id} for {o.skill}: "
+                    f"{o.value} {o.unit or 'units'} in {o.period or 'an unspecified period'} "
+                    f"from {o.source}; {o.scope} scope, {o.location or 'unspecified geography'}, "
+                    f"series {o.series_id or 'unspecified'}."
+                ),
             ))
 
-        ev_ref = evidence[0].evidence_id if evidence else "ev_none"
-        if not evidence:
-            evidence.append(EvidenceItem(
-                evidence_id="ev_none",
-                source="observation_store",
-                signal_type="evidence_summary",
-                quality="valid",
-                description="Zero empirical observation records available.",
-            ))
+        # Taxonomy references are source records too. Include them only when a
+        # caller explicitly asks about taxonomy/reference evidence.
+        message = request.message.casefold()
+        primary_entity = plan.context_summary.get("primary_entity")
+        if re.search(r"\b(?:github|innovation graph|developer adoption|developer activity)\b", message):
+            skill_id = canonical_skill_id(primary_entity or "")
+            if skill_id:
+                country = str((request.filters or {}).get("country") or "").strip().upper() or None
+                geography_text = request.location
+                if not geography_text:
+                    match = re.search(r"\b(?:in|within)\s+([A-Za-z][A-Za-z .'-]*?)\s*[?.!]*$", request.message, re.IGNORECASE)
+                    geography_text = match.group(1).strip() if match else None
+                country_codes = {
+                    "india": "IN", "in": "IN", "united states": "US", "usa": "US", "us": "US",
+                    "united kingdom": "GB", "uk": "GB", "great britain": "GB", "gb": "GB",
+                    "canada": "CA", "ca": "CA", "australia": "AU", "au": "AU",
+                    "germany": "DE", "de": "DE", "france": "FR", "fr": "FR",
+                    "brazil": "BR", "br": "BR",
+                }
+                if not country and geography_text:
+                    country = country_codes.get(geography_text.casefold())
+                rows = self.reference_store.get_github_adoption_series(
+                    canonical_skill_id=skill_id, iso2_code=country
+                ) if country else []
+                if not country:
+                    limitations.append(
+                        "GitHub Innovation Graph evidence is country-specific; specify a country to retrieve a bounded, geographically consistent series."
+                    )
+                for row in rows:
+                    record_id = row.get("id")
+                    if not record_id:
+                        continue
+                    kind = "language" if row.get("language") else "topic"
+                    label = row.get("language") or row.get("topic")
+                    metric = f"{kind}_pushers"
+                    geo = str(row.get("iso2_code") or "unknown")
+                    evidence.append(EvidenceItem(
+                        evidence_id=f"github:{record_id}",
+                        source="ref_github_language_adoption" if kind == "language" else "ref_github_topic_adoption",
+                        signal_type="developer_adoption_observation",
+                        measured_signal_type="adoption",
+                        period=row.get("period"),
+                        unit="unique developers per quarter",
+                        data_origin=row.get("data_origin") or "unavailable",
+                        history_type="backfill",
+                        series_id=f"github_innovation_graph:{metric}:{geo}:{str(label).casefold()}",
+                        location=geo,
+                        scope="country",
+                        provenance_id=str(record_id),
+                        quality="valid",
+                        description=(
+                            f"GitHub Innovation Graph {metric} record for {label}, {geo}, "
+                            f"{row.get('period')}: {row.get('num_pushers')} unique developers per quarter. "
+                            "This is developer activity, not hiring demand."
+                        ),
+                    ))
+        taxonomy_requested = bool(re.search(r"\b(?:taxonomy|esco|o\*?net|reference skills?|skill reference)\b", message))
+        if taxonomy_requested:
+            taxonomy = "esco" if re.search(r"\besco\b", message) else "onet"
+            role = request.target_role or (request.selected_roles[0] if len(request.selected_roles) == 1 else None)
+            if taxonomy == "esco" and role:
+                occupations = self.reference_store.get_esco_occupations(query=role, limit=5)
+                exact = [row for row in occupations if row["preferred_label"].casefold() == role.casefold()]
+                if len(exact) == 1:
+                    occupation_uri = exact[0]["concept_uri"]
+                    for row in self.reference_store.get_esco_occupation_skills(occupation_uri, limit=100):
+                        skill_uri = row.get("skill_uri")
+                        if not skill_uri:
+                            continue
+                        evidence.append(EvidenceItem(
+                            evidence_id=f"esco:{occupation_uri}:{skill_uri}",
+                            source="ref_esco_occupation_skill_relations",
+                            signal_type="occupation_skill_reference",
+                            data_origin="real", history_type="reference_taxonomy",
+                            provenance_id=skill_uri, quality="valid",
+                            description=(
+                                f"ESCO {row.get('relation_type') or 'occupation-skill'} reference: "
+                                f"{row.get('preferred_label') or row.get('relation_skill_label')} "
+                                f"({skill_uri}) for {role} ({occupation_uri}); "
+                                f"source version {row.get('source_version') or 'not recorded'}."
+                            ),
+                        ))
+            elif taxonomy == "esco" and primary_entity:
+                # Evidence requests about a skill reference cite the exact
+                # taxonomy row and do not require an occupation relation.
+                rows = self.reference_store.get_esco_skills(query=primary_entity, limit=5)
+                exact = [row for row in rows if row["preferred_label"].casefold() == primary_entity.casefold()]
+                if len(exact) == 1:
+                    row = exact[0]
+                    uri = row.get("concept_uri")
+                    if uri:
+                        evidence.append(EvidenceItem(
+                            evidence_id=f"esco_skill:{uri}",
+                            source="ref_esco_skills",
+                            signal_type="taxonomy_lookup",
+                            data_origin="real",
+                            history_type="reference_taxonomy",
+                            provenance_id=uri,
+                            quality="valid",
+                            description=(
+                                f"ESCO {row.get('source_version') or 'unknown'} skill taxonomy record: "
+                                f"{row.get('preferred_label')} ({uri}); "
+                                f"skill type {row.get('skill_type') or 'not specified'}."
+                            ),
+                        ))
+            elif taxonomy == "onet" and role:
+                matches = self.reference_store.get_onet_occupations(title=role, limit=100)
+                exact = [row for row in matches if row.title.casefold().strip() == role.casefold().strip()]
+                if len(exact) == 1:
+                    for row in self.reference_store.get_onet_essential_skills_by_occupation(exact[0].soc_code, limit=100):
+                        record_id = row.get("id")
+                        if not record_id:
+                            continue
+                        evidence.append(EvidenceItem(
+                            evidence_id=f"onet:{record_id}",
+                            source="ref_onet_essential_skills",
+                            signal_type="occupation_skill_reference",
+                            data_origin="real", history_type="reference_taxonomy",
+                            provenance_id=str(record_id), quality="valid",
+                            description=(
+                                f"O*NET essential skill {row.get('element_name')} "
+                                f"({row.get('element_id')}) for {exact[0].title} "
+                                f"(SOC {exact[0].soc_code}); source record {record_id}."
+                            ),
+                        ))
+
+        ev_ref = evidence[0].evidence_id if evidence else None
+        evidence_count = len(evidence)
+        missing_reason = (
+            "No matching stored observation or requested taxonomy reference record was found. "
+            "No evidence item was created."
+        )
+        if re.search(r"\b(?:github|innovation graph|developer adoption|developer activity)\b", message) and not evidence:
+            missing_reason = (
+                "GitHub Innovation Graph records are grouped by country and the request did not specify one; "
+                "no developer-adoption record was selected. This source measures developer activity, not hiring demand."
+            )
 
         facts.append(StructuredFact(
-            fact_id=f"fact_ev_summary_{len(obs)}",
+            fact_id=f"fact_ev_summary_{evidence_count}",
             fact_type="evidence_summary",
-            entity_name=plan.context_summary.get("primary_entity") or "Market Evidence",
+            entity_name=primary_entity or "Skill Evidence",
             canonical_entity_id=None,
             entity_type="evidence",
             metric_name="verified_evidence_items_count",
-            metric_value=len(obs),
+            metric_value=evidence_count,
             unit="items",
-            source="observation_store",
-            data_origin="real",
-            quality_state="valid",
-            readiness_state="ready",
-            provenance_id=str(len(obs)),
+            source=(evidence[0].source if evidence else "configured_evidence_stores"),
+            data_origin="real" if evidence else "unavailable",
+            quality_state="valid" if evidence else "insufficient_data",
+            readiness_state="ready" if evidence else "insufficient_data",
             evidence_reference=ev_ref,
+            details={"reason": None if evidence else missing_reason},
         ))
 
         if request.task_exposure_records:
             prov = request.dataset_provenance
             dataset_source = prov.dataset_name if prov else "licensed_ai_exposure_reference"
             for t in request.task_exposure_records:
-                ev_id = t.evidence_source_id or f"ev_task_{t.task_id}"
+                ev_id = t.evidence_source_id
+                if not ev_id:
+                    continue
                 evidence.append(EvidenceItem(
                     evidence_id=ev_id,
                     source=t.evidence_source or dataset_source,
@@ -4681,25 +5817,38 @@ class ExecutionOrchestratorService:
                     quality=t.evidence_strength if t.evidence_strength != "unknown" else "valid",
                     description=f"Task exposure assessment for '{t.task_statement}' ({t.task_exposure_level} exposure; {t.evidence_rationale or 'reference evidence'}).",
                 ))
-            facts.append(StructuredFact(
-                fact_id=f"fact_task_ev_summary_{len(request.task_exposure_records)}",
-                fact_type="task_exposure_evidence_summary",
-                entity_name=plan.context_summary.get("primary_entity") or "Task Exposure Evidence",
-                canonical_entity_id=None,
-                entity_type="evidence",
-                metric_name="task_exposure_evidence_count",
-                metric_value=len(request.task_exposure_records),
-                unit="records",
-                source=dataset_source,
-                data_origin="real",
-                quality_state="valid",
-                readiness_state="ready",
-                evidence_reference=evidence[0].evidence_id if evidence else "ev_none",
-                details={
-                    "dataset_id": prov.dataset_id if prov else "unknown",
-                    "license_name": prov.license_name if prov else "unknown",
-                },
-            ))
+            task_evidence = [item for item in evidence if item.signal_type == "task_exposure_reference"]
+            if task_evidence:
+                facts.append(StructuredFact(
+                    fact_id=f"fact_task_ev_summary_{len(task_evidence)}",
+                    fact_type="task_exposure_evidence_summary",
+                    entity_name=plan.context_summary.get("primary_entity") or "Task Exposure Evidence",
+                    canonical_entity_id=None,
+                    entity_type="evidence",
+                    metric_name="task_exposure_evidence_count",
+                    metric_value=len(task_evidence),
+                    unit="records",
+                    source=dataset_source,
+                    data_origin="real",
+                    quality_state="valid",
+                    readiness_state="ready",
+                    evidence_reference=task_evidence[0].evidence_id,
+                    details={
+                        "dataset_id": prov.dataset_id if prov else "unknown",
+                        "license_name": prov.license_name if prov else "unknown",
+                    },
+                ))
+
+        summary_fact = next((fact for fact in facts if fact.fact_type == "evidence_summary"), None)
+        if summary_fact is not None:
+            summary_fact.metric_value = len(evidence)
+            summary_fact.fact_id = f"fact_ev_summary_{len(evidence)}"
+            summary_fact.source = evidence[0].source if evidence else "configured_evidence_stores"
+            summary_fact.data_origin = "real" if evidence else "unavailable"
+            summary_fact.quality_state = "valid" if evidence else "insufficient_data"
+            summary_fact.readiness_state = "ready" if evidence else "insufficient_data"
+            summary_fact.evidence_reference = evidence[0].evidence_id if evidence else None
+            summary_fact.details = {"reason": None if evidence else missing_reason}
 
         return facts, evidence, limitations
 
@@ -4708,32 +5857,218 @@ class ExecutionOrchestratorService:
         request: CoreIntelligenceAnswerRequest,
         plan: IntelligencePlanResponse,
     ) -> tuple[list[StructuredFact], list[EvidenceItem], list[str]]:
-        facts, evidence, limitations = self._build_learning_recommendations(
-            request, plan
-        )
-        gap_summary = next(
-            (fact for fact in facts if fact.fact_type == "learning_recommendation_summary"),
-            None,
-        )
-        if gap_summary:
+        from app.analytics.skill_gap import calculate_skill_gap
+        from app.analytics.learning_roadmap import build_learning_roadmap
+
+        facts: list[StructuredFact] = []
+        evidence: list[EvidenceItem] = []
+        limitations: list[str] = []
+        taxonomy = str(request.context_override.get("taxonomy") or "").casefold()
+        if not taxonomy:
+            taxonomy_match = re.search(r"\b(esco|o\*?net)\b", request.message, re.IGNORECASE)
+            taxonomy = "esco" if taxonomy_match and taxonomy_match.group(1).casefold() == "esco" else "onet"
+        if taxonomy in {"o*net", "o net"}:
+            taxonomy = "onet"
+        if taxonomy not in {"esco", "onet"}:
+            taxonomy = "onet"
+
+        role = request.target_role or (request.selected_roles[0] if len(request.selected_roles) == 1 else None)
+        resolved_occupations = []
+        ambiguous_occupations = []
+        for item in plan.entities:
+            canonical = item.canonical_entity
+            if canonical and canonical.entity_type == "occupation":
+                if canonical.source == "ref_esco_occupations" and taxonomy == "esco":
+                    resolved_occupations.append(canonical)
+                elif canonical.metadata.get("soc_code") and taxonomy == "onet":
+                    resolved_occupations.append(canonical)
+            if item.resolution_status == "ambiguous" and (item.candidates or item.entity_type == "occupation"):
+                ambiguous_occupations.extend(item.candidates)
+        if len(resolved_occupations) == 1:
+            occ = resolved_occupations[0]
+            role = occ.canonical_name
+            occupation_id = (occ.metadata.get("soc_code") or occ.source_record_id) if taxonomy == "onet" else occ.source_record_id
+        else:
+            occupation_id = None
+        if not role:
             facts.append(StructuredFact(
-                fact_id=f"fact_gap_{gap_summary.provenance_id or 'unresolved'}",
-                fact_type="skill_gap",
-                entity_name=gap_summary.entity_name,
-                canonical_entity_id=gap_summary.canonical_entity_id,
-                entity_type="occupation",
-                metric_name="profile_unmatched_role_technology_count",
-                metric_value=gap_summary.metric_value,
-                unit="technology mappings",
-                source=gap_summary.source,
-                data_origin=gap_summary.data_origin,
-                history_type=gap_summary.history_type,
-                quality_state=gap_summary.quality_state,
-                readiness_state=gap_summary.readiness_state,
-                provenance_id=gap_summary.provenance_id,
-                evidence_reference=gap_summary.evidence_reference,
-                details=gap_summary.details,
+                fact_id="fact_skill_gap_missing_occupation", fact_type="skill_gap_readiness",
+                entity_name=None, entity_type="occupation", metric_name="skill_gap_readiness",
+                metric_value="missing_target_occupation", unit="status", source=f"ref_{taxonomy}_occupations",
+                data_origin="unavailable", quality_state="insufficient_data", readiness_state="insufficient_data",
+                details={"clarification": "Which target occupation should I compare your skills with?", "taxonomy": taxonomy},
             ))
+            return facts, evidence, ["A skill gap was not calculated because no target occupation was supplied."]
+        if len(resolved_occupations) > 1 or (not occupation_id and ambiguous_occupations):
+            facts.append(StructuredFact(
+                fact_id="fact_skill_gap_ambiguous_occupation", fact_type="skill_gap_readiness",
+                entity_name=role, entity_type="occupation", metric_name="skill_gap_readiness",
+                metric_value="ambiguous_target_occupation", unit="status", source=f"ref_{taxonomy}_occupations",
+                data_origin="unavailable", quality_state="insufficient_data", readiness_state="insufficient_data",
+                details={"clarification": "Which exact occupation did you mean?", "taxonomy": taxonomy,
+                         "candidates": [getattr(candidate, "canonical_name", str(candidate)) for candidate in ambiguous_occupations[:5]]},
+            ))
+            return facts, evidence, ["No gap calculation was made against an ambiguous occupation."]
+
+        if not occupation_id:
+            if taxonomy == "esco":
+                occupations = self.reference_store.get_esco_occupations(query=role, limit=10)
+                matches = [row for row in occupations if row["preferred_label"].casefold() == role.casefold()]
+                if len(matches) == 1:
+                    occupation_id = matches[0]["concept_uri"]
+                    role = matches[0]["preferred_label"]
+            else:
+                matches = self.reference_store.get_onet_occupations(title=role, limit=100)
+                exact = [row for row in matches if row.title.casefold().strip() == role.casefold().strip()]
+                if len(exact) == 1:
+                    occupation_id = exact[0].soc_code
+                    role = exact[0].title
+        if not occupation_id:
+            facts.append(StructuredFact(
+                fact_id="fact_skill_gap_unresolved_occupation", fact_type="skill_gap_readiness",
+                entity_name=role, entity_type="occupation", metric_name="skill_gap_readiness",
+                metric_value="unresolved_target_occupation", unit="status", source=f"ref_{taxonomy}_occupations",
+                data_origin="unavailable", quality_state="insufficient_data", readiness_state="insufficient_data",
+                details={"clarification": "Please choose an exact occupation label from the selected taxonomy.", "taxonomy": taxonomy},
+            ))
+            return facts, evidence, ["No fallback or related occupation was used."]
+
+        if taxonomy == "esco":
+            occ_rows = self.reference_store.get_esco_occupations(concept_uri=occupation_id, limit=1)
+            reference_rows = [
+                {**row, "source": "ref_esco_occupation_skill_relations"}
+                for row in self.reference_store.get_esco_occupation_skills(occupation_id, limit=500)
+            ]
+            occupation = {"label": role, "taxonomy_id": occupation_id, "taxonomy": taxonomy}
+        else:
+            occ_rows = self.reference_store.get_onet_occupations(code=occupation_id)
+            reference_rows = self.reference_store.get_onet_essential_skills_by_occupation(occupation_id, limit=500)
+            occupation = {"label": role, "taxonomy_id": occupation_id, "taxonomy": taxonomy}
+            reference_rows = [{**row, "preferred_label": row.get("element_name"), "source": "ref_onet_essential_skills"} for row in reference_rows]
+        if not occ_rows or not reference_rows:
+            facts.append(StructuredFact(
+                fact_id=f"fact_skill_gap_no_reference_{hashlib.sha1(str(occupation_id).encode()).hexdigest()[:10]}",
+                fact_type="skill_gap_readiness", entity_name=role, canonical_entity_id=str(occupation_id),
+                entity_type="occupation", metric_name="skill_gap_readiness", metric_value="reference_skills_unavailable",
+                unit="status", source=f"ref_{taxonomy}_occupation_skill_relations", data_origin="unavailable",
+                quality_state="unavailable", readiness_state="insufficient_data",
+                details={"taxonomy": taxonomy, "reference_record_count": len(reference_rows)},
+            ))
+            return facts, evidence, ["The selected occupation has no locally available reference-skill records; no gap was calculated."]
+
+        user_skills = list(request.selected_skills)
+        for item in plan.entities:
+            canonical = item.canonical_entity
+            if canonical and canonical.entity_type in {"skill", "technology"}:
+                user_skills.append(canonical.canonical_name)
+        # Recover explicitly stated skill lists in natural language while retaining labels as supplied.
+        stated = re.search(r"\b(?:i\s+(?:know|have|already know)|my\s+skills\s+(?:are|include))\s+(.+?)(?=\s*[.!?]|\s+(?:what|which)\s+(?:should|can)|$)", request.message, re.IGNORECASE)
+        if stated:
+            user_skills.extend(re.split(r"\s*(?:,|;|\band\b|\bor\b)\s*", stated.group(1), flags=re.IGNORECASE))
+        dedup_skills = list(dict.fromkeys(skill.strip() for skill in user_skills if isinstance(skill, str) and skill.strip()))
+        profile = request.context_override.get("_authenticated_learning_profile")
+        if not dedup_skills and isinstance(profile, dict) and request.context_override.get("_learning_profile_state") == "available":
+            dedup_skills = [str(item).strip() for item in profile.get("skills", []) if isinstance(item, str) and item.strip()]
+        if not dedup_skills:
+            facts.append(StructuredFact(
+                fact_id="fact_skill_gap_missing_user_skills", fact_type="skill_gap_readiness",
+                entity_name=role, canonical_entity_id=str(occupation_id), entity_type="occupation",
+                metric_name="skill_gap_readiness", metric_value="missing_user_skills", unit="status",
+                source=f"ref_{taxonomy}_occupation_skill_relations", data_origin="real",
+                quality_state="insufficient_data", readiness_state="insufficient_data",
+                details={"clarification": "Which skills do you currently have? You can list them in your question.", "taxonomy": taxonomy},
+            ))
+            return facts, evidence, ["A personalized comparison requires current skills supplied in the question or an available authenticated profile."]
+        source = "ref_esco_occupation_skill_relations" if taxonomy == "esco" else "ref_onet_essential_skills"
+        result = calculate_skill_gap(taxonomy=taxonomy, occupation=occupation, reference_skills=reference_rows, user_skills=dedup_skills)
+        if result["unresolved_user"]:
+            unresolved = result["unresolved_user"]
+            facts.append(StructuredFact(
+                fact_id=f"fact_skill_gap_ambiguous_skill_{hashlib.sha1(str(occupation_id).encode()).hexdigest()[:10]}",
+                fact_type="skill_gap_readiness", entity_name=role, canonical_entity_id=str(occupation_id),
+                entity_type="occupation", metric_name="skill_gap_readiness", metric_value="ambiguous_user_skill",
+                unit="status", source=source, data_origin="real", quality_state="insufficient_data",
+                readiness_state="requires_clarification", provenance_id=str(occupation_id),
+                details={"clarification": "One or more supplied skills match multiple taxonomy records. Which exact skill did you mean?",
+                         "taxonomy": taxonomy, "unresolved_user_skills": unresolved},
+            ))
+            return facts, evidence, ["No gap was calculated for an ambiguous user skill until it is clarified."]
+        for item in result["missing"]:
+            item["source"] = source
+        roadmap = build_learning_roadmap(result)
+        evidence_id = f"ev_skill_gap_{hashlib.sha256(str(occupation_id).encode()).hexdigest()[:14]}"
+        evidence.append(EvidenceItem(
+            evidence_id=evidence_id, source=source, signal_type="occupation_skill_reference",
+            data_origin="real", history_type="reference_taxonomy", provenance_id=str(occupation_id), quality="valid",
+            description=f"Local {taxonomy.upper()} reference skills for {role}; comparison is label-based and does not assess proficiency.",
+        ))
+        facts.append(StructuredFact(
+            fact_id=f"fact_skill_gap_{hashlib.sha256(str(occupation_id).encode()).hexdigest()[:14]}",
+            fact_type="personalized_skill_gap", entity_name=role, canonical_entity_id=str(occupation_id),
+            entity_type="occupation", metric_name="reference_skill_coverage", metric_value=result["coverage"],
+            unit="fraction", denominator=result["reference_count"], source=source, data_origin="real",
+            history_type="reference_taxonomy", quality_state="valid", readiness_state="ready",
+            provenance_id=str(occupation_id), evidence_reference=evidence_id,
+            details={**result, "user_skills": dedup_skills,
+                     "coverage_numerator": result["matched_reference_count"],
+                     "coverage_percent": round(result["coverage"] * 100, 2) if result["coverage"] is not None else None,
+                     "learning_roadmap": roadmap,
+                     "interpretation": "Reference-skill coverage only; not employability, job readiness, hiring probability, or a proficiency assessment."},
+        ))
+        # Keep the historic fact type available to existing API consumers while
+        # giving it the new taxonomy-grounded meaning and detail contract.
+        facts.append(StructuredFact(
+            fact_id=f"fact_skill_gap_legacy_{hashlib.sha256(str(occupation_id).encode()).hexdigest()[:14]}",
+            fact_type="skill_gap", entity_name=role, canonical_entity_id=str(occupation_id),
+            entity_type="occupation", metric_name="missing_reference_skill_count",
+            metric_value=len(result["missing"]), unit="reference skills", source=source,
+            data_origin="real", history_type="reference_taxonomy", quality_state="valid",
+            readiness_state="ready", provenance_id=str(occupation_id), evidence_reference=evidence_id,
+            details={"backward_compatible_alias": True, "taxonomy": taxonomy,
+                     "matched_count": result["matched_reference_count"], "reference_count": result["reference_count"],
+                     "coverage_formula": result["coverage_formula"]},
+        ))
+        for step in roadmap["steps"]:
+            rank = step["priority"]
+            gap = next(item for item in result["missing"] if item["taxonomy_id"] == step["taxonomy_id"])
+            gap["source"] = source
+            evidence.append(EvidenceItem(
+                evidence_id=f"{evidence_id}_{rank}", source=source, signal_type="occupation_skill_reference",
+                data_origin="real", history_type="reference_taxonomy", provenance_id=gap["source_record_id"], quality="valid",
+                description=f"{gap['label']} is listed in the selected occupation's {taxonomy.upper()} reference record.",
+            ))
+            facts.append(StructuredFact(
+                fact_id=f"fact_gap_action_{hashlib.sha256((str(occupation_id)+gap['source_record_id']).encode()).hexdigest()[:12]}",
+                fact_type="action_recommendation", entity_name=gap["label"], canonical_entity_id=gap["taxonomy_id"],
+                entity_type="skill", metric_name="suggested_practice_action", metric_value=gap["label"],
+                unit="suggested action", source=source, data_origin="real", history_type="reference_taxonomy",
+                quality_state="valid", readiness_state="ready", provenance_id=gap["source_record_id"],
+                evidence_reference=f"{evidence_id}_{rank}", details={
+                    "target_role": role, "taxonomy": taxonomy, "classification": gap["classification"],
+                    "reason": gap["priority_rationale"],
+                    "suggested_action": step["suggested_task"],
+                    "action_is_suggestion_not_verified_outcome": True,
+                    "learning_roadmap_step": step,
+                },
+            ))
+            facts.append(StructuredFact(
+                fact_id=f"fact_roadmap_{hashlib.sha256((str(occupation_id)+gap['source_record_id']).encode()).hexdigest()[:12]}",
+                fact_type="learning_roadmap_step", entity_name=gap["label"], canonical_entity_id=gap["taxonomy_id"],
+                entity_type="skill", metric_name="suggested_practice_step", metric_value=step,
+                unit="suggested step", source=source, data_origin="real", history_type="reference_taxonomy",
+                quality_state="valid", readiness_state="ready", provenance_id=gap["source_record_id"],
+                evidence_reference=f"{evidence_id}_{rank}", details=step,
+            ))
+        if len(result["missing"]) > 10:
+            limitations.append(
+                f"The reference set contains {len(result['missing'])} missing labels; suggested practice actions are shown for the first 10 only."
+            )
+        limitations.extend([
+            *roadmap["limitations"],
+            "Current skills are self-reported; a text match does not verify proficiency.",
+            "Reference-skill coverage is not employability, job readiness, a hiring probability, or an assessment score.",
+            "No current job-market evidence or verified learning-resource catalogue is used to rank or name courses.",
+        ])
         return facts, evidence, limitations
 
     def _handle_action_recommendations(
@@ -4758,12 +6093,29 @@ class ExecutionOrchestratorService:
 
         target_role = request.target_role
         target_soc: str | None = None
+        target_esco_uri: str | None = None
         for entity in plan.entities:
             canonical = entity.canonical_entity
             if canonical and canonical.entity_type == "occupation":
+                if canonical.source == "ref_esco_occupations":
+                    candidate_uri = canonical.source_record_id
+                    if candidate_uri and (
+                        not target_role
+                        or target_role.casefold().strip() in {
+                            canonical.canonical_name.casefold().strip(),
+                            entity.raw_token.casefold().strip(),
+                            *(alias.casefold().strip() for alias in canonical.aliases),
+                        }
+                    ):
+                        target_esco_uri = str(candidate_uri)
+                        target_role = canonical.canonical_name
                 candidate_soc = (
                     canonical.metadata.get("soc_code")
-                    or canonical.source_record_id
+                    or (
+                        canonical.source_record_id
+                        if canonical.source == "ref_onet_occupations"
+                        else None
+                    )
                 )
                 entity_tokens = {
                     canonical.canonical_name.casefold().strip(),
@@ -4777,6 +6129,14 @@ class ExecutionOrchestratorService:
                     target_soc = str(candidate_soc)
                     target_role = canonical.canonical_name
                     break
+
+        # An explicitly resolved ESCO occupation must stay within ESCO.  When
+        # O*NET has no exact occupation, exact ESCO labels are a supported
+        # reference path, not an inferred crosswalk.
+        if target_esco_uri:
+            return self._build_esco_action_recommendations(
+                request, target_role, target_esco_uri
+            )
 
         if not target_role and len(request.selected_roles) == 1:
             target_role = request.selected_roles[0]
@@ -4797,6 +6157,17 @@ class ExecutionOrchestratorService:
             if len(exact_matches) == 1:
                 target_soc = exact_matches[0].soc_code
                 target_role = exact_matches[0].title
+
+        if target_role and not target_soc:
+            esco_matches = self.reference_store.get_esco_occupations(
+                query=target_role, limit=10
+            )
+            if len(esco_matches) == 1:
+                return self._build_esco_action_recommendations(
+                    request,
+                    str(esco_matches[0]["preferred_label"]),
+                    str(esco_matches[0]["concept_uri"]),
+                )
 
         def readiness_fact(
             reason_code: str,
@@ -4872,6 +6243,10 @@ class ExecutionOrchestratorService:
             request.context_override.get("_learning_profile_state") == "available"
             and profile.get("uid")
         )
+        profile_skill_source = request.context_override.get("_learning_skill_source") or (
+            "authenticated_individual_profile" if profile_available else
+            "request_supplied_skills" if request.selected_skills else "not_provided"
+        )
         profile_skills = {
             " ".join(skill.strip().casefold().split())
             for skill in request.selected_skills
@@ -4922,6 +6297,20 @@ class ExecutionOrchestratorService:
             mapping for mapping in normalized_mappings
             if not mapping["_matched_profile"]
         ]
+        resolved_mappings = [mapping for mapping in normalized_mappings if mapping.get("canonical_skill_id")]
+        matched_mappings = [mapping for mapping in resolved_mappings if mapping["_matched_profile"]]
+        missing_mappings = [mapping for mapping in resolved_mappings if not mapping["_matched_profile"]]
+        unresolved_mappings = [mapping for mapping in normalized_mappings if not mapping.get("canonical_skill_id")]
+        has_profile_comparison = profile_available or bool(request.selected_skills)
+        profile_comparison_source = (
+            "authenticated_self_reported_profile"
+            if profile_skill_source == "authenticated_individual_profile"
+            else "request_supplied_skills"
+        )
+        role_associated_coverage = (
+            round(len(matched_mappings) / len(resolved_mappings) * 100, 2)
+            if has_profile_comparison and resolved_mappings else None
+        )
         ranking_method = (
             "Deterministic lexicographic baseline: use only mappings for the resolved "
             "occupation; exclude labels already present in the compared skill list; "
@@ -5079,6 +6468,11 @@ class ExecutionOrchestratorService:
                     for trend, _, _ in trend_records
                 )
                 rationale += "."
+            else:
+                rationale += (
+                    " No eligible market demand evidence was available; this recommendation is based on occupational "
+                    "association only."
+                )
             facts.append(StructuredFact(
                 fact_id=f"fact_learning_candidate_{hashlib.sha256((target_soc + mapping_id).encode()).hexdigest()[:12]}",
                 fact_type="action_recommendation",
@@ -5108,6 +6502,11 @@ class ExecutionOrchestratorService:
                     "taxonomy_flags_are_static": True,
                     "market_trend_available": bool(trend_records),
                     "market_trend_used_for_ranking": False,
+                    "market_evidence_references": [record[1] for record in trend_records],
+                    "market_evidence_limitation": (
+                        None if trend_records else
+                        "No eligible, comparable real demand trend was available for this skill in the selected window."
+                    ),
                     "profile_comparison": (
                         "unmatched_to_authenticated_profile"
                         if profile_available
@@ -5136,13 +6535,6 @@ class ExecutionOrchestratorService:
                 f"({target_role}); {len(normalized_mappings)} distinct mapping labels were available."
             ),
         ))
-        profile_skill_source = (
-            "authenticated_individual_profile"
-            if profile_available
-            else "request_context"
-            if request.selected_skills
-            else "not_provided"
-        )
         facts.append(StructuredFact(
             fact_id=f"fact_learning_summary_{target_soc}",
             fact_type="learning_recommendation_summary",
@@ -5170,6 +6562,52 @@ class ExecutionOrchestratorService:
                 ),
                 "profile_skill_levels_are_self_reported": bool(profile_available),
                 "profile_skill_levels_used_for_ranking": False,
+                "role_associated_skill_overlap": {
+                    "status": "available" if role_associated_coverage is not None else "incomplete",
+                    "score_pct": role_associated_coverage,
+                    "formula": "matched canonical O*NET mappings / resolved O*NET mappings * 100",
+                    "matched_count": len(matched_mappings),
+                    "resolved_mapping_count": len(resolved_mappings),
+                    "interpretation": (
+                        "Overlap with occupation-associated software mappings only; these mappings are not mandatory qualifications and do not establish employability."
+                    ),
+                },
+                "matched_associated_skills": [
+                    {
+                        "skill": item["workplace_example"],
+                        "canonical_skill_id": item["canonical_skill_id"],
+                        "mapping_id": item.get("id"),
+                        "profile_evidence": profile_comparison_source,
+                    }
+                    for item in matched_mappings[:100]
+                ],
+                "missing_associated_skills": [
+                    {
+                        "skill": item["workplace_example"],
+                        "canonical_skill_id": item["canonical_skill_id"],
+                        "mapping_id": item.get("id"),
+                        "meaning": (
+                            "not present in compared skills; not a verified qualification gap"
+                        ),
+                    }
+                    for item in missing_mappings[:100]
+                ],
+                "unresolved_requirements": [
+                    {
+                        "label": item["workplace_example"],
+                        "mapping_id": item.get("id"),
+                        "reason": "no canonical skill mapping is available",
+                    }
+                    for item in unresolved_mappings[:100]
+                ],
+                "level_gaps": {
+                    "status": "unavailable",
+                    "items": [],
+                    "reason": "O*NET technology mappings do not provide required proficiency levels; saved profile levels are self-reported.",
+                },
+                "mapping_detail_truncated": any(
+                    len(items) > 100 for items in (matched_mappings, missing_mappings, unresolved_mappings)
+                ),
                 "proficiency_limit": (
                     "The occupation mapping does not specify required proficiency levels; "
                     "saved levels are self-reported and are not used to score candidates."
@@ -5226,6 +6664,208 @@ class ExecutionOrchestratorService:
         )
         return facts, evidence, limitations
 
+    def _build_esco_action_recommendations(
+        self,
+        request: CoreIntelligenceAnswerRequest,
+        target_role: str,
+        occupation_uri: str,
+    ) -> tuple[list[StructuredFact], list[EvidenceItem], list[str]]:
+        """Build evidence-linked practice suggestions from ESCO role relations.
+
+        If the user has not supplied a skill list, suggestions are explicitly
+        general role-associated practice priorities, never personalized gaps.
+        """
+        source = "ref_esco_occupation_skill_relations"
+        occupation_rows = self.reference_store.get_esco_occupations(
+            concept_uri=occupation_uri, limit=1
+        )
+        relationships = self.reference_store.get_esco_occupation_skills(
+            occupation_uri, limit=500
+        )
+        limitations = [
+            "ESCO relationships are static taxonomy context, not current employer demand, mandatory qualifications, or verified proficiency.",
+            "No verified course or provider catalogue is configured; suggestions are practice prompts, not course recommendations.",
+            "No ESCO-to-O*NET crosswalk is inferred. This result uses the exact ESCO occupation URI and its local relationships.",
+        ]
+        facts: list[StructuredFact] = []
+        evidence: list[EvidenceItem] = []
+
+        def readiness(code: str, message: str, state: str = "insufficient_data") -> tuple[list[StructuredFact], list[EvidenceItem], list[str]]:
+            facts.append(StructuredFact(
+                fact_id=f"fact_esco_learning_readiness_{hashlib.sha1((occupation_uri + code).encode()).hexdigest()[:12]}",
+                fact_type="learning_recommendation_readiness",
+                entity_name=target_role,
+                canonical_entity_id=occupation_uri,
+                entity_type="occupation",
+                metric_name="learning_recommendation_readiness",
+                metric_value=code,
+                unit="status",
+                source="ref_esco_occupations",
+                data_origin="real" if occupation_rows else "unavailable",
+                history_type="reference_taxonomy",
+                quality_state=state,
+                readiness_state=state,
+                provenance_id=occupation_uri,
+                details={"reason_code": code, "message": message, "taxonomy": "esco"},
+            ))
+            return facts, evidence, limitations
+
+        if not occupation_rows:
+            return readiness("ESCO_OCCUPATION_UNAVAILABLE", "The resolved ESCO occupation record is no longer available locally.", "unavailable")
+        if not relationships:
+            return readiness("ESCO_ROLE_SKILLS_UNAVAILABLE", "No ESCO occupation-skill relationships are available for this occupation.", "unavailable")
+
+        supplied_skills = list(request.selected_skills)
+        profile = request.context_override.get("_authenticated_learning_profile")
+        profile = profile if isinstance(profile, dict) else {}
+        profile_available = bool(
+            request.context_override.get("_learning_profile_state") == "available"
+            and profile.get("uid")
+        )
+        if not supplied_skills and profile_available:
+            supplied_skills = [str(value) for value in profile.get("skills", []) if isinstance(value, str) and value.strip()]
+
+        selected: list[dict[str, Any]]
+        recommendation_basis: str
+        matched_ids: set[str] = set()
+        if supplied_skills:
+            from app.analytics.skill_gap import calculate_skill_gap
+            from app.analytics.learning_roadmap import build_learning_roadmap
+
+            gap = calculate_skill_gap(
+                taxonomy="esco",
+                occupation={"label": target_role, "taxonomy_id": occupation_uri, "taxonomy": "esco"},
+                reference_skills=[{**row, "source": source} for row in relationships],
+                user_skills=supplied_skills,
+            )
+            if gap["unresolved_user"]:
+                return readiness(
+                    "AMBIGUOUS_USER_SKILL",
+                    "One or more supplied skills match multiple ESCO records; clarify those labels before calculating personalized practice priorities.",
+                )
+            if gap["unmatched_user"]:
+                return readiness(
+                    "UNRESOLVED_USER_SKILL",
+                    "One or more supplied skill labels do not match this occupation's ESCO relationship records. No personalized gap or action was inferred; provide labels that match the selected taxonomy records or request general role-associated practice priorities.",
+                )
+            matched_ids = {str(item["taxonomy_id"]) for item in gap["matched"]}
+            selected = [row for row in relationships if str(row.get("skill_uri")) not in matched_ids]
+            recommendation_basis = "unmatched_esco_reference_relationships_for_supplied_skills"
+            if not selected:
+                selected = []
+            roadmap = build_learning_roadmap(gap)
+            roadmap_by_id = {str(step.get("taxonomy_id")): step for step in roadmap["steps"]}
+        else:
+            selected = [row for row in relationships if str(row.get("relation_type") or "").casefold() == "essential"]
+            recommendation_basis = "general_essential_esco_role_relationships_no_personal_gap_assessed"
+            roadmap_by_id = {}
+            limitations.append(
+                "No authenticated or request-supplied skill list was available; these are general essential role-associated practice priorities, not personalized skill gaps."
+            )
+
+        # Preserve ESCO essential/optional ranking and cap the response.
+        selected.sort(key=lambda row: (
+            0 if str(row.get("relation_type") or "").casefold() == "essential" else 1,
+            str(row.get("preferred_label") or row.get("skill_label") or "").casefold(),
+            str(row.get("skill_uri") or ""),
+        ))
+        selected = selected[:10]
+        for rank, row in enumerate(selected, start=1):
+            skill_uri = str(row.get("skill_uri") or "")
+            label = str(row.get("preferred_label") or row.get("skill_label") or "").strip()
+            if not skill_uri or not label:
+                continue
+            relation = str(row.get("relation_type") or "unclassified").casefold()
+            evidence_id = f"ev_esco_learning_{hashlib.sha256((occupation_uri + skill_uri).encode()).hexdigest()[:14]}"
+            evidence.append(EvidenceItem(
+                evidence_id=evidence_id,
+                source=source,
+                signal_type="occupation_skill_reference",
+                data_origin="real",
+                history_type="reference_taxonomy",
+                provenance_id=skill_uri,
+                quality="valid",
+                description=(
+                    f"Local ESCO v{row.get('source_version') or 'unknown'} record links {label} to "
+                    f"{target_role} as {relation}; occupation URI {occupation_uri}, skill URI {skill_uri}."
+                ),
+            ))
+            step = roadmap_by_id.get(skill_uri)
+            fact_type = "action_recommendation"
+            details: dict[str, Any] = {
+                "action_type": "practice_skill",
+                "target_role": target_role,
+                "taxonomy": "esco",
+                "classification": relation,
+                "recommendation_basis": recommendation_basis,
+                "reason": f"ESCO lists this skill as {relation} for {target_role}.",
+                "next_action": (
+                    step.get("suggested_task") if step else
+                    f"Choose a small practice task that uses {label} in a {target_role}-related context."
+                ),
+                "suggestion_origin": "platform_generated_practice_suggestion",
+                "is_personalized_gap": bool(supplied_skills),
+                "proficiency_verified": False,
+            }
+            facts.append(StructuredFact(
+                fact_id=f"fact_esco_learning_{hashlib.sha256((occupation_uri + skill_uri).encode()).hexdigest()[:14]}",
+                fact_type=fact_type,
+                entity_name=label,
+                canonical_entity_id=skill_uri,
+                entity_type="skill",
+                metric_name="esco_role_practice_priority",
+                metric_value=label,
+                unit="suggested practice",
+                source=source,
+                data_origin="real",
+                history_type="reference_taxonomy",
+                quality_state="valid",
+                readiness_state="ready",
+                provenance_id=skill_uri,
+                evidence_reference=evidence_id,
+                details=details,
+            ))
+
+        if not selected:
+            return readiness("NO_ELIGIBLE_PRACTICE_PRIORITIES", "No unmatched ESCO skill relationships remain for the supplied skills.")
+        summary_evidence_id = f"ev_esco_learning_role_{hashlib.sha256(occupation_uri.encode()).hexdigest()[:14]}"
+        evidence.append(EvidenceItem(
+            evidence_id=summary_evidence_id,
+            source=source,
+            signal_type="occupation_skill_reference_set",
+            data_origin="real",
+            history_type="reference_taxonomy",
+            provenance_id=occupation_uri,
+            quality="valid",
+            description=f"Retrieved {len(relationships)} local ESCO occupation-skill relationship rows for {target_role}.",
+        ))
+        facts.append(StructuredFact(
+            fact_id=f"fact_esco_learning_summary_{hashlib.sha256(occupation_uri.encode()).hexdigest()[:14]}",
+            fact_type="learning_recommendation_summary",
+            entity_name=target_role,
+            canonical_entity_id=occupation_uri,
+            entity_type="occupation",
+            metric_name="practice_priority_count",
+            metric_value=min(len(selected), 10),
+            unit="skills",
+            source=source,
+            data_origin="real",
+            history_type="reference_taxonomy",
+            quality_state="valid",
+            readiness_state="ready",
+            provenance_id=occupation_uri,
+            evidence_reference=summary_evidence_id,
+            details={
+                "taxonomy": "esco",
+                "relationship_count": len(relationships),
+                "recommendation_basis": recommendation_basis,
+                "profile_available": profile_available,
+                "personalized_gap_calculated": bool(supplied_skills),
+                "resource_catalog_available": False,
+            },
+        ))
+        return facts, evidence, limitations
+
     def _handle_job_posting_search(
         self,
         request: CoreIntelligenceAnswerRequest,
@@ -5238,26 +6878,37 @@ class ExecutionOrchestratorService:
         ]
 
         job_source = "configured_market_observation_store"
-        if not request.observations and self.firestore_store is not None:
+        if self.job_searcher is not None or (not request.observations and self.firestore_store is not None):
             # Job postings have their own normalized Firestore collection. Reuse
             # the existing stored-job search service rather than treating a
             # locally cached observation snapshot as the live postings source.
             from app.services.job_storage_service import search_stored_jsearch_jobs
 
-            job_source = "firestore_jobs"
+            job_source = "injected_job_search" if self.job_searcher is not None else "firestore_jobs"
             limitations.append(
                 "Search is limited to the 100 most recently fetched stored postings."
             )
+            if self.job_searcher is not None:
+                limitations.append("Injected job-search results are test data and are not evidence of real stored postings.")
             query = str(
                 request.target_role
                 or next(iter(request.selected_roles), None)
                 or plan.context_summary.get("primary_entity")
                 or next(iter(request.selected_companies), None)
-                or request.message
+                or ""
             ).strip()
+            if not query and not re.search(
+                r"\b(?:which|what)\s+skills?\b.*\b(?:postings?|jobs?)\b|\bskills?\b.*\b(?:in|from|across)\s+(?:the\s+)?postings?\b",
+                request.message,
+                re.IGNORECASE,
+            ):
+                query = request.message.strip()
+            if not query:
+                limitations.append("No keyword was requested; the search reads the bounded most-recent stored posting sample.")
             country = (request.filters or {}).get("country")
             try:
-                jobs = search_stored_jsearch_jobs(
+                searcher = self.job_searcher or search_stored_jsearch_jobs
+                jobs = searcher(
                     query=query,
                     country=country,
                     limit=100,
@@ -5288,7 +6939,7 @@ class ExecutionOrchestratorService:
                     "category": job.category,
                     "fetched_at": job.fetched_at.isoformat(),
                 },
-                data_origin="real",
+                data_origin="test" if self.job_searcher is not None else "real",
             ) for job in jobs if job.title and job.job_id]
             if request.location:
                 all_obs = [o for o in all_obs if request.location.casefold() in (o.location or "").casefold()]
@@ -5348,22 +6999,58 @@ class ExecutionOrchestratorService:
             obs.append(o)
 
         postings_found = len(obs)
+        observed_origins = {item.data_origin for item in obs if item.data_origin}
+        job_evidence_origin = (
+            "test" if self.job_searcher is not None or observed_origins == {"test"}
+            else "real" if observed_origins == {"real"}
+            else "mixed" if observed_origins
+            else "unavailable"
+        )
         sample_postings = []
         structured_postings = []
-        for o in obs[:10]:
+        extracted_counts: dict[str, dict[str, Any]] = {}
+        for o in obs:
             title = str(o.metadata.get("job_title") or "").strip()
             employer = str(o.metadata.get("company") or o.metadata.get("employer_name") or "").strip()
             loc_str = str(o.location or o.metadata.get("location") or "").strip()
             posted_at = str(o.metadata.get("posted_at") or "").strip()[:10] or None
             source_url = str(o.metadata.get("apply_link") or o.metadata.get("job_url") or o.metadata.get("url") or "").strip()
-            sample_postings.append(f"{title} at {employer} ({loc_str})")
-            structured_postings.append({
+            posting_id = o.posting_id or o.id
+            extracted = extract_posting_skills({
+                "title": title,
+                "description": str(o.metadata.get("description") or ""),
+                "skills_raw": o.metadata.get("skills_raw"),
+            }, reference_store=self.reference_store)
+            posting_evidence_id = str(posting_id)
+            for skill in extracted:
+                skill_key = str(skill.get("entity_id") or skill.get("normalized_name") or "").casefold()
+                item = extracted_counts.setdefault(skill_key, {
+                    "name": skill.get("normalized_name"),
+                    "canonical_skill_id": skill.get("canonical_skill_id"),
+                    "entity_id": skill.get("entity_id"),
+                    "mapping_status": skill.get("mapping_status"),
+                    "reference_source": skill.get("reference_source"),
+                    "posting_ids": [],
+                    "evidence": [],
+                })
+                if posting_id not in item["posting_ids"]:
+                    item["posting_ids"].append(posting_id)
+                item["evidence"].append({
+                    "posting_id": posting_id,
+                    "evidence_reference": posting_evidence_id,
+                    "mentions": skill.get("evidence", []),
+                })
+            if len(structured_postings) < 10:
+                sample_postings.append(f"{title} at {employer} ({loc_str})")
+                structured_postings.append({
                 "posting_id": o.posting_id or o.id,
                 "title": title,
                 "company": employer,
                 "location": loc_str,
                 "posting_date": posted_at,
                 "source": o.source,
+                "fetch_run_id": o.fetch_run_id,
+                "fetched_at": o.observed_at.isoformat() if o.observed_at else None,
                 "source_url": source_url if source_url.startswith(("http://", "https://")) else None,
                 "skill": o.skill,
                 "summary": str(o.metadata.get("description") or "").strip()[:1200] or None,
@@ -5372,11 +7059,12 @@ class ExecutionOrchestratorService:
                     for value in (o.metadata.get("skills_raw") or [])
                     if isinstance(value, str) and value.strip()
                 ][:30],
+                "extracted_skills": extracted,
                 "employment_type": o.metadata.get("employment_type"),
                 "category": o.metadata.get("category"),
-            })
+                })
             evidence.append(EvidenceItem(
-                evidence_id=o.posting_id or o.id,
+                evidence_id=posting_evidence_id,
                 source=o.source,
                 signal_type="stored_posting",
                 period=o.period,
@@ -5386,6 +7074,36 @@ class ExecutionOrchestratorService:
                 provenance_id=o.posting_id or o.id,
                 quality="valid",
                 description=f"Stored job posting: {title} at {employer} ({loc_str}, {o.source}).",
+            ))
+
+        skill_facts: list[StructuredFact] = []
+        for index, item in enumerate(extracted_counts.values()):
+            skill_name = str(item["name"] or "unmatched skill text")
+            posting_count = len(item["posting_ids"])
+            skill_facts.append(StructuredFact(
+                fact_id=f"fact_posting_skill_{index}_{hashlib.sha256(skill_name.casefold().encode()).hexdigest()[:10]}",
+                fact_type="stored_posting_skill",
+                entity_name=skill_name,
+                canonical_entity_id=item["entity_id"],
+                entity_type="skill" if item["entity_id"] else None,
+                metric_name="postings_with_skill_match",
+                metric_value=posting_count,
+                denominator=postings_found,
+                unit="postings",
+                source=job_source,
+                data_origin=job_evidence_origin,
+                quality_state="valid",
+                readiness_state="observed",
+                evidence_reference=(item["evidence"][0]["evidence_reference"] if item["evidence"] else None),
+                details={
+                    "sample_denominator": postings_found,
+                    "sample_share": round(posting_count / postings_found, 4) if postings_found else None,
+                    "mapping_status": item["mapping_status"],
+                    "reference_source": item["reference_source"],
+                    "posting_ids": item["posting_ids"],
+                    "supporting_evidence": item["evidence"],
+                    "counting_method": "distinct retrieved postings containing at least one exact matched phrase",
+                },
             ))
 
         ev_ref = (obs[0].posting_id or obs[0].id) if obs else None
@@ -5400,7 +7118,7 @@ class ExecutionOrchestratorService:
             metric_value=postings_found,
             unit="postings",
             source=job_source,
-            data_origin="real",
+            data_origin=job_evidence_origin,
             quality_state="valid",
             readiness_state="ready" if postings_found > 0 else "insufficient_data",
             provenance_id=f"cnt_{postings_found}",
@@ -5408,10 +7126,12 @@ class ExecutionOrchestratorService:
             details={
                 "sample_postings": sample_postings[:5],
                 "postings": structured_postings,
+                "skills_observed": list(extracted_counts.values()),
                 "company_filter": sorted(selected_cos_norm) if selected_cos_norm else [],
                 "search_window_limit": 100 if job_source == "firestore_jobs" else None,
             },
         ))
+        facts.extend(skill_facts)
 
         return facts, evidence, limitations
 
@@ -5929,13 +7649,34 @@ class ExecutionOrchestratorService:
                 ent = readiness.entity_name if readiness else (
                     plan.context_summary.get("primary_entity") if plan else None
                 )
+                signal_type = next(
+                    (item.measured_signal_type for item in evidence if item.measured_signal_type),
+                    None,
+                )
+                signal_label = {
+                    "interest": "developer interest",
+                    "adoption": "developer activity",
+                    "demand": "hiring demand",
+                }.get(str(signal_type).casefold(), None) if signal_type else None
+                reason_lower = str(reason).casefold()
+                if "interest" in reason_lower:
+                    signal_label = "developer interest"
+                concise_reason = (
+                    "The available data did not meet the requirements for at least four consecutive comparable completed monthly periods."
+                )
+                if signal_label == "developer interest":
+                    concise_reason = (
+                        "The available source measures developer interest, not hiring demand, and does not currently meet the comparable monthly series requirements."
+                    )
                 direct_answer = (
-                    f"No measured trend is available for **{ent}**. {reason}"
-                    if ent else f"No measured trend is available. {reason}"
+                    f"**Trend not available yet**\n\nNo verified measured trend is available for **{ent}**. {concise_reason}"
+                    if ent else f"**Trend not available yet**\n\nNo verified measured trend is available. {concise_reason}"
                 )
                 supporting_facts = []
-                interpretation = "No direction or velocity is reported when evidence or readiness requirements are unmet."
-                limitations = [reason]
+                interpretation = "No direction or velocity is reported because readiness requirements were not met."
+                # Detailed readiness, source, period, and eligibility remain in
+                # the structured fact/evidence panel instead of the answer text.
+                limitations = []
 
         elif intent == "analyze_skill_health":
             health_score_fact = next((f for f in facts if f.fact_type == "skill_health_score"), None)
@@ -6203,26 +7944,39 @@ class ExecutionOrchestratorService:
 
         elif intent == "crosswalk_occupation_software":
             soft_facts = [f for f in facts if f.fact_type == "software_skill"]
-            occ_name = soft_facts[0].details.get("occupation_title") if soft_facts and soft_facts[0].details else "Software Developers"
-            soc = soft_facts[0].details.get("soc_code") if soft_facts and soft_facts[0].details else "15-1252.00"
+            esco_facts = [f for f in facts if f.fact_type == "occupation_skill_association"]
+            if esco_facts:
+                occ_name = esco_facts[0].details.get("occupation_title") or "the selected occupation"
+                direct_answer = f"Retrieved {len(esco_facts)} ESCO occupation-skill associations for **{occ_name}** (up to 10 are returned)."
+                for fact in esco_facts:
+                    supporting_facts.append(f"**{fact.entity_name}** ({fact.metric_value})")
+                interpretation = "These are static ESCO taxonomy associations, not evidence of a person's qualifications, employability, or live employer demand."
+                limitations = [
+                    "At most 10 matching ESCO relationships are returned for this response.",
+                    "ESCO essential/optional labels describe taxonomy relationships only.",
+                    "No current hiring-demand evidence is implied by these reference associations.",
+                ]
+            else:
+                occ_name = soft_facts[0].details.get("occupation_title") if soft_facts and soft_facts[0].details else "Software Developers"
+                soc = soft_facts[0].details.get("soc_code") if soft_facts and soft_facts[0].details else "15-1252.00"
 
-            direct_answer = (
-                f"Identified **{len(soft_facts)}** baseline software tools and technologies for **{occ_name}** "
-                f"(SOC {soc}) based on the O*NET occupational taxonomy."
-            )
-            for f in soft_facts:
-                hot_str = " [Hot Technology]" if f.metric_value is True else ""
-                elem = f.details.get("element_name", "Software")
-                supporting_facts.append(f"**{f.entity_name}** ({elem}){hot_str}")
+                direct_answer = (
+                    f"Identified **{len(soft_facts)}** baseline software tools and technologies for **{occ_name}** "
+                    f"(SOC {soc}) based on the O*NET occupational taxonomy."
+                )
+                for f in soft_facts:
+                    hot_str = " [Hot Technology]" if f.metric_value is True else ""
+                    elem = f.details.get("element_name", "Software")
+                    supporting_facts.append(f"**{f.entity_name}** ({elem}){hot_str}")
 
-            interpretation = (
-                "The O*NET 2018 software skills baseline catalogs tools frequently utilized in this occupation. "
-                "This represents an occupational taxonomy baseline, not live employer hiring demand or real-time job vacancy frequency."
-            )
-            limitations = [
-                "Software tools reflect workplace survey baselines; tool frequency varies by employer.",
-                "O*NET is an occupational taxonomy baseline, not live employer hiring demand or real-time vacancies.",
-            ]
+                interpretation = (
+                    "The O*NET 2018 software skills baseline catalogs tools frequently utilized in this occupation. "
+                    "This represents an occupational taxonomy baseline, not live employer hiring demand or real-time job vacancy frequency."
+                )
+                limitations = [
+                    "Software tools reflect workplace survey baselines; tool frequency varies by employer.",
+                    "O*NET is an occupational taxonomy baseline, not live employer hiring demand or real-time vacancies.",
+                ]
 
         elif intent == "crosswalk_related_occupations":
             rel_facts = [f for f in facts if f.fact_type == "related_occupation"]
@@ -6264,48 +8018,118 @@ class ExecutionOrchestratorService:
                 interpretation = "Reference taxonomy lookup."
                 limitations = ["Taxonomy baseline data."]
 
-        elif intent in {"explain_concept", "lookup_skill_reference"}:
-            tech_facts = [f for f in facts if f.fact_type == "technology_adoption"]
-            ent_name = facts[0].entity_name or "Entity"
-            direct_answer = f"Reference intelligence and developer adoption context retrieved for **{ent_name}**."
-            if tech_facts:
-                for f in tech_facts:
-                    supporting_facts.append(
-                        f"**{f.metric_name.replace('_', ' ').title()}**: {f.metric_value} {f.unit or ''} ({f.period})"
+        elif intent == "lookup_github_adoption":
+            snapshots = [fact for fact in facts if fact.fact_type == "developer_activity_snapshot"]
+            changes = [fact for fact in facts if fact.fact_type == "developer_activity_change"]
+            descriptive = [fact for fact in facts if fact.fact_type == "developer_activity_trend"]
+            if snapshots:
+                latest = snapshots[0]
+                direct_answer = (
+                    f"GitHub Innovation Graph recorded **{int(latest.metric_value)} unique developers** "
+                    f"for {latest.entity_name} in **{latest.period}** ({latest.details.get('iso2_code')}); "
+                    "this is developer activity, not hiring demand."
+                )
+                if changes:
+                    change = changes[0]
+                    direct_answer += (
+                        f" The latest quarter-to-quarter change was **{int(change.metric_value):+}** "
+                        f"({change.period.replace('_to_', ' to ')})."
+                    )
+                if descriptive:
+                    trend = descriptive[0]
+                    direct_answer += (
+                        f" Across {len(trend.details.get('periods', []))} consecutive quarters "
+                        f"({trend.period.replace('_to_', ' to ')}), the count {trend.metric_value} "
+                        f"from {trend.details.get('first_value')} to {trend.details.get('latest_value')}."
                     )
             else:
-                supporting_facts = [f"**{f.metric_name}**: {f.metric_value}" for f in facts]
-
-            interpretation = (
-                "Developer adoption metrics are derived from the GitHub Innovation Graph, measuring open-source "
-                "repository counts and active developer volume. These indicate developer ecosystem engagement, "
-                "not employer hiring demand or commercial job vacancy counts."
-            )
+                unavailable = next((fact for fact in facts if fact.fact_type == "analysis_readiness"), None)
+                direct_answer = str((unavailable.details or {}).get("reason")) if unavailable else "No matching local GitHub developer-adoption series is available."
+            interpretation = "Quarterly source counts are compared only within the same GitHub metric and geography."
             limitations = [
                 "GitHub Innovation Graph measures open-source developer activity, not employer hiring demand.",
-                "Quarterly developer ecosystem metrics reflect public GitHub repository activity, not commercial hiring.",
+                "This descriptive quarterly series is not converted into monthly demand evidence.",
             ]
+
+        elif intent in {"explain_concept", "lookup_skill_reference"}:
+            reference_fact = next(
+                (fact for fact in facts if fact.fact_type == "canonical_reference"),
+                None,
+            )
+            unavailable_fact = next(
+                (
+                    fact for fact in facts
+                    if fact.fact_type == "analysis_readiness"
+                    and fact.metric_name == "canonical_reference_readiness"
+                ),
+                None,
+            )
+            if reference_fact:
+                category = (
+                    str(reference_fact.metric_value)
+                    if reference_fact.metric_name == "taxonomy_category" and reference_fact.metric_value
+                    else None
+                )
+                definition = reference_fact.details.get("definition") or reference_fact.details.get("description")
+                entity_name = reference_fact.entity_name or "The requested entity"
+                if reference_fact.source == "ref_esco_skills":
+                    version = reference_fact.details.get("source_version") or "the imported release"
+                    direct_answer = f"**{entity_name}** is listed in the ESCO {version} skill taxonomy."
+                else:
+                    direct_answer = f"**{entity_name}** is listed in the canonical reference source."
+                if category:
+                    direct_answer += f" Category: **{category}**."
+                else:
+                    direct_answer += " Category is unavailable in the current reference data."
+                if definition:
+                    direct_answer += f" Definition: {definition}"
+                else:
+                    direct_answer += " A definition is unavailable in the current reference data."
+            elif unavailable_fact:
+                direct_answer = str(unavailable_fact.details.get("reason"))
+            else:
+                direct_answer = (
+                    "A canonical reference record was not found. Definition and category are unavailable "
+                    "in the current reference data."
+                )
+            interpretation = ""
+            limitations = []
 
         elif intent == "search_jobs":
             job_fact = next((f for f in facts if f.fact_type == "stored_job_postings"), None)
             cnt = job_fact.metric_value if job_fact else 0
+            observed_skills = [f for f in facts if f.fact_type == "stored_posting_skill"]
+            observed_skills.sort(key=lambda fact: (-int(fact.metric_value or 0), str(fact.entity_name or "").casefold()))
             if cnt == 0:
                 if request.selected_companies:
                     comp_str = ", ".join(request.selected_companies)
                     direct_answer = (
                         f"No matching job postings were found in the bounded recent stored search for saved companies ({comp_str}). "
-                        "However, standardized occupational requirements and software tool profiles remain available via the O*NET taxonomy baseline."
+                        "An empty posting sample does not establish hiring demand or the absence of hiring demand."
                     )
                 else:
                     direct_answer = (
                         "No matching job postings were found in the bounded recent stored search. "
-                        "However, standardized occupational requirements and software tool profiles remain available via the O*NET taxonomy baseline."
+                        "An empty posting sample does not establish hiring demand or the absence of hiring demand."
                     )
             else:
                 direct_answer = f"Retrieved **{cnt}** matching job postings from the stored collection runs."
+                if observed_skills:
+                    summaries = [
+                        f"{fact.entity_name} ({fact.metric_value}/{fact.denominator} postings)"
+                        for fact in observed_skills[:12]
+                    ]
+                    direct_answer += " Exact skill matches in this retrieved sample: " + "; ".join(summaries) + "."
+                else:
+                    direct_answer += " No locally matched skill phrases were found in the retrieved posting text."
             supporting_facts = [
                 f"**Stored Postings Found**: {cnt} postings",
             ]
+            if job_fact and int(job_fact.metric_value or 0) > 0:
+                supporting_facts.extend(
+                    f"**{fact.entity_name}**: {fact.metric_value} of {fact.denominator} retrieved postings; mapping {fact.details.get('mapping_status')}."
+                    for fact in observed_skills[:12]
+                )
             if job_fact and job_fact.details.get("sample_postings"):
                 for p in job_fact.details["sample_postings"]:
                     supporting_facts.append(f"Sample posting: {p}")
@@ -6333,11 +8157,12 @@ class ExecutionOrchestratorService:
             ]
 
         elif intent == "analyze_skill_gap":
-            gap_fact = next((f for f in facts if f.fact_type == "skill_gap"), None)
+            gap_fact = next((f for f in facts if f.fact_type == "personalized_skill_gap"), None)
+            old_gap_fact = next((f for f in facts if f.fact_type == "skill_gap"), None)
             readiness = next(
                 (
                     fact for fact in facts
-                    if fact.fact_type == "learning_recommendation_readiness"
+                    if fact.fact_type in {"learning_recommendation_readiness", "skill_gap_readiness"}
                 ),
                 None,
             )
@@ -6348,6 +8173,7 @@ class ExecutionOrchestratorService:
             if readiness:
                 direct_answer = str(
                     readiness.details.get("message")
+                    or readiness.details.get("clarification")
                     or "A role-to-skill comparison is not available with the current information."
                 )
                 interpretation = (
@@ -6359,30 +8185,38 @@ class ExecutionOrchestratorService:
             elif gap_fact:
                 det = gap_fact.details
                 role = gap_fact.entity_name or "the selected role"
-                mapped_count = det.get("mapping_count", gap_fact.metric_value)
+                matched = det.get("matched", [])
+                matched_count = det.get("coverage_numerator", len(matched))
+                matched_labels = list(dict.fromkeys(item["label"] for item in matched))
+                missing = det.get("missing", [])
+                pct = det.get("coverage_percent")
+                coverage_text = f"{pct}%" if pct is not None else "unavailable"
+                essential_gaps = [item["label"] for item in missing if item.get("classification") == "essential"]
+                optional_gaps = [item["label"] for item in missing if item.get("classification") == "optional"]
+                unclassified_gaps = [item["label"] for item in missing if not item.get("classification")]
                 direct_answer = (
-                    f"For **{role}**, the profile is compared with {mapped_count} available O*NET "
-                    "software/technology mapping labels. These associations are occupational context, "
-                    "not mandatory qualifications."
+                    f"For **{role}** in **{str(det.get('taxonomy', 'selected')).upper()}**, "
+                    f"{matched_count} of {det.get('reference_count', 0)} distinct reference skills matched "
+                    f"({coverage_text} reference-skill coverage)."
                 )
+                supporting_facts = [
+                    f"**Matched skills**: {', '.join(matched_labels) or 'none matched by an unambiguous label'}",
+                    f"**Essential gaps**: {', '.join(essential_gaps[:10]) or 'none identified'}",
+                    f"**Optional gaps**: {', '.join(optional_gaps[:10]) or 'none identified'}",
+                    f"**Unclassified reference gaps**: {', '.join(unclassified_gaps[:10]) or 'none'}",
+                    f"**User skills not matched**: {', '.join(item.get('original_text', '') for item in det.get('unmatched_user', [])) or 'none'}",
+                    f"**Coverage formula**: {det.get('coverage_formula')}",
+                    *[
+                        f"**Roadmap {step.get('priority')} — {step.get('target_skill')}**: {step.get('suggested_task')} Outcome: {step.get('tangible_outcome')} Self-check: {step.get('self_check_criterion')}"
+                        for step in det.get("learning_roadmap", {}).get("steps", [])[:3]
+                    ],
+                ]
+                interpretation = det.get("interpretation", "Reference-skill coverage only; proficiency is not verified.")
+                limitations = list(dict.fromkeys(limitations))
+            elif old_gap_fact:
+                direct_answer = f"For **{old_gap_fact.entity_name or 'the selected role'}**, the existing O*NET technology mapping comparison is available."
                 supporting_facts = [f"**Role-associated learning candidates**: {', '.join(f.entity_name or '' for f in candidates)}"]
-                if det.get("profile_skill_source") == "authenticated_individual_profile":
-                    supporting_facts.append(
-                        "**Compared skills**: skills saved in the authenticated user's individual profile (self-reported)."
-                    )
-                elif det.get("profile_skills_provided"):
-                    supporting_facts.append(
-                        "**Compared skills**: skills explicitly supplied in this request; not verified as a saved profile."
-                    )
-                else:
-                    supporting_facts.append(
-                        "**Profile coverage**: no saved or request-supplied skills were available for comparison."
-                    )
-
-                interpretation = (
-                    "O*NET maps software/technology items to occupations. Matching compares normalized labels and "
-                    "registered canonical skill IDs; this does not assess proficiency or complete job readiness."
-                )
+                interpretation = "O*NET technology mapping context, not mandatory qualifications."
                 limitations = list(dict.fromkeys(limitations))
             else:
                 direct_answer = "Skill gap analysis completed."
@@ -6607,7 +8441,18 @@ class ExecutionOrchestratorService:
             ent_name = plan.context_summary.get("primary_entity") or "Market Evidence"
             ev_fact = next((f for f in facts if f.fact_type == "evidence_summary"), None)
             cnt = ev_fact.metric_value if ev_fact else len(evidence)
-            direct_answer = f"Audit trail and verifiable evidence retrieval for **{ent_name}**: identified **{cnt}** verified records."
+            if not cnt:
+                reason = ev_fact.details.get("reason") if ev_fact and ev_fact.details else None
+                direct_answer = (
+                    f"No verified evidence records are available for **{ent_name}**. "
+                    f"{reason or 'No matching stored evidence was found.'}"
+                )
+            else:
+                source_names = list(dict.fromkeys(item.source for item in evidence if item.source))
+                source_text = f" from {', '.join(source_names[:4])}" if source_names else ""
+                direct_answer = (
+                    f"Evidence retrieval for **{ent_name}** found **{cnt}** verified stored records{source_text}."
+                )
             supporting_facts = [
                 f"**Verified Evidence Items Count**: {cnt} items",
             ]
@@ -6621,15 +8466,27 @@ class ExecutionOrchestratorService:
         elif intent == "retrieve_history":
             ent_name = plan.context_summary.get("primary_entity") or "Entity"
             hist_facts = [f for f in facts if f.fact_type == "historical_observation"]
-            direct_answer = f"Retrieved **{len(hist_facts)}** historical observation records for **{ent_name}**."
+            series = {
+                (f.source, f.details.get("signal_type", f.metric_name), f.unit,
+                 f.details.get("location") or f.details.get("geography"), f.series_id)
+                for f in hist_facts
+            }
+            direct_answer = (
+                f"Retrieved **{len(hist_facts)}** historical observation records for **{ent_name}** "
+                f"across **{len(series)}** source-specific series."
+            )
             for f in hist_facts[:5]:
-                supporting_facts.append(f"**{f.period}** ({f.metric_name}): {f.metric_value} [{f.source}]")
+                geo = f" · {f.details.get('location') or f.details.get('geography')}" if (f.details.get('location') or f.details.get('geography')) else ""
+                grain = f" · {f.details.get('frequency')}" if f.details.get("frequency") else ""
+                provenance = f" · {f.history_type or 'history type unavailable'} / {f.data_origin or 'origin unavailable'}"
+                supporting_facts.append(
+                    f"**{f.period}** · {f.source} {f.details.get('signal_type', f.metric_name)}: "
+                    f"{f.metric_value} {f.unit or ''}{geo}{grain}{provenance}"
+                )
             if not hist_facts:
                 supporting_facts = [f"**{f.metric_name}**: {f.metric_value}" for f in facts]
-            interpretation = "Historical time-series observations represent empirical snapshots across collection periods."
-            limitations = [
-                "Only verified empirical periods are returned; zero interpolation across missing periods.",
-            ]
+            interpretation = "Historical observations retain their source, metric, unit, frequency, geography, and series provenance. GitHub developer activity, Stack Exchange questions, and Wikipedia pageviews describe different signals and are not combined."
+            limitations.append("Historical observations are completed periods from source-specific series; snapshots, partial periods, and values from incompatible series are excluded from combined analysis.")
 
         elif intent == "retrieve_snapshot":
             snap_fact = next((f for f in facts if f.fact_type == "market_snapshot"), None)
@@ -6648,10 +8505,20 @@ class ExecutionOrchestratorService:
                 interpretation = f"Empirical observation captured for {ent} in period {period}."
                 limitations = ["Snapshots represent samples observed through provider queries, not total universe of postings."]
             else:
-                direct_answer = "Market snapshot retrieved."
-                supporting_facts = [f"**{f.metric_name}**: {f.metric_value}" for f in facts]
-                interpretation = "Market snapshot data."
-                limitations = ["Sample observations."]
+                readiness = next(
+                    (f for f in facts if f.fact_type == "analysis_readiness" and f.metric_name == "market_evidence_readiness"),
+                    None,
+                )
+                direct_answer = (
+                    f"No stored market observation is available to verify current hiring demand for **{readiness.entity_name or 'the requested skill'}**."
+                    if readiness else "No verified market snapshot is available for this request."
+                )
+                supporting_facts = ["**Market evidence**: unavailable in the configured observation store."]
+                interpretation = "No demand level or trend can be inferred from static taxonomy references."
+                limitations = [
+                    "ESCO and O*NET taxonomy associations describe reference relationships; they are not evidence of current hiring demand.",
+                    "A current demand conclusion requires persisted empirical market observations for the requested skill.",
+                ]
 
         else:
             direct_answer = f"Synthesized intelligence summary based on {len(facts)} verified structured facts."
@@ -6662,7 +8529,7 @@ class ExecutionOrchestratorService:
         sections = [direct_answer.strip()]
         if supporting_facts:
             sections.append("**Observed details**\n" + "\n".join(f"- {fact}" for fact in supporting_facts))
-        if evidence_citations:
+        if evidence_citations and intent not in {"explain_concept", "lookup_skill_reference"}:
             sections.append("**Sources**\n" + "\n".join(f"- {cite}" for cite in evidence_citations))
         if interpretation and not interpretation.startswith("Intelligence synthesis grounded"):
             sections.append(interpretation.strip())

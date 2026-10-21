@@ -6,6 +6,7 @@ from app.storage.fetch_run_store import FirestoreFetchRunStore
 class Snapshot:
     def __init__(self, value):
         self.value = value
+        self.exists = value is not None
 
     def to_dict(self):
         return self.value
@@ -37,6 +38,50 @@ class Database:
     def collection(self, name):
         assert name == "fetch_runs"
         return Query(self.records)
+
+
+class WritableDocument:
+    def __init__(self, records, key):
+        self.records = records
+        self.key = key
+
+    def create(self, value):
+        if self.key in self.records:
+            raise ValueError("already exists")
+        self.records[self.key] = dict(value)
+
+    def update(self, value):
+        self.records[self.key].update(value)
+
+    def get(self):
+        return Snapshot(self.records.get(self.key))
+
+
+class WritableCollection:
+    def __init__(self, records):
+        self.records = records
+
+    def document(self, key):
+        return WritableDocument(self.records, key)
+
+
+class WritableDatabase(Database):
+    def collection(self, name):
+        assert name == "fetch_runs"
+        return WritableCollection(self.records)
+
+
+def test_fetch_run_start_and_completion_are_verified_by_readback():
+    database = WritableDatabase({})
+    store = FirestoreFetchRunStore(database)
+    started = {"source": "jsearch", "status": "running"}
+    completed = {"status": "success", "records_fetched": 3}
+
+    store.start("run-1", started)
+    store.finish("run-1", completed)
+
+    assert database.records["run-1"] == {**started, **completed}
+    assert store.get("run-1") == {**started, **completed}
 
 
 def test_collection_summary_derives_latest_status_per_provider_without_parent_run():

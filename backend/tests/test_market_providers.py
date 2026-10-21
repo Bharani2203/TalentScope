@@ -52,6 +52,50 @@ def test_jsearch_adapter_reuses_existing_job_service_and_normalizes_postings():
     assert all(item.signal_type == "demand" and item.location == "Chennai" for item in observations)
 
 
+def test_missing_provider_ids_use_stable_content_fallbacks():
+    class MissingIdJSearch:
+        async def search_jobs(self, **kwargs):
+            return [Job(
+                job_id=None, title="Python Developer", company_name="Fixture Co",
+                posted_at="2026-10-01T00:00:00Z",
+                fetched_at=datetime(2026, 10, 5, tzinfo=timezone.utc),
+            )], datetime(2026, 10, 5, tzinfo=timezone.utc)
+
+    jsearch = JSearchProvider(
+        service=MissingIdJSearch(), settings=settings(adzuna_country="in"),
+    )
+    first = asyncio.run(jsearch.fetch_market_postings_with_stats(
+        location=None, country="in", collected_at=datetime(2026, 10, 5, tzinfo=timezone.utc),
+    ))
+    second = asyncio.run(jsearch.fetch_market_postings_with_stats(
+        location=None, country="in", collected_at=datetime(2026, 10, 5, tzinfo=timezone.utc),
+    ))
+    assert len(first.postings[0].posting_id) == 64
+    assert first.postings[0].posting_id == second.postings[0].posting_id
+
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={
+        "count": 1,
+        "results": [{
+            "title": "Python Developer",
+            "company": {"display_name": "Fixture Co"},
+            "location": {"display_name": "Chennai"},
+            "created": "2026-10-01T00:00:00Z",
+        }],
+    }))
+    adzuna_settings = settings(
+        adzuna_app_id="test-app-id", adzuna_app_key="test-app-key", adzuna_max_retries=0,
+    )
+    adzuna = AdzunaProvider(settings=adzuna_settings, transport=transport)
+    first = asyncio.run(adzuna.fetch_market_postings_with_stats(
+        location=None, country="in", collected_at=datetime(2026, 10, 5, tzinfo=timezone.utc),
+    ))
+    second = asyncio.run(adzuna.fetch_market_postings_with_stats(
+        location=None, country="in", collected_at=datetime(2026, 10, 5, tzinfo=timezone.utc),
+    ))
+    assert len(first.postings[0].posting_id) == 64
+    assert first.postings[0].posting_id == second.postings[0].posting_id
+
+
 def test_nested_jsearch_response_reaches_market_posting_contract():
     settings_value = settings(
         jsearch_api_key="unit-test-key",
@@ -183,6 +227,82 @@ def test_adzuna_response_archive_callback_receives_provider_payload():
 
     assert len(result.postings) == 1
     assert captured == [(payload, "application/json")]
+
+
+def test_adzuna_reports_limited_pagination_and_verified_empty_results():
+    settings_value = settings(
+        adzuna_app_id="mock-id", adzuna_app_key="mock-key", adzuna_max_retries=0,
+    )
+    partial = AdzunaProvider(
+        settings=settings_value,
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={
+            "count": 75,
+            "results": [{"id": "mock-job", "title": "Python Engineer"}],
+        })),
+    )
+    empty = AdzunaProvider(
+        settings=settings_value,
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"count": 0, "results": []})),
+    )
+    args = {"location": None, "country": "in", "collected_at": datetime(2026, 10, 1, tzinfo=timezone.utc)}
+
+    partial_result = asyncio.run(partial.fetch_market_postings_with_stats(**args))
+    empty_result = asyncio.run(empty.fetch_market_postings_with_stats(**args))
+
+    assert partial_result.provider_total_count == 75
+    assert partial_result.page_size_limit == 50
+    assert partial_result.pagination_complete is False
+    assert empty_result.zero_results_verified is True
+    assert empty_result.pagination_complete is True
+
+
+def test_adzuna_honors_bounded_query_and_rejects_invalid_records_safely():
+    calls = []
+    payload = {"count": 3, "results": [
+        {"id": "bounded-1", "title": "Python Engineer", "created": "2026-10-02T12:30:00Z"},
+        {"id": "bounded-1", "title": "Python Engineer", "created": "2026-10-02T12:30:00Z"},
+        {"id": "missing-title"},
+    ]}
+
+    def handler(request):
+        calls.append(request)
+        assert request.url.params["what"] == "software developer"
+        assert request.url.params["where"] == "Chennai"
+        assert request.url.params["results_per_page"] == "3"
+        return httpx.Response(200, json=payload)
+
+    provider = AdzunaProvider(
+        settings=settings(adzuna_app_id="fixture-id", adzuna_app_key="fixture-key", adzuna_max_retries=0),
+        transport=httpx.MockTransport(handler),
+    )
+    result = asyncio.run(provider.fetch_market_postings_with_stats(
+        location="Chennai", country="in", collected_at=datetime(2026, 10, 18, tzinfo=timezone.utc),
+        query="software developer", result_limit=3,
+    ))
+
+    assert len(calls) == 1
+    assert len(result.postings) == 1
+    assert result.postings[0].source == "adzuna"
+    assert result.postings[0].posting_id == "bounded-1"
+    assert result.postings[0].provider_job_id == "bounded-1"
+    assert result.records_rejected == 1
+    assert result.records_filtered == 1
+    assert result.page_size_limit == 3
+    assert result.pagination_complete is True
+
+
+def test_jsearch_successful_empty_page_is_explicitly_verified_zero():
+    service = JSearchService(
+        settings=settings(jsearch_api_key="mock-key", jsearch_max_retries=0),
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"status": "OK", "data": []})),
+    )
+    provider = JSearchProvider(service=service, settings=service.settings)
+    result = asyncio.run(provider.fetch_market_postings_with_stats(
+        location=None, country="in", collected_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+    ))
+    assert result.postings == []
+    assert result.zero_results_verified is True
+    assert result.sampling_frame
 
 
 @pytest.mark.parametrize(

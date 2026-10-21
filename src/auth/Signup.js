@@ -638,11 +638,49 @@ function bindStepEvents(root) {
             logAuthTrace('login_to_profile_ready', { duration_ms: authTraceNow() - signupState.authStartedAt, result: error.kind });
           }
           showAlert(authErrorMessage(error), 'error');
+          addStep3ProfileRetryButton();
         } finally {
           btnContinue.disabled = false;
         }
       });
     }
+  }
+
+  function addStep3ProfileRetryButton() {
+    const alertArea = document.getElementById('authAlertArea');
+    if (!auth.currentUser || !alertArea) return;
+    const retryBtn = document.createElement('button');
+    retryBtn.type = 'button';
+    retryBtn.className = 'ts-auth-btn-google';
+    retryBtn.style.marginTop = '8px';
+    retryBtn.textContent = 'Retry profile synchronization';
+    retryBtn.addEventListener('click', async () => {
+      retryBtn.disabled = true;
+      retryBtn.textContent = 'Retrying synchronization...';
+      try {
+        const employee = signupState.userType === 'employee';
+        await syncCurrentFirebaseUser(auth.currentUser, {
+          user_type: signupState.userType,
+          employee_type: employee ? signupState.employeeType : null,
+          company_name: employee && signupState.employeeType === 'company-connected'
+            ? signupState.companyName
+            : null
+        });
+        setSignupFlowPending(false);
+        saveOnboardingDraft({
+          userType: signupState.userType,
+          employeeType: signupState.employeeType,
+          companyName: signupState.companyName,
+          stepIndex: 0,
+          answers: {}
+        });
+        window.location.hash = '#/onboarding';
+      } catch (err) {
+        showAlert(authErrorMessage(err), 'error');
+        addStep3ProfileRetryButton();
+      }
+    });
+    alertArea.appendChild(retryBtn);
   }
 
   function showAlert(msg, type = 'error') {
@@ -662,15 +700,20 @@ function bindStepEvents(root) {
     const alertArea = document.getElementById('authAlertArea');
     if (!alertArea) return;
     alertArea.innerHTML = `
-      <div class="ts-auth-alert is-error" role="alert" style="display:flex; flex-direction:column; gap:8px; align-items:flex-start;">
+      <div class="ts-auth-alert is-error" role="alert" style="display:flex; flex-direction:column; gap:10px; align-items:flex-start;">
         <div style="display:flex; align-items:center; gap:8px;">
           <i data-lucide="alert-circle"></i>
-          <span>An account already exists for this email address.</span>
+          <span>An account already exists for this email address. Please sign in or recover your account instead of repeating registration.</span>
         </div>
-        <a href="#/login" class="ts-auth-btn-primary" style="display:inline-flex; align-items:center; justify-content:center; text-decoration:none; padding:8px 16px; font-size:13px; width:auto; margin-top:4px;">
-          <span>Sign In to Existing Account</span>
-          <i data-lucide="arrow-right" style="margin-left:6px;"></i>
-        </a>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px;">
+          <a href="#/login" class="ts-auth-btn-primary" style="display:inline-flex; align-items:center; justify-content:center; text-decoration:none; padding:8px 16px; font-size:13px; width:auto;">
+            <span>Sign In to Existing Account</span>
+            <i data-lucide="arrow-right" style="margin-left:6px;"></i>
+          </a>
+          <a href="#/login" style="font-size:13px; color:var(--ts-accent, #6366f1); text-decoration:underline;">
+            Recover Account
+          </a>
+        </div>
       </div>
     `;
     if (window.lucide) window.lucide.createIcons();
@@ -682,7 +725,7 @@ function bindStepEvents(root) {
   }
 }
 
-function authErrorMessage(error) {
+export function authErrorMessage(error) {
   if (error?.kind) {
     return profileSyncErrorMessage(error);
   }

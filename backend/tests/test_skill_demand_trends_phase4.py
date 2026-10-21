@@ -28,6 +28,7 @@ from app.models.auth import AuthenticatedUser
 from app.models.execution_orchestrator import CoreIntelligenceAnswerRequest
 from app.models.intent_planner import IntelligencePlanRequest
 from app.models.skill_intelligence import MarketObservation
+from app.services.capability_registry_service import CAPABILITY_CATALOG
 from app.services.execution_orchestrator_service import ExecutionOrchestratorService
 from app.services.intent_planner_service import IntentPlannerService
 from app.storage.conversation_store import ConversationStore
@@ -42,6 +43,7 @@ USER_PHASE4 = AuthenticatedUser(
 def make_python_demand_observations(
     *,
     count: int = 5,
+    start_month: int = 5,
     data_origin: str = "real",
     source: str = "jsearch",
     signal_type: str = "demand",
@@ -49,7 +51,7 @@ def make_python_demand_observations(
     """Generate strictly consecutive monthly observations for Python."""
     observations: list[MarketObservation] = []
     for i in range(count):
-        month = 5 + i
+        month = start_month + i
         period = f"2026-0{month}" if month < 10 else f"2026-{month}"
         observations.append(
             MarketObservation(
@@ -82,7 +84,7 @@ def test_explicit_selection_skill_demand_trends():
     orchestrator = ExecutionOrchestratorService()
 
     req = CoreIntelligenceAnswerRequest(
-        message="Analyze Python",
+        message="What demand trend is observed for Python?",
         domain="skill",
         capability_id="trend_velocity_analysis",
         observations=obs,
@@ -102,15 +104,235 @@ def test_explicit_selection_skill_demand_trends():
     assert "INCREASING" in resp.answer
 
 
+def test_four_completed_comparable_periods_produce_a_trend():
+    response = ExecutionOrchestratorService().answer(
+        CoreIntelligenceAnswerRequest(
+            message="What demand trend is observed for Python?",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+            time_range="max_available",
+            observations=make_python_demand_observations(count=4, start_month=5),
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert response.execution_status == "completed"
+    assert "trend_velocity_analysis" in response.capabilities_used
+    trend_fact = next(fact for fact in response.facts if fact.fact_type == "trend_analysis")
+    assert trend_fact.metric_value in {"Increasing", "Declining", "Stable"}
+    assert trend_fact.details["periods_used"] == [
+        "2026-05", "2026-06", "2026-07", "2026-08"
+    ]
+
+
+def test_six_retrieved_periods_across_short_source_series_report_validated_counts():
+    observations = [
+        *make_python_demand_observations(count=3, start_month=5, source="adzuna"),
+        *make_python_demand_observations(count=3, start_month=8, source="jsearch"),
+    ]
+    response = ExecutionOrchestratorService().answer(
+        CoreIntelligenceAnswerRequest(
+            message="What demand trend is observed for Python?",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+            time_range="max_available",
+            observations=observations,
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert response.execution_status == "insufficient_data"
+    assert response.capabilities_used == []
+    assert "only 3 eligible completed monthly periods" in response.answer
+    assert "6 distinct matched periods (" in response.answer
+    assert "were retrieved across 2 source-specific series" in response.answer
+    assert "those series are not pooled" in response.answer
+    assert "Increasing" not in response.answer
+    assert "Declining" not in response.answer
+    assert "October" in response.answer or "2026-10" in response.answer
+
+
+def test_incomplete_current_month_is_not_counted_as_a_completed_trend_period():
+    response = ExecutionOrchestratorService().answer(
+        CoreIntelligenceAnswerRequest(
+            message="What demand trend is observed for Python?",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+            time_range="max_available",
+            observations=make_python_demand_observations(count=4, start_month=7),
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert response.execution_status == "insufficient_data"
+    assert "only 3 eligible completed monthly periods" in response.answer
+    assert "2026-10" in response.answer
+    assert "incomplete current or future" in response.answer.lower()
+
+
+def test_missing_month_does_not_produce_a_trend():
+    observations = make_python_demand_observations(count=5, start_month=5)
+    observations.pop(2)
+    response = ExecutionOrchestratorService().answer(
+        CoreIntelligenceAnswerRequest(
+            message="What demand trend is observed for Python?",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+            time_range="max_available",
+            observations=observations,
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert response.execution_status == "insufficient_data"
+    assert "required completed month is missing" in response.answer.lower()
+    assert "at least 4 consecutive comparable completed monthly periods" in response.answer.lower()
+    assert not any(fact.fact_type == "trend_analysis" for fact in response.facts)
+
+
+def test_duplicate_observation_id_fails_quality_gate_without_a_trend():
+    observations = make_python_demand_observations(count=4, start_month=5)
+    observations.append(observations[0].model_copy(deep=True))
+    response = ExecutionOrchestratorService().answer(
+        CoreIntelligenceAnswerRequest(
+            message="What demand trend is observed for Python?",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+            time_range="max_available",
+            observations=observations,
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert response.execution_status == "insufficient_data"
+    assert "duplicate observations were found" in response.answer.lower()
+    assert not any(fact.fact_type == "trend_analysis" for fact in response.facts)
+
+
+def test_missing_demand_denominator_is_reported_as_raw_count_not_normalized_share():
+    observations = make_python_demand_observations(count=4, start_month=5)
+    observations = [
+        observation.model_copy(update={"denominator": None})
+        for observation in observations
+    ]
+    response = ExecutionOrchestratorService().answer(
+        CoreIntelligenceAnswerRequest(
+            message="What demand trend is observed for Python?",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+            time_range="max_available",
+            observations=observations,
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert response.execution_status == "completed"
+    trend_fact = next(fact for fact in response.facts if fact.fact_type == "trend_analysis")
+    assert trend_fact.details["metric"] == "raw_count"
+    assert trend_fact.unit != "share"
+    assert any("raw count; platform volume changes may affect it" in item for item in response.limitations)
+
+
+def test_selected_skill_gap_feature_routes_skill_gap_question_to_role_fit():
+    plan = IntentPlannerService().create_plan(
+        IntelligencePlanRequest(
+            message="Which skills match a backend developer role?",
+            domain="skill",
+            capability_id="skill_gap_role_fit",
+            target_role="Backend Developer",
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert plan.intent == "analyze_skill_gap"
+    assert plan.selected_capabilities == ["skill_gap_role_fit"]
+    assert plan.clarification_required is True
+    assert "specify which skills" in plan.clarification_questions[0].lower()
+
+
+def test_selected_evidence_feature_routes_follow_up_evidence_question():
+    plan = IntentPlannerService().create_plan(
+        IntelligencePlanRequest(
+            message="What evidence supports this result?",
+            domain="skill",
+            capability_id="evidence_provenance_retrieval",
+            conversation_id="phase4-evidence-follow-up",
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert plan.intent == "retrieve_evidence"
+    assert plan.selected_capabilities == ["evidence_provenance_retrieval"]
+
+
+def test_stale_cross_domain_feature_does_not_route_to_a_different_capability():
+    plan = IntentPlannerService().create_plan(
+        IntelligencePlanRequest(
+            message="What demand trend is observed for Python?",
+            domain="skill",
+            capability_id="job_posting_search",
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert plan.intent == "unsupported_or_unclear"
+    assert plan.selected_capabilities == []
+    assert plan.clarification_required is True
+
+
+def test_ambiguous_question_without_detectable_intent_requests_clarification():
+    plan = IntentPlannerService().create_plan(
+        IntelligencePlanRequest(
+            message="Can you help me with this?",
+            domain="skill",
+            capability_id="trend_velocity_analysis",
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert plan.clarification_required is True
+    assert plan.plan_status == "requires_clarification"
+    assert plan.selected_capabilities == ["trend_velocity_analysis"]
+
+
 def test_routing_why_is_python_demand_changing():
     """'Why is Python demand changing?' routes deterministically to analyze_trend."""
     planner = IntentPlannerService()
-    req = IntelligencePlanRequest(message="Why is Python demand changing?")
+    req = IntelligencePlanRequest(
+        message="Why is Python demand changing?",
+        domain="skill",
+    )
     plan = planner.create_plan(req, authenticated_user=USER_PHASE4)
 
     assert plan.intent == "analyze_trend"
     assert plan.selected_capabilities == ["trend_velocity_analysis"]
     assert any(e.raw_token.casefold() == "python" for e in plan.entities)
+
+
+def test_routing_observed_python_demand_trend_variation():
+    planner = IntentPlannerService()
+    plan = planner.create_plan(
+        IntelligencePlanRequest(
+            message="What demand trend is observed for Python?",
+            domain="skill",
+        ),
+        authenticated_user=USER_PHASE4,
+    )
+
+    assert plan.intent == "analyze_trend"
+    assert plan.selected_capabilities == ["trend_velocity_analysis"]
+    assert any(
+        entity.canonical_entity
+        and entity.canonical_entity.canonical_name == "Python"
+        for entity in plan.entities
+    )
+
+
+def test_capability_readiness_contracts_match_analytics():
+    assert CAPABILITY_CATALOG["trend_velocity_analysis"].min_readiness_periods == 4
+    assert CAPABILITY_CATALOG["skill_health_analysis"].min_readiness_periods == 4
+    assert CAPABILITY_CATALOG["skill_half_life_analysis"].min_readiness_periods == 36
+    assert CAPABILITY_CATALOG["skill_forecasting_half_life"].min_readiness_periods == 24
 
 
 def test_routing_is_python_increasing_or_decreasing():
@@ -179,7 +401,8 @@ def test_capability_aware_history_window_default():
 
     # No time_range provided in request
     req = CoreIntelligenceAnswerRequest(
-        message="Is Python increasing or decreasing?",
+        message="Why is Python demand changing?",
+        domain="skill",
         observations=obs,
     )
     resp = orchestrator.answer(req, authenticated_user=USER_PHASE4)
@@ -187,6 +410,7 @@ def test_capability_aware_history_window_default():
     assert resp.intent == "analyze_trend"
     assert resp.status == "ready"
     assert resp.execution_status == "completed"
+    assert resp.capabilities_used == ["trend_velocity_analysis"]
     assert any(f.fact_type == "trend_analysis" for f in resp.facts)
 
 
@@ -209,6 +433,8 @@ def test_explicit_narrow_time_range_returns_insufficient_data():
         for code in ("INSUFFICIENT_TREND_HISTORY", "NO_OBSERVATIONS_FOR_SERIES")
     )
     assert any("consecutive" in lim.lower() for lim in resp.limitations)
+    assert not any(fact.fact_type == "trend_analysis" for fact in resp.facts)
+    assert resp.capabilities_used == []
 
 
 def test_demo_observations_rejected_for_trend():
@@ -226,7 +452,7 @@ def test_demo_observations_rejected_for_trend():
     assert resp.status == "insufficient_data"
     assert "OBSERVATION_PROVENANCE_UNAVAILABLE" in resp.reason_codes
     assert not any(f.fact_type == "trend_analysis" for f in resp.facts)
-    assert "Observation provenance is missing or non-production" in resp.answer
+    assert "verified real-data provenance" in resp.answer
 
 
 def test_source_comparability_distinct_signal_labeling():

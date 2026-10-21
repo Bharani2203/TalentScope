@@ -476,6 +476,9 @@ def test_criterion_m_authentication(monkeypatch):
     from app.api import dependencies
 
     client = TestClient(app)
+    # Keep this token-validation unit test independent of emulator availability;
+    # Firebase initialization is covered by the isolated emulator-guard tests.
+    monkeypatch.setattr(dependencies, "get_firebase_app", lambda: object())
 
     # 1. Without token -> 401 Unauthorized
     resp_unauth = client.post(
