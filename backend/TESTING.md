@@ -191,15 +191,34 @@ This was a diagnostic only and was not applied to the tests.
 
 Six `test_all_skill_trends.py` cases above, excluding the UI/UX routing case,
 also have JSearch demand fixtures without `provider_posted_at`. In the same
-in-memory diagnostic, they still failed with
-`VALIDATION_ERROR_UNGROUNDED_QUANTITATIVE_CLAIM`. The cause was not
-investigated; changing fixture dates alone will not resolve those failures.
+in-memory `provider_posted_at=now` what-if, final response validation
+(`_validate_response`, called at `execution_orchestrator_service.py:2145`)
+rejects the appended note "Sample size (n) by period: ... n=1000"
+(formatted at `execution_orchestrator_service.py:3194`) with
+`VALIDATION_ERROR_UNGROUNDED_QUANTITATIVE_CLAIM`. The flagged tokens are four
+`1000` values; the fixture sets each denominator to 1000, so this is not the
+n<20 rule. The same failure occurs when the committed HEAD orchestrator is
+loaded in memory, so the uncommitted hunks are not involved.
 
-The UI/UX test's planner returns `unsupported_or_unclear`, with the selected
-feature “Trend Velocity Analysis” conflicting with “Collected Posting Skills”
-at the assertion in `tests/test_all_skill_trends.py:288`. This was not caused
-by classifier commit `c065e18`: the `0f82d46` classifier returned the same
-`CLEAR` result and the test still failed.
+[Inference] In the three rank tests, the sample counts are missing from the
+validator's fact/evidence allowlist. In the three focused tests, the allowlist
+holds `1000.0` while the token is `1000`; this is reconstructed from a
+re-implementation of the allowlist, not read from the real validator.
+Whether the validator or the note generator is at fault is not yet decided.
+
+IntentPlannerService has an explicit UI/UX trend routing rule
+(`intent_planner_service.py:1494-1503`) that classifies "ui/ux trend" and
+"ux design trend" as `aggregate_posting_skills` /
+`collected_posting_skills`. This conflicts with the test's explicit
+`capability_id="trend_velocity_analysis"` and reaches the selected-feature
+mismatch branch, which sets `unsupported_or_unclear`
+(`intent_planner_service.py:550-556`). "python trend" and "react trend" route
+to `trend_velocity_analysis`. The UI/UX test's planner returns
+`unsupported_or_unclear` at the assertion in
+`tests/test_all_skill_trends.py:288`. This was not caused by classifier commit
+`c065e18`: the `0f82d46` classifier returned the same `CLEAR` result and the
+test still failed. Whether the test expectation or the routing is wrong is a
+product decision, deferred.
 
 At baseline `e74038b`, the target test also fails for a separate reason:
 `UNKNOWN_CAPABILITY_ID`, because `trend_velocity_analysis` was not registered.
