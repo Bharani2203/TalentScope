@@ -167,6 +167,55 @@ An earlier standalone role-preparation invocation without the required
 emulator environment also produced four setup errors; they did not occur in
 the comparable two-suite runs above and are not part of the 20 failures.
 
+### F — Trend freshness gate and related trend test failures
+
+The following 10 previously undocumented trend tests fail in the current
+working tree:
+
+- `tests/test_core_intelligence_integration_readiness.py::test_integration_valid_trend_fixture_provenance`
+- `tests/test_skill_demand_trends_phase4.py::test_explicit_selection_skill_demand_trends`
+- `tests/test_skill_demand_trends_phase4.py::test_four_completed_comparable_periods_produce_a_trend`
+- `tests/test_all_skill_trends.py::test_all_skill_trends_rank_by_existing_whole_window_change_within_cohort`
+- `tests/test_all_skill_trends.py::test_all_skill_trends_keep_provider_and_signal_families_in_separate_cohorts`
+- `tests/test_all_skill_trends.py::test_all_skill_trends_support_result_limit_and_offset_without_market_wide_claim`
+- `tests/test_all_skill_trends.py::test_focused_trend_uses_six_month_window_only_when_no_range_was_selected`
+- `tests/test_all_skill_trends.py::test_focused_trend_preserves_observation_and_fetch_run_provenance`
+- `tests/test_all_skill_trends.py::test_gemini_cannot_change_trend_facts_or_direction`
+- `tests/test_all_skill_trends.py::test_focused_ui_ux_trend_resolves_alias_routes_to_capability_and_returns_measured_series`
+
+The first three tests use JSearch demand fixture rows without
+`provider_posted_at`; the 90-day provider-date gate added in commit `59492f0`
+in `execution_orchestrator_service.py` drops those rows. In an in-memory
+diagnostic that set the missing `provider_posted_at` to now, all three passed.
+This was a diagnostic only and was not applied to the tests.
+
+Six `test_all_skill_trends.py` cases above, excluding the UI/UX routing case,
+also have JSearch demand fixtures without `provider_posted_at`. In the same
+in-memory diagnostic, they still failed with
+`VALIDATION_ERROR_UNGROUNDED_QUANTITATIVE_CLAIM`. The cause was not
+investigated; changing fixture dates alone will not resolve those failures.
+
+The UI/UX test's planner returns `unsupported_or_unclear`, with the selected
+feature “Trend Velocity Analysis” conflicting with “Collected Posting Skills”
+at the assertion in `tests/test_all_skill_trends.py:288`. This was not caused
+by classifier commit `c065e18`: the `0f82d46` classifier returned the same
+`CLEAR` result and the test still failed.
+
+At baseline `e74038b`, the target test also fails for a separate reason:
+`UNKNOWN_CAPABILITY_ID`, because `trend_velocity_analysis` was not registered.
+That baseline result is indicative only.
+
+[Inference] The collector sets `period` from the collection month, while
+`provider_posted_at` is the posting's own date. Older collection periods can
+lose rows as postings age past 90 days; this matters for the four-month
+platform-collected trend gate.
+
+Production policy and fixture changes are deferred until after the 30 Oct
+review; any such change requires explicit approval. About 12 outside-suite
+failures when `conftest.py` honors `SKILL_INTELLIGENCE_DB_PATH` remain
+unverified and not enumerated. `conftest.py` changes remain on hold; exact
+enumeration requires a separate approved run of the 106 outside test files.
+
 ## Mixed-city search behavior
 
 The V2 stored-posting search now shares city and remote filtering with the
