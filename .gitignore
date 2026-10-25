@@ -17,5 +17,6 @@ backend/emulator-data/
 .test_reports/
 backend/tests/real_data/
 backend/.env
-data/
+/data/
 backend/.venv-old/
+*-debug.log
