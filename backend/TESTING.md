@@ -127,6 +127,46 @@ filtering, and V2 planner exception fallback, the final 18-suite run had the
 same 30 failure identities as the previous run: zero new failures and zero
 cleared failures.
 
+## Known failures outside the original 30
+
+These counts are from the requested two-suite run
+(`test_role_preparation_actions.py` and `test_esco_real_database_answer.py`)
+with the project virtual environment and emulator-only configuration. At
+`e74038b`, the result was **34 failed, 19 passed**. In the current tree, it was
+**20 failed, 33 passed**. Every current failure identity also failed at the
+baseline; none of these current failures is introduced by the occupation
+answer changes. Fourteen baseline failures no longer reproduce.
+
+| Group | Count | Failing tests | Cause and proposed fix |
+|---|---:|---|---|
+| A — Legacy role capability contracts | 3 | `test_capability_registration_and_aliases`; `test_feature_policy_configuration`; `test_explicit_capability_routing` | These tests expect the older role-preparation registry/policy and canonical routing contract. Proposed fix: reconcile the legacy aliases and policy lookup with the active V2 registry, retaining the explicit route contract. |
+| B — ESCO occupation relation resolution and response contract | 5 | `test_selected_skill_reference_returns_data_analyst_esco_relations`; `test_real_esco_occupation_question_uses_imported_relationship_rows`; `test_essential_esco_question_filters_optional_relationships`; `test_http_answer_returns_imported_esco_occupation_relationships`; `test_http_selected_skill_reference_renders_occupation_relations_in_response_contract` | **Suspected cause (assertion output not reviewed):** ESCO occupation queries may resolve through the wrong planner/source path or return facts/status/relationship values that differ from this legacy contract. Proposed fix: route explicit ESCO occupation requests through ESCO relation rows and serialize relation type, source, and completion status consistently. |
+| C — ESCO role alignment and action recommendations | 4 | `test_http_selected_role_alignment_compares_request_skills_to_esco_data_analyst`; `test_http_selected_action_recommendations_use_real_esco_when_onet_has_no_exact_match`; `test_esco_action_recommendations_compare_supplied_skills_against_real_relationships`; `test_esco_action_recommendations_do_not_turn_unresolved_skills_into_a_personal_gap` | **Suspected cause (assertion output not reviewed):** role-fit/action expectations may differ from the current capability execution and ESCO gap-resolution path. Proposed fix: align role-fit and action handlers to the exact ESCO occupation relations, preserving the unresolved-skill guard. |
+| D — Historical and market capability routing | 5 | `test_http_selected_historical_feature_reads_local_github_series`; `test_http_selected_demand_trends_reports_no_local_market_history`; `test_http_market_snapshot_and_hiring_signals_do_not_fall_back_to_reference_data[Give me a market snapshot for Python in India.]`; `test_http_market_snapshot_and_hiring_signals_do_not_fall_back_to_reference_data[What hiring signals are available for Python in India?]`; `test_http_market_trend_question_keeps_hiring_source_and_readiness` | **Suspected cause (assertion output not reviewed):** these tests may expect selected historical/market capability IDs and intent labels that the current planner does not emit consistently. Proposed fix: make explicit capability selection authoritative and return a single consistent planned capability/intent contract for each request. |
+| E — Local-only access, status propagation, and empty-database assumptions | 3 | `test_current_python_demand_does_not_fall_back_to_esco_or_onet`; `test_http_job_posting_search_uses_country_from_question_and_local_store_only`; `test_http_demand_question_does_not_use_esco_as_live_hiring_evidence` | The first test reaches a Firestore guard despite its SQLite-only fixture; the posting test receives `ready` where it expects `insufficient_data`; the demand test assumes an empty observations table, but the database contains 167,159 rows. Proposed fixes: keep collected-posting aggregation local under the SQLite-only configuration, propagate insufficient-data status when there are no postings, and give empty-database tests a dedicated empty DB fixture. |
+
+For these three failures, the observed mismatches were:
+
+- `test_current_python_demand_does_not_fall_back_to_esco_or_onet`: the
+  `forbid_firestore` test guard raises while collected-posting aggregation
+  calls `get_firestore_client()` despite the fixture's
+  `skill_intelligence_read_backend="sqlite"` setting. Proposed fix: ensure
+  the collected-posting path respects local-only configuration or inject an
+  explicit local test client.
+- `test_http_job_posting_search_uses_country_from_question_and_local_store_only`:
+  expects `payload["status"] == "insufficient_data"`, receives `"ready"`;
+  the fixture configures `skill_intelligence_read_backend="sqlite"`, so this
+  mismatch is a response-status contract discrepancy, not evidence of a
+  Firestore job-store read. Proposed fix: propagate insufficient-data status
+  when the stored-posting result is empty.
+- `test_http_demand_question_does_not_use_esco_as_live_hiring_evidence`:
+  expects `market_store.get_observations() == []`, but the local database
+  returns 167,159 observations; this is a stale empty-database assumption.
+
+An earlier standalone role-preparation invocation without the required
+emulator environment also produced four setup errors; they did not occur in
+the comparable two-suite runs above and are not part of the 20 failures.
+
 ## Mixed-city search behavior
 
 The V2 stored-posting search now shares city and remote filtering with the
