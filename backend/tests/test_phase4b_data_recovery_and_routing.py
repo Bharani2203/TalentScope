@@ -11,6 +11,9 @@ Verifies:
 """
 
 import pytest
+import sqlite3
+import shutil
+from app.core.config import get_settings
 from app.intelligence_v2.intent_planner import V2IntentPlanner
 from app.intelligence_v2.orchestrator import V2Orchestrator
 from app.intelligence_v2.skill_intelligence import V2SkillIntelligenceEngine
@@ -19,8 +22,13 @@ from app.storage.reference_store import ReferenceDataStore
 
 
 @pytest.fixture
-def store():
-    return ReferenceDataStore(read_only=True)
+def store(injected_empty_firestore, tmp_path):
+    source_path = get_settings().reference_database_path
+    isolated_path = tmp_path / "reference.sqlite3"
+    shutil.copy2(source_path, isolated_path)
+    with sqlite3.connect(isolated_path) as connection:
+        connection.execute("DELETE FROM market_observations")
+    return ReferenceDataStore(isolated_path, read_only=True)
 
 
 @pytest.fixture

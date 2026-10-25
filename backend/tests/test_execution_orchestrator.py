@@ -85,6 +85,7 @@ def _make_obs(
         series_id=f"{source}:{signal_type}:{skill_id}:v1",
         query_id=f"{source}:{signal_type}:query-v1",
         quality="valid",
+        provider_posted_at=datetime.now(timezone.utc) if signal_type == "demand" else None,
     )
 
 
@@ -418,11 +419,11 @@ def test_skill_domain_job_question_returns_safe_switch_action_without_searching(
     assert response.intent == "unsupported_or_unclear"
     assert response.capabilities_used == []
     assert response.facts == [] and response.evidence == []
-    assert "Switch to the Job domain" in response.answer
+    assert "Change the selected feature" in response.answer
     assert "Which companies are hiring Python developers?" in response.answer
 
 
-def test_explicit_capability_rejects_wrong_domain_and_unavailable_operation():
+def test_explicit_capability_ignores_domain_but_rejects_unavailable_operation():
     planner = IntentPlannerService()
     wrong_domain = planner.create_plan(
         IntelligencePlanRequest(
@@ -443,16 +444,21 @@ def test_explicit_capability_rejects_wrong_domain_and_unavailable_operation():
         authenticated_user=mock_auth_user(),
     )
 
-    assert wrong_domain.plan_status == "requires_clarification"
-    assert wrong_domain.clarification_required is True
-    assert wrong_domain.selected_capabilities == []
-    assert "not an available capability in the skill domain" in wrong_domain.clarification_questions[0].lower()
+    assert wrong_domain.plan_status == "ready_to_execute"
+    assert wrong_domain.clarification_required is False
+    assert wrong_domain.selected_capabilities == ["job_posting_search"]
     assert unavailable.plan_status == "unsupported"
-    assert unavailable.selected_capabilities == []
+    assert unavailable.selected_capabilities == ["workforce_what_if_simulation"]
     assert "not currently executable" in unavailable.limitations[0].lower()
 
 
-def test_cross_domain_question_clarifies_without_false_capability_attribution():
+def test_cross_domain_question_clarifies_without_false_capability_attribution(monkeypatch):
+    # B2 clarification options are sourced from the aggregate; keep this
+    # routing test isolated from any Firestore client.
+    monkeypatch.setattr(
+        "app.services.collected_posting_skills_service.get_collected_posting_skills",
+        lambda **_kwargs: {"title_counts": [], "location_counts": [], "skill_counts": []},
+    )
     response = ExecutionOrchestratorService().answer(
         CoreIntelligenceAnswerRequest(
             message="Which companies are hiring the most?",
@@ -465,8 +471,9 @@ def test_cross_domain_question_clarifies_without_false_capability_attribution():
 
     assert response.execution_status == "requires_clarification"
     assert response.capabilities_used == []
-    assert "selected feature" in response.answer.lower()
-    assert "switch to the job domain" in response.answer.lower()
+    assert response.answer_block.clarification.classification == "TOO BROAD"
+    assert response.answer_block.clarification.slot == "role"
+    assert response.answer == "Which job role should I search for?"
 
 
 # =============================================================================
@@ -1031,7 +1038,7 @@ def test_firestore_job_search_limit_matches_reported_metadata(monkeypatch):
 
     assert search_args["limit"] == 100
     assert facts[0].details["search_window_limit"] == search_args["limit"]
-    assert any("100 most recently fetched" in item for item in limitations)
+    assert any("100 matching stored postings after scanning" in item for item in limitations)
 
 
 def test_empty_saved_scope_never_falls_back_to_prompt_entity():

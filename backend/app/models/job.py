@@ -16,7 +16,9 @@ class Job(BaseModel):
     description: str | None = None
     employment_type: str | None = None
     posted_at: str | None = None
-    source: Literal["jsearch", "adzuna"] = "jsearch"
+    updated_at: str | None = None
+    department: str | None = None
+    source: Literal["jsearch", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters"] = "jsearch"
     city: str | None = None
     region: str | None = None
     category: str | None = None

@@ -24,6 +24,11 @@ from app.models.entity_registry import (
     EntityResolutionResponse,
     EntityType,
 )
+from app.services.role_alias_service import (
+    normalize_role_alias,
+    query_local_onet_occupation,
+    role_alias_soc_code,
+)
 from app.storage.reference_store import ReferenceDataStore
 
 
@@ -163,6 +168,39 @@ class EntityRegistryService:
                         conn.close()
         return None
 
+    def _resolve_role_alias(self, raw_name: str) -> CanonicalEntity | None:
+        """Resolve a declared role alias only when its O*NET row exists locally."""
+        soc_code = role_alias_soc_code(raw_name)
+        if not soc_code:
+            return None
+        connection = self._connect_db()
+        if connection is None:
+            return None
+        try:
+            occupation = query_local_onet_occupation(connection, soc_code)
+        finally:
+            connection.close()
+        if occupation is None:
+            return None
+        title = occupation["title"]
+        return CanonicalEntity(
+            entity_id=f"occupation:soc:{soc_code}",
+            entity_type="occupation",
+            canonical_name=title,
+            aliases=[raw_name],
+            source="ref_onet_occupations",
+            source_record_id=soc_code,
+            status="active",
+            metadata={
+                "requested_role": raw_name,
+                "mapping_disclosure": (
+                    f"'{raw_name}' is mapped to O*NET {title} (SOC {soc_code}), "
+                    "the closest available occupation in the local reference data."
+                ),
+                "mapping_source": "local O*NET SQLite reference data",
+            },
+        )
+
     def resolve(self, request: EntityResolutionRequest) -> EntityResolutionResponse:
         """Resolve a raw name or identifier to a canonical entity or ambiguous candidate set."""
         raw_name = _clean_token(request.name)
@@ -193,6 +231,31 @@ class EntityRegistryService:
                 match_method="exact",
                 confidence=1.0,
                 source_provenance={"source": canonical_entity.source, "canonical_id": canonical_entity.entity_id},
+            )
+
+        if filter_type in (None, "occupation") and role_alias_soc_code(raw_name):
+            aliased_occupation = self._resolve_role_alias(raw_name)
+            if aliased_occupation:
+                return EntityResolutionResponse(
+                    name=raw_name,
+                    status="resolved",
+                    entity=aliased_occupation,
+                    match_method="alias",
+                    confidence=0.95,
+                    source_provenance={
+                        "source": "ref_onet_occupations",
+                        "soc_code": aliased_occupation.source_record_id,
+                        "mapping_disclosure": aliased_occupation.metadata["mapping_disclosure"],
+                    },
+                )
+            return EntityResolutionResponse(
+                name=raw_name,
+                status="not_found",
+                confidence=0.0,
+                source_provenance={
+                    "reason": "The configured O*NET SOC target was not found in local reference data.",
+                    "requested_alias": normalize_role_alias(raw_name),
+                },
             )
 
         # ---------------------------------------------------------------------

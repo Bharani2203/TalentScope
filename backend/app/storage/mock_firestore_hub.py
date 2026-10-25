@@ -168,12 +168,19 @@ class MockBatch:
 class MockFirestoreClient:
     def __init__(self) -> None:
         self.collections: dict[str, MockCollection] = {}
+        self.get_all_calls = 0
+        self.batch_calls = 0
 
     def collection(self, name: str) -> MockCollection:
         return self.collections.setdefault(name, MockCollection(name, self))
 
     def batch(self) -> MockBatch:
+        self.batch_calls += 1
         return MockBatch()
+
+    def get_all(self, references: list[MockDocRef]) -> list[MockSnapshot]:
+        self.get_all_calls += 1
+        return [reference.get() for reference in references]
 
 
 def create_demo_test_snapshot() -> MockFirestoreClient:

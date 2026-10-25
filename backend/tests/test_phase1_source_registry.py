@@ -38,6 +38,8 @@ from app.intelligence_v2.source_registry import (
 )
 from app.intelligence_v2.capability_registry import V2CapabilityRegistry
 
+pytestmark = pytest.mark.usefixtures("injected_empty_firestore")
+
 
 # =============================================================================
 # FIXTURES & HELPERS
@@ -45,7 +47,9 @@ from app.intelligence_v2.capability_registry import V2CapabilityRegistry
 
 @pytest.fixture
 def registry() -> V2SourceRegistry:
-    return V2SourceRegistry()
+    from app.storage.mock_firestore_hub import MockFirestoreClient
+
+    return V2SourceRegistry(client=MockFirestoreClient())
 
 
 @pytest.fixture
@@ -162,6 +166,38 @@ def test_source_registry_catalog_summary(registry: V2SourceRegistry):
     assert "onet" in source_ids
     assert "github_innovation_graph" in source_ids
     assert "jsearch" in source_ids
+
+
+def test_job_sources_refresh_counts_and_collection_state_from_firestore(monkeypatch):
+    from types import SimpleNamespace
+    from app.storage.mock_firestore_hub import MockFirestoreClient
+    import app.intelligence_v2.source_registry as source_registry_module
+
+    client = MockFirestoreClient()
+    for index in range(3):
+        client.collection("skill_market_signals").document(f"obs-{index}").set({
+            "source": "jsearch" if index < 2 else "adzuna",
+        })
+    client.collection("jobs").document("job-j").set({"source": "jsearch"})
+    client.collection("jobs").document("job-a").set({"source": "adzuna"})
+    client.collection("fetch_runs").document("run-j").set({
+        "run_id": "run-j", "source": "jsearch", "status": "success",
+        "completed_at": datetime(2026, 10, 1, tzinfo=timezone.utc),
+    })
+    monkeypatch.setattr(source_registry_module, "get_settings", lambda: SimpleNamespace(
+        market_collection_enabled_providers=["jsearch", "adzuna"],
+        jsearch_api_key="configured", adzuna_app_id="configured", adzuna_app_key="configured",
+        environment="production",
+    ))
+
+    registry = V2SourceRegistry(client=client)
+    jsearch = registry.get_source("jsearch")
+    adzuna = registry.get_source("adzuna")
+    assert (jsearch.observation_count, jsearch.job_posting_count) == (2, 1)
+    assert jsearch.collection_status == "ready"
+    assert jsearch.last_successful_collection == "2026-10-01T00:00:00+00:00"
+    assert (adzuna.observation_count, adzuna.job_posting_count) == (1, 1)
+    assert adzuna.collection_status == "ready"
 
 
 # =============================================================================

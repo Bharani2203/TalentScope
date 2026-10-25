@@ -245,6 +245,7 @@ class FakeJobQuery:
         self.filters = []
         self.ordering = None
         self.limit_value = None
+        self.cursor_id = None
 
     def where(self, *, filter):
         self.filters.append(filter)
@@ -258,12 +259,22 @@ class FakeJobQuery:
         self.limit_value = value
         return self
 
+    def start_after(self, snapshot):
+        self.cursor_id = snapshot.id
+        return self
+
     def stream(self):
-        assert self.limit_value is not None
-        return iter(self.snapshots[:self.limit_value])
+        start = 0
+        if self.cursor_id is not None:
+            start = next(
+                (index + 1 for index, snapshot in enumerate(self.snapshots) if snapshot.id == self.cursor_id),
+                len(self.snapshots),
+            )
+        page = self.snapshots[start:]
+        return iter(page if self.limit_value is None else page[:self.limit_value])
 
 
-def test_stored_job_search_uses_country_filter_and_bounded_recent_query(monkeypatch):
+def test_stored_job_search_uses_country_filter_and_searches_all_documents(monkeypatch):
     fetched_at = datetime(2026, 10, 12, tzinfo=timezone.utc)
     query = FakeJobQuery([
         FakeJobSnapshot("jsearch:python-1", {
@@ -321,6 +332,184 @@ def test_stored_job_search_uses_country_filter_and_bounded_recent_query(monkeypa
     assert read_guard.get_metrics()["reads_by_collection"]["jobs"] == 2
 
 
+def test_python_developer_query_matches_description_or_extracted_skills_past_500(monkeypatch):
+    fetched_at = datetime(2026, 10, 12, tzinfo=timezone.utc)
+    records = [
+        FakeJobSnapshot(f"jsearch:noise-{index}", {
+            "source_job_id": f"noise-{index}", "job_id": f"noise-{index}",
+            "source": "jsearch", "title": "Designer", "description": "Visual design",
+            "country_code": "in", "fetched_at": fetched_at,
+        }) for index in range(501)
+    ]
+    records.append(FakeJobSnapshot("adzuna:description-match", {
+        "source_job_id": "description-match", "job_id": "description-match",
+        "source": "adzuna", "title": "Backend Developer", "description": "Build services in Python",
+        "country_code": "in", "fetched_at": fetched_at,
+    }))
+    records.append(FakeJobSnapshot("jsearch:skill-match", {
+        "source_job_id": "skill-match", "job_id": "skill-match",
+        "source": "jsearch", "title": "Backend Developer", "description": "Build backend services",
+        "skills_raw": ["Python", "SQL"], "country_code": "in", "fetched_at": fetched_at,
+    }))
+
+    query = FakeJobQuery(records)
+    class FakeCollection:
+        def where(self, *, filter):
+            query.where(filter=filter)
+            return query
+    class FakeFirestore:
+        def collection(self, name):
+            assert name == "jobs"
+            return FakeCollection()
+
+    monkeypatch.setattr(job_storage_service, "get_firestore_client", FakeFirestore)
+    jobs = job_storage_service.search_stored_jsearch_jobs(
+        query="Python Developer", country="India", limit=100,
+    )
+    assert [job.job_id for job in jobs] == ["description-match", "skill-match"]
+    assert len(query.filters) == 1
+    assert query.limit_value == 500
+
+
+@pytest.mark.parametrize(
+    ("repeat_page", "max_pages", "expected_scanned", "expected_stream_calls"),
+    [
+        (True, 10, 1, 2),
+        (False, 3, 3, 3),
+    ],
+)
+def test_stored_job_search_stops_on_repeated_ids_or_page_limit(
+    monkeypatch, repeat_page, max_pages, expected_scanned, expected_stream_calls,
+):
+    fetched_at = datetime(2026, 10, 12, tzinfo=timezone.utc)
+
+    class GuardedQuery:
+        def __init__(self):
+            self.cursor_id = None
+            self.page_size = None
+            self.stream_calls = 0
+
+        def order_by(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, value):
+            self.page_size = value
+            return self
+
+        def start_after(self, snapshot):
+            self.cursor_id = snapshot.id
+            return self
+
+        def stream(self):
+            self.stream_calls += 1
+            page_index = 0 if repeat_page else self.stream_calls
+            snapshot = FakeJobSnapshot(f"job-{page_index}", {
+                "source_job_id": f"job-{page_index}",
+                "job_id": f"job-{page_index}",
+                "source": "jsearch",
+                "title": "Python Developer",
+                "country_code": "in",
+                "fetched_at": fetched_at,
+            })
+            return iter([snapshot])
+
+    query = GuardedQuery()
+
+    class FakeFirestore:
+        def collection(self, name):
+            assert name == "jobs"
+            return query
+
+    monkeypatch.setattr(job_storage_service, "STORED_JOB_SEARCH_PAGE_SIZE", 1)
+    monkeypatch.setattr(job_storage_service, "STORED_JOB_SEARCH_MAX_PAGES", max_pages)
+    monkeypatch.setattr(job_storage_service, "get_firestore_client", FakeFirestore)
+
+    result = job_storage_service.search_stored_jsearch_jobs_with_stats(query="Python")
+
+    assert result.scanned_count == expected_scanned
+    assert query.stream_calls == expected_stream_calls
+    assert query.page_size == 1
+
+
+def test_recent_demand_observations_exclude_old_and_unknown_posting_dates(tmp_path):
+    service = ExecutionOrchestratorService(
+        db_path=tmp_path / "freshness.sqlite",
+        observation_store=EmptyObservationStore(),
+    )
+    now = datetime.now(timezone.utc)
+    observations = [
+        MarketObservation(
+            id="recent", source="jsearch", signal_type="demand", observed_at=now,
+            period=now.strftime("%Y-%m"), location="India", skill="Python", value=1,
+            posting_id="recent-job", provider_posted_at=now,
+        ),
+        MarketObservation(
+            id="old", source="jsearch", signal_type="demand", observed_at=now,
+            period=now.strftime("%Y-%m"), location="India", skill="Python", value=1,
+            posting_id="old-job", provider_posted_at=now - timedelta(days=91),
+        ),
+        MarketObservation(
+            id="unknown", source="jsearch", signal_type="demand", observed_at=now,
+            period=now.strftime("%Y-%m"), location="India", skill="Python", value=1,
+            posting_id="unknown-job",
+        ),
+    ]
+
+    result = service._get_market_observations(
+        request_obs=observations,
+        skill="Python",
+        location="India",
+    )
+
+    assert [item.posting_id for item in result] == ["recent-job"]
+    assert result.excluded_old_postings == 1
+    assert result.unknown_posted_at == 1
+
+
+def test_recent_posting_denominator_counts_same_period_scope_and_exclusions(monkeypatch):
+    fetched_at = datetime(2026, 10, 10, tzinfo=timezone.utc).isoformat()
+    jobs = [
+        FakeJobSnapshot("jsearch:recent", {
+            "source": "jsearch", "country_code": "in", "fetched_at": fetched_at,
+            "posted_at": "2026-10-01T00:00:00+00:00",
+        }),
+        FakeJobSnapshot("jsearch:old", {
+            "source": "jsearch", "country_code": "in", "fetched_at": fetched_at,
+            "posted_at": "2026-06-01T00:00:00+00:00",
+        }),
+        FakeJobSnapshot("jsearch:unknown", {
+            "source": "jsearch", "country_code": "in", "fetched_at": fetched_at,
+            "posted_at": None,
+        }),
+        FakeJobSnapshot("adzuna:other-source", {
+            "source": "adzuna", "country_code": "in", "fetched_at": fetched_at,
+            "posted_at": "2026-10-01T00:00:00+00:00",
+        }),
+    ]
+
+    class FakeCollection:
+        def __init__(self, rows):
+            self.rows = rows
+        def stream(self):
+            return iter(self.rows)
+
+    class FakeFirestore:
+        def collection(self, name):
+            return FakeCollection([] if name == "fetch_runs" else jobs)
+
+    monkeypatch.setattr(job_storage_service, "get_firestore_client", FakeFirestore)
+    stats = job_storage_service.get_recent_posting_sample_stats(
+        as_of=datetime(2026, 10, 21, tzinfo=timezone.utc),
+    )
+
+    assert stats[("jsearch", "2026-10", "country", "india")] == {
+        "recent": 1, "older_than_90_days": 1, "date_unknown": 1,
+    }
+    assert stats[("adzuna", "2026-10", "country", "india")] == {
+        "recent": 1, "older_than_90_days": 0, "date_unknown": 0,
+    }
+
+
 def test_job_analysis_preserves_only_stored_summary_skills_and_links(tmp_path):
     service = ExecutionOrchestratorService(
         db_path=tmp_path / "skill-reference.sqlite",
@@ -341,9 +530,11 @@ def test_job_analysis_preserves_only_stored_summary_skills_and_links(tmp_path):
             "company": "Example Employer",
             "description": "Build data pipelines.",
             "skills_raw": ["Python", "SQL"],
+            "posted_at": "2026-10-12T00:00:00+00:00",
             "apply_link": "https://jobs.example/apply",
         },
         data_origin="real",
+        provider_posted_at=datetime(2026, 10, 12, tzinfo=timezone.utc),
     )
     request = CoreIntelligenceAnswerRequest(
         message="Find Data Engineer jobs",
@@ -629,6 +820,7 @@ def test_answer_reuses_trends_and_preserves_observation_provenance(monkeypatch):
             series_id="jsearch:python:india:v1",
             query_id="software",
             fetch_run_id="run-1",
+            provider_posted_at=now,
         ))
 
     original_aggregate = shared_intelligence_module.aggregate_market_signals
@@ -716,8 +908,10 @@ def test_shared_analysis_cache_isolated_by_request_user_and_company_scope():
     assert next_request is not other_company
 
 
+@pytest.mark.usefixtures("injected_empty_firestore")
 def test_truncated_observation_history_is_explicit_in_answer_readiness(monkeypatch):
     service = ExecutionOrchestratorService(observation_store=EmptyObservationStore())
+    monkeypatch.setattr(service.llm_service, "is_available", lambda: False)
     observation = MarketObservation(
         id="truncated-observation",
         source="jsearch",
@@ -892,11 +1086,13 @@ def test_core_company_context_is_bound_to_authenticated_membership(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("injected_empty_firestore")
 def test_answer_keeps_validated_deterministic_fallback_when_llm_has_no_result(
     monkeypatch, local_reference_database,
 ):
     service = ExecutionOrchestratorService(observation_store=EmptyObservationStore())
     monkeypatch.setattr(service.llm_service, "is_available", lambda: True)
+    monkeypatch.setattr(service.llm_service, "generate_structured_json", lambda **_kwargs: None)
     monkeypatch.setattr(service.llm_service, "generate_grounded_explanation", lambda **_kwargs: None)
 
     response = service.answer(
@@ -908,17 +1104,19 @@ def test_answer_keeps_validated_deterministic_fallback_when_llm_has_no_result(
 
     assert response.execution_status == "completed"
     assert response.status == "ready"
-    assert response.answer.startswith("Identified")
+    assert response.answer.startswith("**Deterministic fallback (Gemini unavailable):**\n\nIdentified")
     assert response.facts
     assert response.evidence
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("injected_empty_firestore")
 def test_answer_rejects_invalid_llm_output_and_returns_deterministic_fallback(
     monkeypatch, local_reference_database,
 ):
     service = ExecutionOrchestratorService(observation_store=EmptyObservationStore())
     monkeypatch.setattr(service.llm_service, "is_available", lambda: True)
+    monkeypatch.setattr(service.llm_service, "generate_structured_json", lambda **_kwargs: None)
     monkeypatch.setattr(
         service.llm_service,
         "generate_grounded_explanation",
@@ -934,7 +1132,7 @@ def test_answer_rejects_invalid_llm_output_and_returns_deterministic_fallback(
 
     assert response.execution_status == "completed"
     assert "987654" not in response.answer
-    assert response.answer.startswith("Identified")
+    assert response.answer.startswith("**Deterministic fallback (Gemini unavailable):**\n\nIdentified")
     assert response.facts
     assert response.evidence
 

@@ -28,7 +28,9 @@ const {
   resolveEntity,
   getCapabilityCatalog,
   evaluateCapabilities,
-  getAuthIdToken
+  getAuthIdToken,
+  getActiveConversationId,
+  isClientGeneratedConversationId
 } = await import('../src/api/core-intelligence-client.js');
 const { loadSkillCatalog, loadMarketCatalog, formatObservationPeriod } =
   await import('../src/api/intelligence-catalog-client.js');
@@ -88,6 +90,39 @@ test('Node callers without an explicit token do not import the browser Firebase 
     assert.equal(await getAuthIdToken(), null);
   } finally {
     globalThis.window = previousWindow;
+  }
+});
+
+test('MOCKED empty conversation storage returns no invented ID and clears legacy client IDs', () => {
+  const previousSessionStorage = globalThis.sessionStorage;
+  const previousLocalStorage = globalThis.localStorage;
+  const sessionValues = new Map();
+  const localValues = new Map();
+  const makeStorage = values => ({
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+    removeItem: key => values.delete(key)
+  });
+  globalThis.sessionStorage = makeStorage(sessionValues);
+  globalThis.localStorage = makeStorage(localValues);
+  try {
+    assert.equal(getActiveConversationId('individual', 'skill', 'mock-user'), null);
+    assert.equal(sessionValues.size, 0);
+    assert.equal(localValues.size, 0);
+
+    const key = 'talentscope_active_conv_mock-user_individual_skill';
+    const legacyClientId = 'conv_individual_skill_mocktimestamp_mocksuffix';
+    sessionValues.set(key, legacyClientId);
+    localValues.set(key, legacyClientId);
+    assert.equal(isClientGeneratedConversationId(legacyClientId, 'individual', 'skill'), true);
+    assert.equal(getActiveConversationId('individual', 'skill', 'mock-user'), null);
+    assert.equal(sessionValues.has(key), false);
+    assert.equal(localValues.has(key), false);
+  } finally {
+    if (previousSessionStorage === undefined) delete globalThis.sessionStorage;
+    else globalThis.sessionStorage = previousSessionStorage;
+    if (previousLocalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = previousLocalStorage;
   }
 });
 
@@ -673,6 +708,7 @@ test('buildAnswerRequest preserves conversationId and clearContext flags', () =>
   });
   assert.equal(req1.conversation_id, 'conv_abc123');
   assert.equal(req1.clear_context, false);
+  assert.equal(req1.domain, null, 'an omitted domain remains unset for planner-led chat');
 
   const req2 = buildAnswerRequest({
     message: 'Reset my session',
@@ -690,6 +726,10 @@ test('adaptCoreIntelligenceAnswerResponse preserves conversation_id', () => {
     portal_type: 'individual',
     execution_status: 'completed',
     answer: 'Docker is a containerization platform.',
+    enough_data: false,
+    degraded: true,
+    degraded_reason: 'provider_unavailable',
+    sources: [{ source_type: 'posting', title: 'Stored listing', source_url: 'https://jobs.example/1', ignored: 'not displayed' }],
     facts: [],
     evidence: [],
     limitations: [],
@@ -698,6 +738,10 @@ test('adaptCoreIntelligenceAnswerResponse preserves conversation_id', () => {
   });
   assert.equal(resp.conversation_id, 'conv_session_999');
   assert.equal(resp.execution_status, 'completed');
+  assert.equal(resp.enough_data, false);
+  assert.equal(resp.degraded, true);
+  assert.equal(resp.degraded_reason, 'provider_unavailable');
+  assert.deepEqual(resp.sources, [{ type: 'posting', label: 'Stored listing', source_url: 'https://jobs.example/1' }]);
 });
 
 test('resolveEntity sends POST /api/v1/intelligence/entities/resolve', async () => {

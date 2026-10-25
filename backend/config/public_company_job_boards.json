@@ -1,0 +1,44 @@
+{
+  "boards": [
+    {
+      "ats": "greenhouse",
+      "slug": "groww"
+    },
+    {
+      "ats": "greenhouse",
+      "slug": "druva"
+    },
+    {
+      "ats": "greenhouse",
+      "slug": "stripe"
+    },
+    {
+      "ats": "greenhouse",
+      "slug": "databricks"
+    },
+    {
+      "ats": "greenhouse",
+      "slug": "figma"
+    },
+    {
+      "ats": "greenhouse",
+      "slug": "coinbase"
+    },
+    {
+      "ats": "greenhouse",
+      "slug": "gitlab"
+    },
+    {
+      "ats": "greenhouse",
+      "slug": "elastic"
+    },
+    {
+      "ats": "greenhouse",
+      "slug": "grafanalabs"
+    },
+    {
+      "ats": "greenhouse",
+      "slug": "vercel"
+    }
+  ]
+}

@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.api import dependencies
+from app.api.routes import core_intelligence
 from app.models.auth import AuthenticatedUser
 from app.models.capability_registry import MarketObservation
 from app.models.intent_planner import (
@@ -30,6 +31,7 @@ from app.models.intent_planner import (
 )
 from app.services.capability_registry_service import CAPABILITY_CATALOG
 from app.services.intent_planner_service import IntentPlannerService
+from app.intelligence_v2.intent_planner import V2IntentPlanner
 
 
 def mock_auth_user() -> AuthenticatedUser:
@@ -153,10 +155,11 @@ def test_selected_feature_executes_when_question_matches():
     assert not response.clarification_required
 
 
-def test_selected_feature_is_used_when_question_intent_is_ambiguous():
+@pytest.mark.parametrize("domain", ["skill", "auto"])
+def test_selected_feature_is_used_when_question_intent_is_ambiguous(domain):
     response = IntentPlannerService().create_plan(IntelligencePlanRequest(
         message="Can you look at Python?",
-        domain="skill",
+        domain=domain,
         capability_id="trend_velocity_analysis",
     ))
     assert response.selected_capabilities == ["trend_velocity_analysis"]
@@ -186,6 +189,7 @@ def test_conflicting_question_clarifies_without_substituting_selected_feature(me
     assert response.plan_status == "requires_clarification"
 
 
+@pytest.mark.usefixtures("injected_empty_firestore")
 def test_explicit_entity_switch_does_not_reuse_prior_entity_context():
     from app.storage.conversation_store import ConversationStore
 
@@ -477,7 +481,8 @@ def test_plan_api_endpoint():
         data = resp.json()
         assert data["request_id"].startswith("plan_")
         assert data["intent"] == "analyze_trend"
-        assert "trend_velocity_analysis" in data["selected_capabilities"]
+        # /plan now reports the canonical V2 capability so it matches /answer.
+        assert "skill_demand_trends" in data["selected_capabilities"]
         assert len(data["entities"]) == 1
         assert data["entities"][0]["canonical_entity"]["canonical_name"] == "Python"
         assert len(data["readiness_results"]) > 0
@@ -496,29 +501,93 @@ def test_plan_api_endpoint():
         app.dependency_overrides.pop(dependencies.get_current_user, None)
 
 
-def test_active_domain_routes_terse_entity_prompt_and_is_recorded():
+def test_plan_api_returns_legacy_plan_when_v2_canonicalization_fails(monkeypatch, caplog):
+    app.dependency_overrides[dependencies.get_current_user] = mock_auth_user
+
+    def fail_v2_plan(*_args, **_kwargs):
+        raise RuntimeError("mock planner failure detail")
+
+    monkeypatch.setattr(core_intelligence._V2_INTENT_PLANNER, "plan", fail_v2_plan)
+    client = TestClient(app)
+    try:
+        with caplog.at_level("WARNING", logger="app.api.routes.core_intelligence"):
+            response = client.post(
+                "/api/v1/intelligence/plan",
+                json={"message": "What is the trend for Python?"},
+            )
+        assert response.status_code == 200
+        plan = response.json()
+        assert plan["intent"] == "analyze_trend"
+        assert plan["primary_capability"] == "trend_velocity_analysis"
+        assert "trend_velocity_analysis" in plan["selected_capabilities"]
+        assert "RuntimeError" in caplog.text
+        assert "mock planner failure detail" not in caplog.text
+    finally:
+        app.dependency_overrides.pop(dependencies.get_current_user, None)
+
+
+@pytest.mark.parametrize(
+    ("message", "workspace_domain", "expected_capability"),
+    [
+        ("Find data engineer jobs in Bangalore", "skill", "job_verified_postings"),
+        ("Is Python becoming more popular?", "job", "skill_demand_trends"),
+        ("What does a data engineer do?", "market", "skill_lookup"),
+        ("role of a data engineer", "skill", "skill_lookup"),
+        ("responsibilities of a backend developer", "market", "skill_lookup"),
+        ("What does a data analyst do?", "job", "skill_lookup"),
+        ("What skills does a data engineer need?", "market", "job_role_requirements"),
+        ("Find python developer jobs in Chennai", "skill", "job_verified_postings"),
+        ("Is React growing?", "job", "skill_demand_trends"),
+        ("Compare Python and Java", "market", None),
+    ],
+)
+def test_v2_routing_uses_question_with_mismatched_workspace_domain(
+    message: str,
+    workspace_domain: str,
+    expected_capability: str | None,
+):
+    plan = V2IntentPlanner().plan(message, context={"domain": workspace_domain})
+    assert plan.capability_id == expected_capability
+
+    if message == "Compare Python and Java":
+        assert "not supported yet" in plan.reason.casefold()
+        assert "separate trend lookups for python and java" in plan.reason.casefold()
+
+    if message.startswith("Find data engineer jobs"):
+        intent_plan = IntentPlannerService().create_plan(
+            IntelligencePlanRequest(message=message, domain=workspace_domain)
+        )
+        assert intent_plan.intent == "search_jobs"
+
+
+@pytest.mark.parametrize("message", ["asdfghjkl qwerty 12345", "what is the weather"])
+def test_v2_unrecognized_question_requests_clarification_without_data_capability(message: str):
+    plan = V2IntentPlanner().plan(message, context={"domain": "market"})
+    assert plan.capability_id is None
+    assert plan.reason == "Would you like help with skills, jobs, market signals, or role information?"
+
+
+def test_workspace_domain_does_not_change_routing_for_terse_prompt():
     service = IntentPlannerService()
 
     market_plan = service.create_plan(IntelligencePlanRequest(message="Python", domain="market"))
     job_plan = service.create_plan(IntelligencePlanRequest(message="Python", domain="job"))
 
-    assert market_plan.intent == "retrieve_snapshot"
-    assert "market_snapshot" in market_plan.selected_capabilities
-    assert job_plan.intent == "search_jobs"
-    assert "job_posting_search" in job_plan.selected_capabilities
-    assert market_plan.context_summary["domain"] == "market"
-    assert job_plan.context_summary["domain"] == "job"
+    assert market_plan.intent == job_plan.intent == "lookup_skill_reference"
+    assert market_plan.selected_capabilities == job_plan.selected_capabilities == ["skill_technology_reference"]
+    assert market_plan.context_summary["domain"] is None
+    assert job_plan.context_summary["domain"] is None
 
 
 @pytest.mark.parametrize(
     ("message", "domain", "intent", "capability"),
     [
         ("What is Python used for?", "skill", "general_explanation", None),
-        ("Explain UI/UX trends in simple terms", "skill", "general_explanation", None),
+        ("Explain UI/UX trends in simple terms", "skill", "aggregate_posting_skills", "collected_posting_skills"),
         ("What is the difference between Java and Python?", "skill", "general_explanation", None),
         ("Show the canonical definition and category for Python", "skill", "lookup_skill_reference", "skill_technology_reference"),
         ("What demand trend is observed for Python?", "skill", "analyze_trend", "trend_velocity_analysis"),
-        ("Which companies are hiring Python developers?", "skill", "unsupported_or_unclear", None),
+        ("Which companies are hiring Python developers?", "skill", "search_jobs", "job_posting_search"),
         ("What skills should I learn for a backend developer role?", "skill", "synthesize_actions", "action_recommendations"),
         ("Which skills am I missing for a backend developer job?", "skill", "analyze_skill_gap", "skill_gap_role_fit"),
         ("Create a learning path for Python backend development", "skill", "synthesize_actions", "action_recommendations"),
@@ -530,7 +599,7 @@ def test_r1_4_intent_paraphrases(message, domain, intent, capability):
     if capability:
         assert capability in plan.selected_capabilities
     if message.startswith("Which companies"):
-        assert any("Switch to the Job domain" in q and message in q for q in plan.clarification_questions)
+        assert not any("Switch to the Job domain" in q for q in plan.clarification_questions)
 
 
 def test_learning_intent_conflicts_with_selected_trend_feature_and_clarifies():
@@ -544,6 +613,7 @@ def test_learning_intent_conflicts_with_selected_trend_feature_and_clarifies():
     assert plan.clarification_required
 
 
+@pytest.mark.usefixtures("injected_empty_firestore")
 def test_explicit_learning_intent_conflicts_with_selected_trend_after_prior_context():
     from app.storage.conversation_store import ConversationStore
 

@@ -19,6 +19,8 @@ from pydantic import SecretStr
 from app.core.config import Settings
 from app.intelligence_v2.capability_registry import (
     CAPABILITIES,
+    EXTENDED_CAPABILITIES,
+    V2CapabilityRegistry,
     canonical_capability_id,
 )
 from app.intelligence_v2.feature_policy import (
@@ -29,6 +31,11 @@ from app.intelligence_v2.intent_planner import V2IntentPlanner
 from app.intelligence_v2.orchestrator import V2Orchestrator
 from app.models.execution_orchestrator import CoreIntelligenceAnswerRequest
 from app.services.gemini_b_guidance_service import GeminiBGuidanceService
+
+
+@pytest.fixture(autouse=True)
+def _isolate_firestore(injected_empty_firestore):
+    return injected_empty_firestore
 
 
 def make_mock_settings(**overrides):
@@ -316,12 +323,12 @@ def test_seven_representative_queries_route_correctly():
     # 3. "What skills should I learn for software engineering?"
     p3 = planner.plan("What skills should I learn for software engineering?")
     assert p3.capability_id == "job_preparation_actions"
-    assert p3.target_role == "Software Developers"
+    assert p3.target_role == "Software Engineer"
 
     # 4. "Give me a roadmap to become a backend developer."
     p4 = planner.plan("Give me a roadmap to become a backend developer.")
     assert p4.capability_id == "job_preparation_actions"
-    assert p4.target_role == "Software Developers"
+    assert p4.target_role == "Backend Developer"
 
     # 5. "Show the current market trend for Python."
     p5 = planner.plan("Show the current market trend for Python.")
@@ -427,6 +434,14 @@ def test_all_legacy_aliases_resolve_to_canonical_capabilities():
         assert resolved == expected_canonical, f"Failed for ({legacy_domain}, {legacy_cap})"
 
 
+@pytest.mark.parametrize("capability_id", sorted(EXTENDED_CAPABILITIES))
+def test_extended_capabilities_resolve_through_registry_fallback(capability_id):
+    registry = V2CapabilityRegistry()
+
+    assert capability_id not in CAPABILITIES
+    assert registry.get_capability(capability_id) == EXTENDED_CAPABILITIES[capability_id]
+
+
 def test_role_preparation_actions_and_job_preparation_actions_parity():
     """role_preparation_actions and job_preparation_actions produce identical plans without duplicate execution."""
     orchestrator = V2Orchestrator()
@@ -451,4 +466,3 @@ def test_role_preparation_actions_and_job_preparation_actions_parity():
     assert res1.status == res2.status == "ready"
     assert res1.answer == res2.answer
     assert len(res1.facts) == len(res2.facts)
-

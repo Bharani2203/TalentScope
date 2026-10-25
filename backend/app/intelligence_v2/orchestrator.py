@@ -157,6 +157,26 @@ class V2Orchestrator:
             context=planner_context,
         )
 
+        if planned_intent.capability_id is None and not request.capability_id:
+            return CoreIntelligenceAnswerResponse(
+                request_id=f"ans_{uuid.uuid4().hex[:12]}",
+                user_message=request.message,
+                portal_type=portal,
+                domain=request.domain if request.domain in {"skill", "market", "job"} else None,
+                intent="unsupported_or_unclear",
+                plan_status="requires_clarification",
+                execution_status="requires_clarification",
+                status="not_applicable",
+                answer=planned_intent.reason,
+                answer_origin="deterministic",
+                planned_capabilities=[],
+                capabilities_used=[],
+                limitations=["No data capability was selected because the request was not classifiable."],
+                reason_codes=["INTENT_CLARIFICATION_REQUIRED"],
+                conversation_id=request.conversation_id,
+                client_message_id=request.client_message_id,
+            )
+
         # Allow explicit capability override if client provided capability_id or domain
         if request.capability_id:
             public_capability_id = request.capability_id
@@ -401,9 +421,15 @@ class V2Orchestrator:
             elif cap == "skill_reference_profile":
                 result = self.skill_engine.run_reference_profile(target_s)
             elif cap in {"skill_lookup", "occupation_lookup"}:
+                exact_occupation_query = bool(
+                    planned_intent.target_role
+                    and not request.selected_skills
+                )
                 result = self.skill_engine.run_skill_lookup(
-                    target_s or target_r,
+                    target_r if exact_occupation_query else target_s or target_r,
+                    entity_type="occupation" if exact_occupation_query else "all",
                     context=request.message,
+                    exact_occupation=exact_occupation_query,
                 )
             elif cap in {"related_skills", "skill_adjacency"}:
                 result = self.skill_engine.run_related_skills(target_s)
@@ -426,13 +452,21 @@ class V2Orchestrator:
                 filters = request.filters or {}
                 country = filters.get("country") or (geo if geo and geo not in {"all", "global"} else None)
                 location = filters.get("location") or request.location
+                if not location:
+                    from app.services.question_classification_service import extract_location
+                    location = extract_location(request.message)
                 date_posted = filters.get("date_posted")
+                remote = (
+                    "remote" in request.message.casefold()
+                    or str(filters.get("remote_mode") or "").casefold() == "remote"
+                )
                 result = self.job_engine.run_verified_postings(
                     role_or_skill=role_or_skill,
                     geography=geo,
                     country=country,
                     location=location,
                     date_posted=date_posted,
+                    remote=remote,
                 )
             elif cap == "job_role_requirements":
                 result = self.job_engine.run_role_requirements(target_r)

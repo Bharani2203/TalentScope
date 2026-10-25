@@ -24,7 +24,8 @@ const {
   resolveDisplayedCapabilityId,
   shouldShowUnappliedFilterDisclosure,
   buildFollowUpRequestContext,
-  renderTurnChartOrBaselineHTML
+  renderTurnChartOrBaselineHTML,
+  renderAssistantResponseDetails
 } = await import('../src/pages/individual/ai-assistant/AIAssistant.js');
 const {
   buildAnswerRequest,
@@ -442,10 +443,53 @@ assert.match(assistantSource, /usedCapability \?/, 'conversation responses ident
 assert.doesNotMatch(assistantSource, /ai-res-unapplied-banner/, 'the individual assistant no longer renders legacy hidden-filter disclosures');
 const executeQuerySource = assistantSource.slice(assistantSource.indexOf('async function executeAiQuery'));
 assert.match(executeQuerySource, /timeRange: 'max'/, 'individual assistant requests use the maximum supported historical window');
+assert.match(executeQuerySource, /domain: null/, 'user messages do not force a Skill, Market, or Job domain');
+assert.match(executeQuerySource, /planResult = await queryCoreIntelligencePlan\(\{[\s\S]*?message: question,[\s\S]*?portalType: 'individual'/, 'each user message gets a domain-unset plan before the answer request');
+assert.match(executeQuerySource, /understood: typeof planResult\?\.understood === 'string'/, 'the turn retains the exact understood sentence from its plan');
 assert.doesNotMatch(executeQuerySource, /scope_empty|selectedSkillsPayload|selectedCompaniesPayload|filters:\s*\{/, 'invisible legacy filters and scope state are not sent to the answer endpoint');
 assert.doesNotMatch(assistantSource, /escapeHTML\(u\.filter\).*escapeHTML\(u\.reason\)/, 'raw filter identifiers and backend diagnostics are not rendered directly');
+assert.doesNotMatch(assistantSource, /data-ai-domain=/, 'the Assistant has no Skill, Market, or Job domain controls');
+assert.match(assistantSource, /const created = await createIntelligenceConversation\(/, 'New chat creates a backend-issued conversation');
+assert.match(assistantSource, /domState\.history = \[\];[\s\S]*?domState\.draftQuestion = '';/, 'New chat clears the local transcript and composer draft');
 assert.match(conversationAnswerSource, /label: 'Could not complete'/, 'failed requests have an explicit non-success label');
 assert.match(conversationAnswerSource, /role="\$\{\['blocked', 'error', 'failed'\]/, 'access and execution failures use an alert');
+
+const responseDetails = renderAssistantResponseDetails({
+  understood: 'You want to search stored job postings.',
+  status: 'insufficient_data',
+  enough_data: false,
+  limitations: ['No matching postings were found.'],
+  degraded: true,
+  degraded_reason: 'internal_provider_timeout',
+  intent: 'search_jobs',
+  sources: [
+    { type: 'stored posting', label: 'Stored role', source_url: 'https://jobs.example/role/1' },
+    { type: 'external', label: 'Unsecured source', source_url: 'http://jobs.example/role/2' }
+  ],
+  evidence: [{ signal_type: 'job_demand', description: 'Stored evidence', source_url: 'https://evidence.example/item/3' }],
+  facts: [{ fact_type: 'stored_job_postings', details: { scanned_count: 22, matched_count: 0, city: 'Kolkata' } }],
+  clarification: 'Would you like to narrow the request?'
+});
+assert.match(responseDetails, /Understood:<\/strong> You want to search stored job postings\./);
+assert.match(responseDetails, /Limited data/);
+assert.match(responseDetails, /No matching postings were found\./);
+assert.match(responseDetails, /Gemini unavailable, showing deterministic answer/);
+assert.doesNotMatch(responseDetails, /internal_provider_timeout/);
+assert.match(responseDetails, /scanned 22, matched 0, city Kolkata/);
+assert.match(responseDetails, /live search is off/);
+assert.match(responseDetails, /Would you like to narrow the request\?/);
+assert.match(responseDetails, /data-assistant-follow-up="skills"/);
+assert.match(responseDetails, /data-assistant-follow-up="jobs"/);
+assert.match(responseDetails, /data-assistant-follow-up="market signals"/);
+assert.equal((responseDetails.match(/<a href=/g) || []).length, 2, 'only stored HTTPS source_url values render as links');
+assert.doesNotMatch(responseDetails, /href="http:\/\/jobs\.example/);
+
+const demoResponseDetails = renderAssistantResponseDetails({
+  status: 'insufficient_data',
+  evidence: [{ signal_type: 'skill_adoption', description: 'Sample observation', data_origin: 'demo' }]
+});
+assert.match(demoResponseDetails, /DEMO SAMPLE — illustrative data only; not live market evidence\./);
+assert.doesNotMatch(responseDetails, /DEMO SAMPLE/);
 
 const realTrendChart = renderTurnChartOrBaselineHTML({}, {
   readiness_state: 'ready',
@@ -453,6 +497,12 @@ const realTrendChart = renderTurnChartOrBaselineHTML({}, {
   period: '2024-01_to_2024-04',
   details: { series: [{ period: '2024-01', value: 0.2 }, { period: '2024-04', value: 0.4 }], provider: 'jsearch', signal_type: 'demand', metric: 'normalized_share', value_unit: 'share' }
 }, [], []);
+const insecurePostingLink = renderTurnChartOrBaselineHTML({}, null, [], [{
+  title: 'Stored role',
+  source_url: 'http://jobs.example/role/1'
+}]);
+assert.doesNotMatch(insecurePostingLink, /href="http:\/\/jobs\.example/);
+assert.match(insecurePostingLink, /http:\/\/jobs\.example\/role\/1/);
 assert.ok(realTrendChart.includes('2024-01') && realTrendChart.includes('2024-04'));
 assert.ok(realTrendChart.includes('jsearch') && realTrendChart.includes('normalized_share') && realTrendChart.includes('share'));
 assert.ok(!renderTurnChartOrBaselineHTML({}, { period: 'window', details: { observation_count: 4 } }, [], []).includes('<svg'), 'no chart is drawn unless actual series points are returned');

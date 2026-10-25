@@ -63,6 +63,24 @@ def aggregate_market_signals(
     if not observations:
         return []
 
+    # Provider retries and overlapping collection runs may leave multiple
+    # rows for one posting-skill-period. Keep storage untouched and count it
+    # only once in query-time aggregates.
+    deduplicated: list[MarketObservation] = []
+    seen_posting_skill_period: set[tuple[str, str, str]] = set()
+    for observation in observations:
+        if observation.signal_type == "demand" and observation.posting_id and observation.period:
+            key = (
+                str(observation.posting_id).casefold(),
+                observation.skill.casefold().strip(),
+                observation.period,
+            )
+            if key in seen_posting_skill_period:
+                continue
+            seen_posting_skill_period.add(key)
+        deduplicated.append(observation)
+    observations = deduplicated
+
     # 1. Partition observations by exact source, signal_type, period, panel, origin, history
     partitions: dict[tuple[object, ...], list[MarketObservation]] = defaultdict(list)
 
@@ -119,14 +137,14 @@ def aggregate_market_signals(
             and len(legacy_denom_partitions[(source, signal_type, period)]) == 1
         ):
             denom = float(source_denominators[(source, signal_type, period)])
-        elif len(all_posting_ids) > 1 and signal_type == "demand":
-            # If multiple postings exist in this single partition, posting count is the local denominator
-            denom = float(len(all_posting_ids))
         else:
             # Check if observations carry an explicit denominator from the provider
             obs_denoms = {float(item.denominator) for item in partition_obs if getattr(item, "denominator", None) is not None and float(item.denominator) > 0}
             if len(obs_denoms) == 1:
                 denom = next(iter(obs_denoms))
+            elif len(all_posting_ids) > 1 and signal_type == "demand":
+                # Use a local sample only when no query-time denominator was attached.
+                denom = float(len(all_posting_ids))
             else:
                 denom = None
 
@@ -176,6 +194,12 @@ def aggregate_market_signals(
                 normalized_value = None
                 data_state = "insufficient_data"
                 warnings.append("raw count; platform volume changes may affect it")
+
+            if signal_type == "demand" and denom is not None and denom < 20:
+                metric = "raw_count"
+                normalized_value = None
+                data_state = "insufficient_data"
+                warnings.append("sample size below 20; percentage suppressed")
 
             if incomplete_collection:
                 data_state = "incomplete"

@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import logging
 import re
 from time import perf_counter
 
@@ -10,6 +11,7 @@ from app.core.auth_diagnostics import elapsed_ms, log_auth_trace
 from app.core.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 def cors_header_configuration(environment: str) -> tuple[list[str], list[str]]:
@@ -30,6 +32,23 @@ app = FastAPI(
     description="Backend API for the individual workforce skill-demand forecasting portal.",
     version="0.1.0",
 )
+
+
+@app.on_event("startup")
+async def log_firestore_runtime():
+    from app.core.firestore_status import firestore_runtime_label
+
+    print(firestore_runtime_label(settings.firebase_project_id), flush=True)
+    logger.info(firestore_runtime_label(settings.firebase_project_id))
+
+
+@app.middleware("http")
+async def firestore_read_log(request: Request, call_next):
+    """Aggregate read-wrapper counts for this request when FIRESTORE_READ_LOG=1."""
+    from app.storage.firestore_read_guard import read_guard
+
+    with read_guard.track_request(request.url.path):
+        return await call_next(request)
 
 
 @app.exception_handler(RequestValidationError)

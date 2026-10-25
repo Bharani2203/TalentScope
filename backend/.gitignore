@@ -6,3 +6,5 @@ secrets/
 .firebase/
 .pytest_cache/
 /data/
+secrets/
+.test_reports/

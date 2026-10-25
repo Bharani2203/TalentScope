@@ -136,6 +136,8 @@ class MarketPosting(SkillModel):
     category: str | None = None
     source_url: str | None = None
     posted_at: str | None = None
+    updated_at: str | None = None
+    department: str | None = None
 
 
 class SkillTrendPoint(SkillModel):

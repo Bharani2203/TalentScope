@@ -30,6 +30,7 @@ from app.models.capability_registry import (
 from app.models.entity_registry import EntityResolutionRequest
 from app.models.skill_intelligence import MarketObservation
 from app.services.entity_registry_service import EntityRegistryService
+from app.services.assistant_feature_registry import HANDLER_METHODS
 from app.storage.reference_store import ReferenceDataStore
 
 
@@ -202,11 +203,100 @@ CAPABILITY_DOMAINS: dict[str, list[str]] = {
     "technology_impact_explorer": ["market"],
     "skill_based_job_match": ["job"],
     "career_transition_opportunity": ["job"],
+    "collected_posting_skills": ["job"],
 }
 
 for _capability_id, _domains in CAPABILITY_DOMAINS.items():
     if _capability_id in CAPABILITY_CATALOG:
         CAPABILITY_CATALOG[_capability_id].supported_domains = _domains
+
+# Keep advertised readiness tied to executable handlers. The older catalog's
+# seven entries were marked available even though their handlers were pending.
+for _capability_id, _record in CAPABILITY_CATALOG.items():
+    _method_name = HANDLER_METHODS.get(_capability_id)
+    if _method_name:
+        _record.global_status = "available"
+        _record.implementation_status = "implemented"
+        _record.handler = _method_name
+    else:
+        _record.global_status = "building"
+        _record.implementation_status = "pending"
+        _record.handler = None
+
+_HANDLER_DOMAINS = {
+    "job_posting_search": ["job"],
+    "collected_posting_skills": ["job"],
+    "company_intelligence": ["workforce"],
+    "market_snapshot": ["market", "job"],
+    "historical_signal_retrieval": ["skill", "market"],
+    "trend_velocity_analysis": ["skill", "market"],
+    "skill_health_analysis": ["skill"],
+    "skill_half_life_analysis": ["skill"],
+    "skill_forecasting_half_life": ["skill"],
+    "skill_gap_role_fit": ["skill", "job"],
+    "action_recommendations": ["skill", "job"],
+}
+_HANDLER_INPUTS = {
+    "entity_resolution": ["entity_name"],
+    "skill_technology_reference": ["entity_name"],
+    "occupation_lookup": ["soc_code_or_title"],
+    "occupation_software_skills": ["soc_code_or_title"],
+    "related_occupations": ["soc_code_or_title"],
+    "market_snapshot": ["entity_name"],
+    "historical_signal_retrieval": ["entity_name"],
+    "trend_velocity_analysis": ["entity_name"],
+    "skill_health_analysis": ["entity_name"],
+    "skill_half_life_analysis": ["entity_name"],
+    "skill_forecasting_half_life": ["entity_name"],
+    "evidence_provenance_retrieval": ["entity_name"],
+    "skill_gap_role_fit": ["target_role", "selected_skills"],
+    "action_recommendations": ["target_role"],
+    "job_posting_search": ["entity_name"],
+    "company_intelligence": ["company_id"],
+}
+for _capability_id, _method_name in HANDLER_METHODS.items():
+    if _capability_id in CAPABILITY_CATALOG:
+        continue
+    _display_name = _capability_id.replace("_", " ").title()
+    CAPABILITY_CATALOG[_capability_id] = CapabilityRecord(
+        capability_id=_capability_id,
+        name=_display_name,
+        description=f"Execute the registered {_display_name.lower()} intelligence handler.",
+        supported_domains=_HANDLER_DOMAINS.get(_capability_id, ["skill", "market", "job"]),
+        supported_intent=_capability_id,
+        supported_entity_types=["skill", "technology", "occupation", "role"],
+        required_inputs=_HANDLER_INPUTS.get(_capability_id, []),
+        required_signals=["handler_output"],
+        required_sources=["jobs"] if _capability_id == "collected_posting_skills" else [],
+        global_status="available",
+        implementation_status="implemented",
+        reason_code="HANDLER_REGISTERED",
+        handler=_method_name,
+        limitations=["Execution returns only data available from configured platform stores and reference datasets."],
+        provenance_requirements=["handler_evidence"],
+    )
+
+for _planned_id, _planned_name in {
+    "roadmap_prerequisite_full": "Full Prerequisite Roadmap",
+    "workforce_what_if_simulation": "Workforce What-if Simulation",
+}.items():
+    CAPABILITY_CATALOG[_planned_id] = CapabilityRecord(
+        capability_id=_planned_id,
+        name=_planned_name,
+        description=f"{_planned_name} is planned and does not have an executable handler yet.",
+        supported_domains=["skill", "job", "workforce"],
+        supported_intent=_planned_id,
+        supported_entity_types=["skill", "occupation", "role", "company"],
+        required_inputs=["validated feature implementation"],
+        required_signals=[],
+        required_sources=[],
+        global_status="building",
+        implementation_status="pending",
+        reason_code="FEATURE_NOT_IMPLEMENTED",
+        handler=None,
+        limitations=["This feature is not available yet."],
+        provenance_requirements=[],
+    )
 
 
 class CapabilityRegistryService:
@@ -392,7 +482,7 @@ class CapabilityRegistryService:
                     name=cap.name,
                     global_status=cap.global_status,
                     runtime_status="insufficient_data",
-                    implementation_status="pending",
+                    implementation_status="implemented",
                     can_execute=False,
                     reason_codes=["INVALID_INPUT_TYPE"],
                     explanation="entity_type must be a string matching 'technology', 'skill', or 'occupation'.",
@@ -406,7 +496,7 @@ class CapabilityRegistryService:
                     name=cap.name,
                     global_status=cap.global_status,
                     runtime_status="insufficient_data",
-                    implementation_status="pending",
+                    implementation_status="implemented",
                     can_execute=False,
                     reason_codes=["UNSUPPORTED_ENTITY_TYPE"],
                     explanation=f"Entity type '{req.entity_type}' is not supported for {cap.name}. Supported entity types: {cap.supported_entity_types}.",
@@ -431,7 +521,7 @@ class CapabilityRegistryService:
                 name=cap.name,
                 global_status=cap.global_status,
                 runtime_status="insufficient_data",
-                implementation_status="pending",
+                implementation_status="implemented",
                 can_execute=False,
                 reason_codes=["MISSING_TECHNOLOGY_OR_SKILL_INPUT"],
                 explanation="Technology Impact Explorer requires a technology or a skill as primary input.",
@@ -463,11 +553,11 @@ class CapabilityRegistryService:
             name=cap.name,
             global_status=cap.global_status,
             runtime_status="available",
-            implementation_status="pending",
-            can_execute=False,
-            reason_codes=["CAPABILITY_PENDING_IMPLEMENTATION"],
-            explanation=f"{cap.name} is registered. Analytical engine is pending implementation in Phase 2.",
-            missing_requirements=[f"Phase 2 analytical engine for {cap.capability_id}"],
+            implementation_status="implemented",
+            can_execute=True,
+            reason_codes=["HANDLER_REGISTERED"],
+            explanation=f"{cap.name} has a registered executable handler; data availability is checked during execution.",
+            missing_requirements=[],
             limitations=cap.limitations,
             provenance_references=provenance,
             provenance_requirements=cap.provenance_requirements,
@@ -485,7 +575,7 @@ class CapabilityRegistryService:
                     name=cap.name,
                     global_status=cap.global_status,
                     runtime_status="insufficient_data",
-                    implementation_status="pending",
+                    implementation_status="implemented",
                     can_execute=False,
                     reason_codes=["INVALID_INPUT_TYPE"],
                     explanation="entity_type must be a string matching 'occupation' or 'skill'.",
@@ -499,7 +589,7 @@ class CapabilityRegistryService:
                     name=cap.name,
                     global_status=cap.global_status,
                     runtime_status="insufficient_data",
-                    implementation_status="pending",
+                    implementation_status="implemented",
                     can_execute=False,
                     reason_codes=["UNSUPPORTED_ENTITY_TYPE"],
                     explanation=f"Entity type '{req.entity_type}' is not supported for {cap.name}. Supported entity types: {cap.supported_entity_types}.",
@@ -524,7 +614,7 @@ class CapabilityRegistryService:
                 name=cap.name,
                 global_status=cap.global_status,
                 runtime_status="insufficient_data",
-                implementation_status="pending",
+                implementation_status="implemented",
                 can_execute=False,
                 reason_codes=["MISSING_ROLE_INPUT"],
                 explanation="Career Transition Opportunity requires either a current role or a target role.",
@@ -551,11 +641,11 @@ class CapabilityRegistryService:
             name=cap.name,
             global_status=cap.global_status,
             runtime_status="available",
-            implementation_status="pending",
-            can_execute=False,
-            reason_codes=["CAPABILITY_PENDING_IMPLEMENTATION"],
-            explanation=f"{cap.name} is registered. Analytical engine is pending implementation in Phase 2.",
-            missing_requirements=[f"Phase 2 analytical engine for {cap.capability_id}"],
+            implementation_status="implemented",
+            can_execute=True,
+            reason_codes=["HANDLER_REGISTERED"],
+            explanation=f"{cap.name} has a registered executable handler; data availability is checked during execution.",
+            missing_requirements=[],
             limitations=cap.limitations,
             provenance_references=provenance,
             provenance_requirements=cap.provenance_requirements,

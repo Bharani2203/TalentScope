@@ -22,15 +22,7 @@ CapabilityState = Literal[
     "building",
 ]
 
-CapabilityId = Literal[
-    "skill_future_relevance_score",
-    "skill_change_alert",
-    "adaptive_skill_roadmap",
-    "technology_adoption_shift_detector",
-    "technology_impact_explorer",
-    "skill_based_job_match",
-    "career_transition_opportunity",
-]
+CapabilityId = str
 
 
 class CapabilityRecord(BaseModel):

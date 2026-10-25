@@ -5,6 +5,8 @@ Provides unified endpoints serving Individual, Employee, and Company portals.
 
 from __future__ import annotations
 
+import logging
+import re
 from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
@@ -54,6 +56,17 @@ from app.services.intelligence_catalog_service import get_market_catalog, get_sk
 from app.models.skill_intelligence import FavouriteEntityIdsResponse, FavouriteEntityIdsUpdateRequest
 from app.services.market_favourites_service import update_market_favourites
 from app.intelligence_v2.source_registry import V2SourceRegistry
+from app.intelligence_v2.intent_planner import V2IntentPlanner
+
+logger = logging.getLogger(__name__)
+_V2_INTENT_PLANNER = V2IntentPlanner()
+_V2_PLAN_CAPABILITIES = {
+    "job_verified_postings",
+    "skill_lookup",
+    "job_role_requirements",
+    "skill_demand_trends",
+    "job_preparation_actions",
+}
 
 router = APIRouter(prefix="/intelligence", tags=["core intelligence"])
 
@@ -182,7 +195,98 @@ def plan_intelligence(
     current_user = _authorized_company_user(
         current_user, request.portal_type, request.company_id
     )
-    return service.create_plan(request, authenticated_user=current_user)
+    if request.conversation_id:
+        allowed, reason = ConversationStore.get_instance().check_conversation_access(
+            request.conversation_id,
+            user_id=current_user.uid,
+            company_id=getattr(current_user, "company_id", None) or request.company_id,
+        )
+        if not allowed:
+            is_missing = reason == "conversation_not_found"
+            raise HTTPException(
+                status_code=404 if is_missing else 403,
+                detail="Conversation not found." if is_missing else "Access denied to conversation.",
+            )
+    plan = service.create_plan(request, authenticated_user=current_user)
+    try:
+        v2_plan = _V2_INTENT_PLANNER.plan(
+            request.message,
+            portal_type=request.portal_type or "individual",
+            context={
+                "selected_skill": request.selected_skills[0] if request.selected_skills else None,
+                "selected_role": request.target_role or (request.selected_roles[0] if request.selected_roles else None),
+            },
+        )
+    except Exception as exc:
+        logger.warning("V2 plan canonicalization failed (%s)", type(exc).__name__)
+        return plan
+
+    canonical_capability = v2_plan.capability_id
+    if canonical_capability in _V2_PLAN_CAPABILITIES:
+        from app.services.question_classification_service import extract_location, extract_role
+
+        role = extract_role(request.message) or request.target_role or v2_plan.target_role
+        if canonical_capability == "job_verified_postings":
+            job_query = re.search(
+                r"\b(?:find|search|show|list|get)\s+(.+?)\s+(?:jobs?|postings?|openings?)\b",
+                request.message,
+                re.IGNORECASE,
+            )
+            if job_query:
+                role = job_query.group(1).strip().title()
+        elif canonical_capability == "job_preparation_actions":
+            role_query = re.search(
+                r"\bfor\s+([A-Za-z][A-Za-z0-9+#/ -]*?)\s*[?.!]*$",
+                request.message,
+                re.IGNORECASE,
+            )
+            if role_query:
+                role = role_query.group(1).strip().title()
+        skill = v2_plan.target_skill or next(
+            (entity.canonical_name for entity in v2_plan.entities if entity.entity_type in {"skill", "technology"}),
+            None,
+        )
+        if canonical_capability == "job_verified_postings":
+            subject = role or skill or "matching roles"
+            city = (
+                (request.filters or {}).get("location")
+                or request.location
+                or extract_location(request.message)
+            )
+            understood = f"You want to search stored job postings for {subject}"
+            if city:
+                understood += f" in {city}"
+            understood += "."
+        elif canonical_capability == "skill_lookup":
+            understood = f"You want to learn about the role of {role or 'the selected occupation'}."
+        elif canonical_capability == "job_role_requirements":
+            understood = f"You want to find out which skills {role or 'the selected role'} needs."
+        elif canonical_capability == "skill_demand_trends":
+            understood = f"You want to understand how {skill or 'the selected skill'} is trending."
+        else:
+            understood = f"You want a preparation plan for {role or 'the selected role'}."
+        return plan.model_copy(update={
+            "primary_capability": canonical_capability,
+            "selected_capabilities": [canonical_capability],
+            "dependency_capabilities": [],
+            "understood": understood,
+        })
+    if canonical_capability is None and plan.intent in {"compare_entities", "unsupported_or_unclear"}:
+        understood = f"Clarification: {v2_plan.reason}"
+        return plan.model_copy(update={
+            "intent": "unsupported_or_unclear",
+            "intent_explanation": v2_plan.reason,
+            "understood": understood,
+            "primary_capability": None,
+            "selected_capabilities": [],
+            "dependency_capabilities": [],
+            "readiness_results": [],
+            "clarification_required": True,
+            "clarification_questions": [v2_plan.reason],
+            "plan_status": "requires_clarification",
+            "enough_data": False,
+        })
+    return plan
 
 
 @router.post("/answer", response_model=CoreIntelligenceAnswerResponse)
@@ -201,9 +305,13 @@ def answer_intelligence(
         current_user, request.portal_type, request.company_id
     )
     response = service.answer(request, authenticated_user=current_user)
+    apply_contract = getattr(service, "apply_assistant_response_contract", None)
+    if apply_contract:
+        response = apply_contract(response, request)
     if response.domain is None:
+        from app.services.answer_block_service import infer_assistant_domain
         response = response.model_copy(
-            update={"domain": request.domain or "skill"}
+            update={"domain": request.domain if request.domain in {"skill", "market", "job"} else infer_assistant_domain(response.intent)}
         )
     return response
 
@@ -305,8 +413,9 @@ def answer_guest_intelligence(
     )
     response = service.answer(guest_request, authenticated_user=None)
     if response.domain is None:
+        from app.services.answer_block_service import infer_assistant_domain
         response = response.model_copy(
-            update={"domain": request.domain or "skill"}
+            update={"domain": request.domain if request.domain in {"skill", "market", "job"} else infer_assistant_domain(response.intent)}
         )
     if response.conversation_id:
         response = response.model_copy(

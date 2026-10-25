@@ -23,8 +23,30 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import re
+import logging
+import os
+import threading
+import time
 from typing import Any, Literal, Sequence
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.storage.firestore_read_guard import read_guard
+
+_PLATFORM_COUNTS_TTL_SECONDS = 60.0
+_platform_counts_lock = threading.Lock()
+_platform_counts_cache: tuple[float, int, dict[str, int], dict[str, int], dict[str, dict[str, Any]]] | None = None
+
+
+def invalidate_platform_counts_cache() -> None:
+    """Clear the process-wide source-count cache after collector writes."""
+    global _platform_counts_cache
+    with _platform_counts_lock:
+        _platform_counts_cache = None
+
+from app.core.config import get_settings
+from app.core.firebase import get_firestore_client
+
+logger = logging.getLogger(__name__)
 
 from app.intelligence_v2.contracts import DataOrigin, SignalFamily, TimeGrain
 
@@ -76,6 +98,7 @@ class SourceDefinition(BaseModel):
     supports_historical_analysis: bool
     historical_range: str | None = None
     observation_count: int = 0
+    job_posting_count: int = 0
     explicit_limitations: list[str] = Field(default_factory=list)
     permitted_interpretations: list[str] = Field(default_factory=list)
     prohibited_interpretations: list[str] = Field(default_factory=list)
@@ -283,7 +306,7 @@ SOURCE_REGISTRY: dict[str, SourceDefinition] = {
         collection_method="recurring_platform_collection",
         last_successful_collection=None,
         freshness_status="unavailable",
-        collection_status="disabled_in_local_mode",
+        collection_status="unverified",
         provenance_status="verified_platform",
         supports_historical_analysis=True,
         historical_range=None,
@@ -332,7 +355,7 @@ SOURCE_REGISTRY: dict[str, SourceDefinition] = {
         collection_method="recurring_platform_collection",
         last_successful_collection=None,
         freshness_status="unavailable",
-        collection_status="disabled_in_local_mode",
+        collection_status="unverified",
         provenance_status="verified_platform",
         supports_historical_analysis=True,
         historical_range=None,
@@ -547,12 +570,158 @@ SOURCE_REGISTRY: dict[str, SourceDefinition] = {
 }
 
 
+def _timestamp_order(value: Any) -> float:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return float("-inf")
+    else:
+        return float("-inf")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).timestamp()
+
+
+def _read_source_registry_collection(firestore: Any, collection_name: str) -> list[Any]:
+    """Read one registry collection and account for partial/failed stream attempts."""
+    rows: list[Any] = []
+    stream_completed = False
+    try:
+        rows.extend(firestore.collection(collection_name).stream())
+        stream_completed = True
+        return rows
+    finally:
+        # A failed stream has an unknown billed document count. Count one read
+        # attempt when it returned no snapshots so the failed operation is visible.
+        count = len(rows) if rows or stream_completed else 1
+        read_guard.record_read(collection_name, count, query_type="source_registry")
+
+
 class V2SourceRegistry:
     """Service to look up and inspect data sources across all three domains."""
 
-    def __init__(self, sources: dict[str, SourceDefinition] | None = None) -> None:
-        self._sources = dict(sources or SOURCE_REGISTRY)
+    def __init__(self, sources: dict[str, SourceDefinition] | None = None, *, client: Any | None = None) -> None:
+        self._sources = {
+            key: value.model_copy(deep=True)
+            for key, value in (sources or SOURCE_REGISTRY).items()
+        }
+        if sources is None:
+            self._refresh_platform_counts(client)
 
+    def _refresh_platform_counts(self, client: Any | None) -> None:
+        """Populate live posting/observation counts and provider collection state."""
+        try:
+            firestore = client if client is not None else get_firestore_client()
+            global _platform_counts_cache
+            cache_key = id(firestore)
+            now = time.monotonic()
+            with _platform_counts_lock:
+                cached = _platform_counts_cache
+                if cached is not None and cached[1] == cache_key and now - cached[0] < _PLATFORM_COUNTS_TTL_SECONDS:
+                    observation_counts = dict(cached[2])
+                    job_counts = dict(cached[3])
+                    latest_runs = {key: dict(value) for key, value in cached[4].items()}
+                    read_guard.record_cache_hit()
+                else:
+                    observation_counts: dict[str, int] = {}
+                    observation_rows = _read_source_registry_collection(firestore, "skill_market_signals")
+                    for snapshot in observation_rows:
+                        source = str((snapshot.to_dict() or {}).get("source") or "").casefold()
+                        if source:
+                            observation_counts[source] = observation_counts.get(source, 0) + 1
+
+                    job_counts: dict[str, int] = {}
+                    job_rows = _read_source_registry_collection(firestore, "jobs")
+                    for snapshot in job_rows:
+                        source = str((snapshot.to_dict() or {}).get("source") or "").casefold()
+                        if source:
+                            job_counts[source] = job_counts.get(source, 0) + 1
+
+                    latest_runs: dict[str, dict[str, Any]] = {}
+                    run_rows = _read_source_registry_collection(firestore, "fetch_runs")
+                    for snapshot in run_rows:
+                        run = snapshot.to_dict() or {}
+                        source = str(run.get("source") or "").casefold()
+                        if not source:
+                            continue
+                        timestamp = run.get("completed_at") or run.get("started_at")
+                        prior = latest_runs.get(source)
+                        prior_timestamp = (prior or {}).get("completed_at") or (prior or {}).get("started_at")
+                        if prior is None or (
+                            timestamp is not None
+                            and (prior_timestamp is None or _timestamp_order(timestamp) > _timestamp_order(prior_timestamp))
+                        ):
+                            latest_runs[source] = run
+                    _platform_counts_cache = (
+                        now, cache_key, dict(observation_counts), dict(job_counts),
+                        {key: dict(value) for key, value in latest_runs.items()},
+                    )
+
+            settings = get_settings()
+            enabled = {str(item).casefold() for item in settings.market_collection_enabled_providers}
+            local_mode = (
+                os.getenv("TALENTSCOPE_FIREBASE_MODE", "").casefold() == "emulator"
+                or settings.environment in {"local", "local-test", "development"}
+            )
+            credential_configured = {
+                "jsearch": bool((settings.jsearch_api_key or "").strip()),
+                "adzuna": bool((settings.adzuna_app_id or "").strip() and (settings.adzuna_app_key or "").strip()),
+            }
+            observation_aliases = {
+                "github_innovation_graph": "github",
+                "stack_exchange": "stackexchange",
+            }
+            for source_id, source in self._sources.items():
+                observation_key = observation_aliases.get(source_id, source_id).casefold()
+                source.observation_count = observation_counts.get(observation_key, 0)
+                source.job_posting_count = job_counts.get(source_id.casefold(), 0)
+            for source_id in ("jsearch", "adzuna", "github_innovation_graph"):
+                source = self._sources.get(source_id)
+                if source is None:
+                    continue
+                observation_key = "github" if source_id == "github_innovation_graph" else source_id
+                source.observation_count = observation_counts.get(observation_key, 0)
+                if source_id == "github_innovation_graph":
+                    source.job_posting_count = job_counts.get("github", 0)
+                run = latest_runs.get(source_id)
+                if run is None and source_id == "github_innovation_graph":
+                    run = latest_runs.get("github")
+                run_status = str((run or {}).get("status") or "").casefold()
+                if run_status == "running":
+                    source.collection_status = "active"
+                elif run_status == "success" and (source.observation_count or source.job_posting_count):
+                    source.collection_status = "ready"
+                elif run_status in {"failed", "partial"}:
+                    source.collection_status = "provisional"
+                elif source.observation_count or source.job_posting_count:
+                    source.collection_status = "ready"
+                elif source_id in enabled and credential_configured.get(source_id):
+                    source.collection_status = "active"
+                elif local_mode:
+                    source.collection_status = "disabled_in_local_mode"
+                else:
+                    source.collection_status = "empty"
+                completed = (run or {}).get("completed_at")
+                if completed is not None:
+                    source.last_successful_collection = completed.isoformat() if hasattr(completed, "isoformat") else str(completed)
+        except Exception as exc:
+            safe_message = (
+                str(exc)
+                if isinstance(exc, RuntimeError)
+                else "Firestore live count lookup failed."
+            )
+            logger.warning(
+                "source_registry_live_counts_unavailable error_class=%s error_message=%s",
+                type(exc).__name__,
+                safe_message,
+            )
+            for source_id in ("jsearch", "adzuna"):
+                source = self._sources.get(source_id)
+                if source is not None:
+                    source.collection_status = "unverified"
     def get_source(self, source_id: str) -> SourceDefinition | None:
         """Retrieve source definition by case-insensitive source ID."""
         if not source_id:

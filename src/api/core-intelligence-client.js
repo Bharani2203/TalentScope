@@ -648,6 +648,16 @@ export function adaptCoreIntelligenceAnswerResponse(raw) {
     next_actions: Array.isArray(raw.next_actions) ? raw.next_actions.slice(0, 5) : [],
     facts: rawFacts.map(adaptFactItem).filter(Boolean),
     evidence: rawEvidence.map(adaptEvidenceItem).filter(Boolean),
+    sources: Array.isArray(raw.sources)
+      ? raw.sources.filter(source => source && typeof source === 'object').map(source => ({
+        type: typeof source.type === 'string' ? source.type : (typeof source.source_type === 'string' ? source.source_type : null),
+        label: typeof source.label === 'string' ? source.label : (typeof source.title === 'string' ? source.title : null),
+        source_url: typeof source.source_url === 'string' ? source.source_url : null
+      }))
+      : [],
+    enough_data: typeof raw.enough_data === 'boolean' ? raw.enough_data : null,
+    degraded: raw.degraded === true,
+    degraded_reason: typeof raw.degraded_reason === 'string' ? raw.degraded_reason : null,
     metric_results: Array.isArray(raw.metric_results) ? raw.metric_results : [],
     planned_primary_capability: typeof raw.planned_primary_capability === 'string' ? raw.planned_primary_capability : null,
     executed_primary_capability: typeof raw.executed_primary_capability === 'string' ? raw.executed_primary_capability : null,
@@ -1147,20 +1157,26 @@ export async function createIntelligenceConversation(payload = {}, options = {})
   return await response.json();
 }
 
+export function isClientGeneratedConversationId(conversationId, portalType = 'individual', domain = 'skill') {
+  const normDomain = normalizeDomainKey(domain);
+  return typeof conversationId === 'string'
+    && conversationId.startsWith(`conv_${portalType}_${normDomain}_`);
+}
+
 export function getActiveConversationId(portalType = 'individual', domain = 'skill', userId = null) {
   const normDomain = normalizeDomainKey(domain);
   const userScope = userId ? String(userId).trim() : 'default';
   try {
     const key = `talentscope_active_conv_${userScope}_${portalType}_${normDomain}`;
-    let cid = sessionStorage.getItem(key) || localStorage.getItem(key);
-    if (!cid) {
-      cid = `conv_${portalType}_${normDomain}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-      sessionStorage.setItem(key, cid);
-      localStorage.setItem(key, cid);
+    const cid = sessionStorage.getItem(key) || localStorage.getItem(key) || null;
+    if (isClientGeneratedConversationId(cid, portalType, normDomain)) {
+      sessionStorage.removeItem(key);
+      localStorage.removeItem(key);
+      return null;
     }
     return cid;
   } catch {
-    return `conv_${portalType}_${normDomain}_${Date.now().toString(36)}`;
+    return null;
   }
 }
 

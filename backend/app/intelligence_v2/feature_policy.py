@@ -16,6 +16,16 @@ class FeatureAnswerPolicy:
 
 
 FEATURE_ANSWER_POLICIES: dict[str, FeatureAnswerPolicy] = {
+    "skill_demand_trends": FeatureAnswerPolicy(
+        "skill", "run_demand_trends", "Validated platform observations are available.",
+        True, False, "explanation", "Skill Demand Trends",
+        "Give general educational guidance about how skill demand can be assessed. Do not claim a measured trend, hiring signal, ranking, or platform result."
+    ),
+    "skill_reference_profile": FeatureAnswerPolicy(
+        "skill", "run_reference_profile", "A verified reference profile is available.",
+        True, False, "explanation", "Skill Reference Profile",
+        "Give general educational context about the named skill. Do not invent taxonomy definitions, relationships, measurements, sources, or platform findings."
+    ),
     "skill_future_relevance_score": FeatureAnswerPolicy(
         "skill", "run_future_relevance_score", "Historical and technology adoption signals are available.",
         True, False, "explanation", "Skill Future Relevance Score",
@@ -46,6 +56,11 @@ FEATURE_ANSWER_POLICIES: dict[str, FeatureAnswerPolicy] = {
         False, True, "comparison", "Skill-Based Job Match",
         "Compare a user's skills with requirements in retrieved job postings and explain matches and skill gaps."
     ),
+    "job_verified_postings": FeatureAnswerPolicy(
+        "job", "run_verified_postings", "Verified job postings were retrieved.",
+        False, True, "explanation", "Verified Job Postings",
+        "Explain only retrieved job postings and fields supplied by their records. Do not invent postings, links, salaries, company details, or market metrics; identify unavailable fields."
+    ),
     "career_transition_opportunity": FeatureAnswerPolicy(
         "job", "run_transition_opportunity", "Current or target role and reference mappings are available.",
         True, False, "roadmap", "Career Transition Opportunity",
@@ -59,4 +74,3 @@ def get_feature_answer_policy(capability_id: str, domain: str | None = None) -> 
     from app.intelligence_v2.capability_registry import canonical_capability_id
     cap = canonical_capability_id(capability_id, domain)
     return FEATURE_ANSWER_POLICIES.get(cap)
-

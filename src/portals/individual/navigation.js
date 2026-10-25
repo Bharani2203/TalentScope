@@ -10,7 +10,7 @@ export const individualNavigation = [
     { label: 'Market Insights', icon: 'chart-no-axes-combined', route: '/individual/market-insights' }
   ] },
   { label: 'Workspace', items: [
-    { label: 'AI Assistant', icon: 'sparkles', route: '/individual/ai-assistant' },
-    { label: 'Notifications', icon: 'bell', route: '/individual/notifications' }
+    { label: 'Notifications', icon: 'bell', route: '/individual/notifications' },
+    { label: 'AI Assistant', icon: 'sparkles', route: '/individual/ai-assistant' }
   ] }
 ];

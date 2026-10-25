@@ -45,9 +45,11 @@ class FirestoreCompanyWorkforceStore:
         expected_owner_uid: str,
     ) -> CompanyWorkforceSnapshot:
         try:
+            from app.storage.firestore_read_guard import read_guard
             client = self._firestore_client or get_firestore_client()
             company_ref = client.collection("companies").document(company_id)
             company = company_ref.get().to_dict() or {}
+            read_guard.record_read("companies", 1, query_type="targeted_workforce_company")
             if (
                 company.get("status") != "active"
                 or company.get("owner_uid") != expected_owner_uid
@@ -57,6 +59,7 @@ class FirestoreCompanyWorkforceStore:
                 )
 
             owner = client.collection("users").document(expected_owner_uid).get().to_dict() or {}
+            read_guard.record_read("users", 1, query_type="targeted_workforce_owner")
             if (
                 owner.get("user_type") != "company"
                 or owner.get("company_id") != company_id
@@ -84,6 +87,7 @@ class FirestoreCompanyWorkforceStore:
                 .limit(self.MAX_MEMBERS + 1)
             )
             member_records = list(members_query.stream())
+            read_guard.record_read("companies.members", len(member_records), query_type="targeted_workforce_members")
             truncated = len(member_records) > self.MAX_MEMBERS
             member_records = member_records[:self.MAX_MEMBERS]
 
@@ -111,6 +115,7 @@ class FirestoreCompanyWorkforceStore:
                 employee = (
                     client.collection("users").document(member_uid).get().to_dict() or {}
                 )
+                read_guard.record_read("users", 1, query_type="targeted_workforce_employee")
                 connection = employee.get("company_connection")
                 if (
                     employee.get("user_type") != "employee"

@@ -44,10 +44,12 @@ class FirestoreRawArchiveBackend:
         )
 
     def write_complete(self, archive_id: str, metadata: dict[str, Any], payload: bytes) -> None:
+        from app.storage.firestore_read_guard import read_guard
         collection = self._collection()
         metadata_ref = collection.document(archive_id)
         expected = {**metadata, "archive_id": archive_id}
         snapshot = metadata_ref.get()
+        read_guard.record_read("raw_provider_responses", 1, query_type="targeted_archive_metadata")
 
         if getattr(snapshot, "exists", False):
             existing = snapshot.to_dict() or {}
@@ -72,6 +74,7 @@ class FirestoreRawArchiveBackend:
             # A retry may find chunks from an interrupted write. Keep matching chunks,
             # replace missing ones, and remove only extra children of this archive.
             existing_chunks = {doc.id: doc for doc in chunk_collection.stream()}
+            read_guard.record_read("raw_provider_responses.chunks", len(existing_chunks), query_type="targeted_archive_chunks")
             expected_ids = {f"{index:08d}" for index in range(len(chunks))}
             stale_refs = [doc.reference for doc_id, doc in existing_chunks.items() if doc_id not in expected_ids]
             self._delete_refs(stale_refs)
@@ -100,6 +103,7 @@ class FirestoreRawArchiveBackend:
                     batch.commit()
 
             stored_chunks = list(chunk_collection.stream())
+            read_guard.record_read("raw_provider_responses.chunks", len(stored_chunks), query_type="targeted_archive_verify")
             if len(stored_chunks) != len(chunks):
                 raise RawArchiveError("Raw response archive chunk count verification failed.")
             reconstructed = self._reconstruct_chunks(stored_chunks, len(chunks))
@@ -118,8 +122,10 @@ class FirestoreRawArchiveBackend:
             raise RawArchiveError("Provider response archive could not be stored.") from None
 
     def read_complete(self, archive_id: str) -> tuple[dict[str, Any], bytes]:
+        from app.storage.firestore_read_guard import read_guard
         metadata_ref = self._collection().document(archive_id)
         snapshot = metadata_ref.get()
+        read_guard.record_read("raw_provider_responses", 1, query_type="targeted_archive_metadata")
         if not getattr(snapshot, "exists", False):
             raise RawArchiveError("Raw response archive was not found.")
         metadata = snapshot.to_dict() or {}
@@ -131,6 +137,7 @@ class FirestoreRawArchiveBackend:
         if not isinstance(chunk_count, int) or isinstance(chunk_count, bool) or chunk_count < 1:
             raise RawArchiveError("Raw response archive metadata is invalid.")
         chunks = list(metadata_ref.collection("chunks").stream())
+        read_guard.record_read("raw_provider_responses.chunks", len(chunks), query_type="targeted_archive_chunks")
         payload = self._reconstruct_chunks(chunks, chunk_count)
         if len(payload) != metadata.get("size_bytes"):
             raise RawArchiveError("Raw response archive size verification failed.")
@@ -139,14 +146,18 @@ class FirestoreRawArchiveBackend:
         return metadata, payload
 
     def delete(self, archive_id: str) -> None:
+        from app.storage.firestore_read_guard import read_guard
         metadata_ref = self._collection().document(archive_id)
         snapshot = metadata_ref.get()
+        read_guard.record_read("raw_provider_responses", 1, query_type="targeted_archive_metadata")
         if not getattr(snapshot, "exists", False):
             return
         metadata = snapshot.to_dict() or {}
         if metadata.get("archive_id") != archive_id:
             raise RawArchiveError("Raw response archive identity verification failed.")
-        self._delete_refs([doc.reference for doc in metadata_ref.collection("chunks").stream()])
+        chunk_refs = list(metadata_ref.collection("chunks").stream())
+        read_guard.record_read("raw_provider_responses.chunks", len(chunk_refs), query_type="targeted_archive_chunks")
+        self._delete_refs([doc.reference for doc in chunk_refs])
         metadata_ref.delete()
 
     def _delete_refs(self, references: list[Any]) -> None:

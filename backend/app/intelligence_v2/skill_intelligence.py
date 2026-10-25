@@ -26,6 +26,7 @@ from app.intelligence_v2.contracts import (
     V2StructuredFact,
 )
 from app.intelligence_v2.evidence import V2EvidenceRetriever
+from app.intelligence_v2.occupation_names import normalize_occupation_name
 from app.intelligence_v2.reference_intelligence import (
     ReferenceTaxonomyLookupEngine,
     RelatedSkillsEngine,
@@ -537,9 +538,16 @@ class V2SkillIntelligenceEngine:
         entity_type: Literal["all", "skill", "occupation"] = "all",
         limit: int = 15,
         context: str | None = None,
+        exact_occupation: bool = False,
     ) -> SkillIntelligenceResult:
         """Execute canonical skill or occupation reference lookup with ambiguity handling."""
-        lookup_res = self.reference_lookup.lookup(query, entity_type=entity_type, limit=limit, context=context)
+        lookup_res = self.reference_lookup.lookup(
+            query,
+            entity_type=entity_type,
+            limit=limit,
+            context=context,
+            exact_occupation=exact_occupation,
+        )
         facts: list[V2StructuredFact] = []
         evidence = self.evidence_retriever.get_reference_taxonomy_evidence(query)
 
@@ -568,10 +576,25 @@ class V2SkillIntelligenceEngine:
         readiness: Literal["ready", "partial", "insufficient_data"] = (
             lookup_res.status if lookup_res.status in {"ready", "partial", "insufficient_data"} else "partial"
         )
+        headline = lookup_res.explanation
+        if exact_occupation and lookup_res.results:
+            resolved_occupation = next(
+                (item for item in lookup_res.results if item.entity_type == "occupation"),
+                None,
+            )
+            if (
+                resolved_occupation
+                and normalize_occupation_name(resolved_occupation.name)
+                != normalize_occupation_name(query)
+            ):
+                headline = (
+                    f"No exact match for {query}; showing {resolved_occupation.name}. "
+                    f"{headline}"
+                )
         return SkillIntelligenceResult(
             capability_id="skill_lookup",
             target_skill=query,
-            headline=lookup_res.explanation,
+            headline=headline,
             facts=facts,
             evidence=evidence,
             lookup_result=lookup_res,

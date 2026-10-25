@@ -118,16 +118,17 @@ def test_r3_selected_trend_feature_does_not_execute_an_unselected_learning_capab
     assert plan.plan_status == "requires_clarification"
 
 
-def test_r3_skill_domain_hiring_request_gets_job_domain_continuation(offline_planner):
+def test_r3_skill_domain_does_not_add_domain_switch_instruction(offline_planner):
     plan = offline_planner.create_plan(IntelligencePlanRequest(
         message="Which companies are hiring Python developers?",
         domain="skill",
         capability_id="trend_velocity_analysis",
     ))
 
+    assert plan.intent == "unsupported_or_unclear"
     assert plan.plan_status == "requires_clarification"
     assert plan.selected_capabilities == []
-    assert any("Switch to the Job domain" in question for question in plan.clarification_questions)
+    assert not any("Switch to the Job domain" in question for question in plan.clarification_questions)
 
 
 def test_r3_genuine_ambiguous_entity_still_requests_disambiguation(offline_planner):
@@ -218,6 +219,13 @@ def test_phase10_unified_question_routing_matrix(offline_planner, message, domai
         # This isolated planner intentionally has no O*NET reference database.
         assert plan.clarification_required is True
         assert plan.readiness_results[0].runtime_status == "insufficient_data"
+    elif message == "What is the Python skill in ESCO?":
+        # This fixture intentionally has no ESCO reference database, so it asks
+        # for the missing taxonomy entity instead of implying lookup succeeded.
+        assert plan.clarification_required is True
+    elif message == "Which skills appear in these job postings?" or capability == "action_recommendations":
+        # These handlers need a concrete search entity or target role.
+        assert plan.clarification_required is True
     else:
         assert plan.clarification_required is False
     assert len(plan.readiness_results) == 1

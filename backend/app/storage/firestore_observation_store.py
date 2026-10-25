@@ -25,9 +25,20 @@ _OBSERVATION_QUERY_PROBE_LIMIT = MAX_OBSERVATIONS_PER_QUERY + 1
 class ObservationBatch(list[MarketObservation]):
     """List-compatible observation result carrying whether its bounded query was complete."""
 
-    def __init__(self, observations=(), *, truncated: bool = False):
+    def __init__(
+        self,
+        observations=(),
+        *,
+        truncated: bool = False,
+        duplicate_count: int = 0,
+        excluded_old_postings: int = 0,
+        unknown_posted_at: int = 0,
+    ):
         super().__init__(observations)
         self.truncated = truncated
+        self.duplicate_count = duplicate_count
+        self.excluded_old_postings = excluded_old_postings
+        self.unknown_posted_at = unknown_posted_at
 
 
 def clear_observations_cache() -> None:
@@ -147,6 +158,7 @@ class FirestoreObservationStore:
         for doc_id, payload in pending.items():
             reference = collection.document(doc_id)
             snapshot = reference.get()
+            read_guard.record_read(self.collection_name, 1, query_type="targeted_upsert_check")
             if getattr(snapshot, "exists", False):
                 stored = snapshot.to_dict() or {}
                 if stored.get("observation_id") not in (None, doc_id):
@@ -202,6 +214,10 @@ class FirestoreObservationStore:
             for reference, payload in new_documents[offset:offset + 450]:
                 batch.set(reference, payload)
             batch.commit()
+
+        if new_documents:
+            from app.intelligence_v2.source_registry import invalidate_platform_counts_cache
+            invalidate_platform_counts_cache()
 
         # Invalidate cached reads when underlying dataset changes
         self._query_cache.clear()

@@ -6,6 +6,12 @@ capability registry, intent planning, domain execution, role actions, and adapte
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+
 import pytest
 from datetime import datetime, timezone
 from app.intelligence_v2.adapter import V2ExecutionOrchestratorAdapter
@@ -30,6 +36,50 @@ from app.models.execution_orchestrator import CoreIntelligenceAnswerRequest
 from app.models.reference_data import GitHubLanguageAdoption
 from app.models.skill_intelligence import MarketObservation
 from app.storage.reference_store import ReferenceDataStore
+
+
+@pytest.fixture(autouse=True)
+def _isolate_firestore(injected_empty_firestore):
+    return injected_empty_firestore
+
+
+def test_non_emulator_grpc_target_fails_loudly():
+    tests_dir = Path(__file__).parent
+    probe_dir = tests_dir / f"network_guard_probe_{uuid.uuid4().hex}"
+    probe_dir.mkdir()
+    probe_file = probe_dir / "test_blocked_target.py"
+    probe_file.write_text(
+        "import grpc\n"
+        "def test_blocked_target():\n"
+        "    grpc.insecure_channel('non-emulator.example:443')\n",
+        encoding="utf-8",
+    )
+    reports_dir = tests_dir.parent / ".test_reports"
+    reports_dir.mkdir(exist_ok=True)
+    output_path = reports_dir / "grpc-blocked-target-probe.log"
+    try:
+        child_env = os.environ.copy()
+        child_env["PYTHONDONTWRITEBYTECODE"] = "1"
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                "--tb=short", str(probe_file),
+            ],
+            cwd=tests_dir.parent,
+            env=child_env,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+        output = result.stdout + result.stderr
+        output_path.write_text(output, encoding="utf-8")
+        assert result.returncode != 0
+        assert "Outbound network blocked by pytest guard" in output
+        assert "non-emulator.example:443" in output
+    finally:
+        probe_file.unlink(missing_ok=True)
+        probe_dir.rmdir()
 
 
 # -----------------------------------------------------------------------------
@@ -220,6 +270,50 @@ def test_intent_planner_role_actions() -> None:
     intent = planner.plan("What actions should I take to learn Python?")
     assert intent.capability_id == "skill_action_recommendations"
     assert intent.target_skill == "Python"
+
+
+@pytest.mark.parametrize("message", ["asdfghjkl qwerty 12345", "what is the weather"])
+def test_unrecognized_v2_request_returns_clarification_without_capabilities(message: str) -> None:
+    orchestrator = object.__new__(V2Orchestrator)
+    orchestrator.intent_planner = V2IntentPlanner()
+    response = orchestrator.execute_request(CoreIntelligenceAnswerRequest(message=message))
+
+    assert response.execution_status == "requires_clarification"
+    assert response.plan_status == "requires_clarification"
+    assert response.planned_capabilities == []
+    assert response.capabilities_used == []
+    assert response.answer == "Would you like help with skills, jobs, market signals, or role information?"
+
+
+def test_v2_skill_comparison_clarifies_without_comparison_handler_with_mismatched_domain(monkeypatch) -> None:
+    class NoopConversations:
+        pass
+
+    orchestrator = V2Orchestrator(
+        store=ReferenceDataStore(read_only=True),
+        conversation_store=NoopConversations(),
+    )
+    executed_skills = []
+
+    def mock_trend(skill_name, geography="global"):
+        executed_skills.append(skill_name)
+        return None
+
+    monkeypatch.setattr(orchestrator.skill_engine, "run_demand_trends", mock_trend)
+    response = orchestrator.execute_request(CoreIntelligenceAnswerRequest(
+        message="Compare Python and Java",
+        domain="job",
+    ))
+
+    assert executed_skills == []
+    assert response.status == "not_applicable"
+    assert response.execution_status == "requires_clarification"
+    assert response.planned_capabilities == []
+    assert response.capabilities_used == []
+    assert response.facts == []
+    assert response.evidence == []
+    assert "direct skill comparisons are not supported yet" in response.answer.casefold()
+    assert "separate trend lookups for python and java" in response.answer.casefold()
 
 
 # -----------------------------------------------------------------------------

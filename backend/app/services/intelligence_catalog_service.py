@@ -777,10 +777,12 @@ def get_market_catalog(uid: str) -> dict[str, Any]:
     profile_company = None
     try:
         user_doc = get_firestore_client().collection("users").document(uid).get()
+        read_guard.record_read("users", 1, query_type="targeted_catalog_profile")
         profile = user_doc.to_dict() if user_doc.exists else {}
         company_id = (profile or {}).get("company_id")
         if company_id:
             company_doc = get_firestore_client().collection("companies").document(str(company_id)).get()
+            read_guard.record_read("companies", 1, query_type="targeted_catalog_company")
             record = company_doc.to_dict() if company_doc.exists else {}
             if record and record.get("owner_uid") == uid and record.get("status") == "active":
                 profile_company = {"id": str(company_id), "entity_id": f"registered_company:{company_id}", "name": record.get("company_name"), "entity_type": "registered_company", "evidence_type": "company_registration", "company_market_telemetry": False}
@@ -798,6 +800,7 @@ def get_market_catalog(uid: str) -> dict[str, Any]:
     favorite_ids: list[str] = []
     try:
         user_snapshot = get_firestore_client().collection("users").document(uid).get()
+        read_guard.record_read("users", 1, query_type="targeted_catalog_favourites")
         user_record = user_snapshot.to_dict() if user_snapshot.exists else {}
         preferences = (user_record or {}).get("preferences", {})
         stored_ids = preferences.get("favorite_market_entity_ids", []) if isinstance(preferences, dict) else []

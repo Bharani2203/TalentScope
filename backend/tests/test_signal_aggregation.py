@@ -54,7 +54,7 @@ def test_1_adzuna_demand_aggregation_with_denominator():
             fetch_run_id="run-1", series_id="adz:panel:demand:sql:v1",
         ),
     ]
-    # 3 distinct postings in same partition -> local denominator = 3.0
+    # Local sample size is retained, but a percentage is suppressed below n=20.
     signals = aggregate_market_signals(obs)
     assert len(signals) == 2
     py_signal = next(s for s in signals if s.canonical_name == "Python")
@@ -63,9 +63,37 @@ def test_1_adzuna_demand_aggregation_with_denominator():
     assert py_signal.raw_value == 2.0
     assert py_signal.observation_count == 2
     assert py_signal.denominator == 3.0
-    assert py_signal.normalized_value == round(2.0 / 3.0, 6)
-    assert py_signal.metric == "normalized_share"
-    assert py_signal.data_state == "ready"
+    assert py_signal.normalized_value is None
+    assert py_signal.metric == "raw_count"
+    assert py_signal.data_state == "insufficient_data"
+    assert any("below 20" in warning for warning in py_signal.warnings)
+
+
+def test_demand_denominator_uses_query_time_sample_and_deduplicates_rows():
+    now = datetime(2026, 10, 7, tzinfo=timezone.utc)
+    observations = [
+        MarketObservation(
+            id="dup-a", source="adzuna", skill="Python", signal_type="demand",
+            observed_at=now, period="2026-10", posting_id="p-1", value=1,
+            denominator=20, denominator_unit="job_postings",
+        ),
+        MarketObservation(
+            id="dup-b", source="adzuna", skill="Python", signal_type="demand",
+            observed_at=now, period="2026-10", posting_id="p-1", value=1,
+            denominator=20, denominator_unit="job_postings",
+        ),
+        MarketObservation(
+            id="py-2", source="adzuna", skill="Python", signal_type="demand",
+            observed_at=now, period="2026-10", posting_id="p-2", value=1,
+            denominator=20, denominator_unit="job_postings",
+        ),
+    ]
+    signal = aggregate_market_signals(observations)[0]
+    assert signal.raw_value == 2
+    assert signal.observation_count == 2
+    assert signal.denominator == 20
+    assert signal.normalized_value == 0.1
+    assert signal.metric == "normalized_share"
 
 
 def test_2_github_adoption_aggregation():

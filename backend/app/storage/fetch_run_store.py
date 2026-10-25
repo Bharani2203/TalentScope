@@ -115,7 +115,10 @@ class FirestoreFetchRunStore:
     def start(self, run_id: str, record: dict[str, Any]) -> None:
         document = self._collection().document(run_id)
         document.create(record)
+        from app.intelligence_v2.source_registry import invalidate_platform_counts_cache
+        invalidate_platform_counts_cache()
         snapshot = document.get()
+        read_guard.record_read(self.collection_name, 1, query_type="targeted_readback")
         stored = snapshot.to_dict() if getattr(snapshot, "exists", False) else None
         if not isinstance(stored, dict) or any(stored.get(key) != value for key, value in record.items()):
             raise RuntimeError("Fetch-run start read-back verification failed.")
@@ -125,7 +128,10 @@ class FirestoreFetchRunStore:
     def finish(self, run_id: str, record: dict[str, Any]) -> None:
         document = self._collection().document(run_id)
         document.update(record)
+        from app.intelligence_v2.source_registry import invalidate_platform_counts_cache
+        invalidate_platform_counts_cache()
         snapshot = document.get()
+        read_guard.record_read(self.collection_name, 1, query_type="targeted_readback")
         stored = snapshot.to_dict() if getattr(snapshot, "exists", False) else None
         if not isinstance(stored, dict) or any(stored.get(key) != value for key, value in record.items()):
             raise RuntimeError("Fetch-run completion read-back verification failed.")

@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import logging
 import hashlib
+import ipaddress
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Sequence
+from urllib.parse import urlsplit
 
 from fastapi import HTTPException
 
@@ -51,6 +53,7 @@ from app.models.execution_orchestrator import (
     SelectedEntityResolution,
     StructuredFact,
 )
+from app.models.assistant import AssistantSource
 from app.models.intent_planner import (
     IntelligencePlanRequest,
     IntelligencePlanResponse,
@@ -64,7 +67,8 @@ from app.services.capability_registry_service import (
 from app.services.entity_registry_service import EntityRegistryService
 from app.models.entity_registry import EntityResolutionRequest
 from app.services.intent_planner_service import IntentPlannerService
-from app.services.llm_explanation_service import LLMExplanationService
+from app.services.assistant_feature_registry import HANDLER_METHODS, INTENT_FEATURES
+from app.services.llm_explanation_service import GEMINI_DEGRADED_MESSAGE, LLMExplanationService
 from app.services.intelligence_contract_service import (
     capability_metric_results,
     fact_metric_results,
@@ -78,6 +82,46 @@ from app.storage.market_store import MarketDataStore
 from app.storage.reference_store import ReferenceDataStore
 
 logger = logging.getLogger(__name__)
+
+
+def _valid_application_url(value: str | None) -> bool:
+    """Accept only absolute HTTP(S) URLs with a syntactically valid host."""
+    if not value or any(character.isspace() for character in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname
+        if parsed.scheme.casefold() not in {"http", "https"} or not host:
+            return False
+        if parsed.username or parsed.password:
+            return False
+        if parsed.port is not None and not 1 <= parsed.port <= 65535:
+            return False
+        try:
+            ipaddress.ip_address(host)
+            return True
+        except ValueError:
+            if host.casefold() == "localhost":
+                return True
+            host = host.rstrip(".")
+            if len(host) > 253 or "." not in host:
+                return False
+            return all(
+                label and len(label) <= 63
+                and re.fullmatch(r"[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?", label)
+                for label in host.rstrip(".").split(".")
+            )
+    except ValueError:
+        return False
+
+
+def _feature_intent(feature_id: str, preferred_intent: str) -> str:
+    if feature_id in INTENT_FEATURES.get(preferred_intent, frozenset()):
+        return preferred_intent
+    return next(
+        (intent for intent, features in INTENT_FEATURES.items() if feature_id in features),
+        preferred_intent,
+    )
 
 
 def _offline_general_explanation(message: str) -> str | None:
@@ -110,7 +154,14 @@ def _offline_general_explanation(message: str) -> str | None:
         )
     return None
 
-_IDEMPOTENT_ANSWER_CACHE: dict[tuple[str, str, str], CoreIntelligenceAnswerResponse] = {}
+_IDEMPOTENT_ANSWER_CACHE: dict[tuple[str, str, str, str], CoreIntelligenceAnswerResponse] = {}
+
+
+def _answer_idempotency_key(
+    user_id: str, conversation_id: str, client_message_id: str, message: str
+) -> tuple[str, str, str, str]:
+    normalized_question = " ".join(message.casefold().split())
+    return user_id, conversation_id, client_message_id, normalized_question
 
 
 class DataSourceUnavailableError(RuntimeError):
@@ -154,14 +205,15 @@ class ExecutionOrchestratorService:
             reference_store=self.reference_store,
             db_path=self.db_path,
         )
-        self.intent_planner = intent_planner or IntentPlannerService(
-            entity_service=self.entity_service,
-            capability_service=self.capability_service,
-        )
         self.market_store = market_store or MarketDataStore(self.db_path)
         self.workforce_store = workforce_store or FirestoreCompanyWorkforceStore()
         self.conversation_store = conversation_store or ConversationStore.get_instance()
         self.llm_service = llm_service or LLMExplanationService()
+        self.intent_planner = intent_planner or IntentPlannerService(
+            entity_service=self.entity_service,
+            capability_service=self.capability_service,
+            llm_service=self.llm_service,
+        )
         self.job_searcher = job_searcher
         # Production intelligence reads follow the configured source of truth.
         # Unit tests must inject an explicit observation store.
@@ -169,26 +221,31 @@ class ExecutionOrchestratorService:
         if self.firestore_store is None and getattr(self.settings, "skill_intelligence_read_backend", "firestore") == "firestore":
             from app.storage.firestore_observation_store import FirestoreObservationStore
             self.firestore_store = FirestoreObservationStore()
+        # Denominator scans are shared across every skill query in this answer
+        # service instance (FastAPI creates the dependency per request).
+        self._posting_sample_stats_loaded = False
+        self._posting_sample_stats: dict[tuple[str, str, str, str], dict[str, int]] = {}
 
-        # Register capability execution handlers
+        # The registry is shared with planning and the public capability catalog.
         self._handler_registry: dict[str, Callable[..., tuple[list[StructuredFact], list[EvidenceItem], list[str]]]] = {
-            "entity_resolution": self._handle_entity_resolution,
-            "skill_technology_reference": self._handle_skill_technology_reference,
-            "occupation_lookup": self._handle_occupation_lookup,
-            "occupation_software_skills": self._handle_occupation_software_skills,
-            "related_occupations": self._handle_related_occupations,
-            "market_snapshot": self._handle_market_snapshot,
-            "historical_signal_retrieval": self._handle_historical_signal_retrieval,
-            "trend_velocity_analysis": self._handle_trend_velocity_analysis,
-            "skill_health_analysis": self._handle_skill_health_analysis,
-            "skill_half_life_analysis": self._handle_skill_half_life_analysis,
-            "skill_forecasting_half_life": self._handle_skill_demand_forecasting,
-            "evidence_provenance_retrieval": self._handle_evidence_provenance_retrieval,
-            "skill_gap_role_fit": self._handle_skill_gap_role_fit,
-            "action_recommendations": self._handle_action_recommendations,
-            "job_posting_search": self._handle_job_posting_search,
-            "company_intelligence": self._handle_company_intelligence,
+            capability_id: getattr(self, method_name)
+            for capability_id, method_name in HANDLER_METHODS.items()
         }
+
+    def _get_posting_sample_stats(self) -> dict[tuple[str, str, str, str], dict[str, int]]:
+        """Read job denominators at most once for this request-scoped service."""
+        if self._posting_sample_stats_loaded:
+            return self._posting_sample_stats
+        self._posting_sample_stats_loaded = True
+        try:
+            from app.services.job_storage_service import get_recent_posting_sample_stats
+            self._posting_sample_stats = get_recent_posting_sample_stats(
+                firestore_client=self.firestore_store.client,
+            )
+        except Exception as exc:
+            logger.warning("Job posting denominator lookup unavailable error_class=%s", type(exc).__name__)
+            self._posting_sample_stats = {}
+        return self._posting_sample_stats
 
     def _get_market_observations(
         self,
@@ -253,10 +310,78 @@ class ExecutionOrchestratorService:
             and (not source_key or observation.source.casefold().strip() == source_key)
             and (not signal_type or observation.signal_type == signal_type)
         ]
-        if getattr(observations, "truncated", False):
-            from app.storage.firestore_observation_store import ObservationBatch
-            return ObservationBatch(filtered, truncated=True)
-        return filtered
+        cutoff_90d = datetime.now(timezone.utc) - timedelta(days=90)
+        excluded_old_ids: set[str] = set()
+        unknown_posting_ids: set[str] = set()
+        duplicate_count = 0
+        deduplicated: list[MarketObservation] = []
+        seen_posting_skills: set[tuple[str, str, str]] = set()
+        denominator_keys: set[tuple[str, str, str, str]] = set()
+        for observation in filtered:
+            is_job_demand = observation.signal_type == "demand" and observation.source.casefold() in {
+                "jsearch", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters",
+            }
+            if is_job_demand and observation.posting_id and observation.period:
+                denominator_keys.add((
+                    observation.source.casefold(), observation.period,
+                    observation.scope, (observation.location or "").casefold().strip(),
+                ))
+            if is_job_demand:
+                posted_at = observation.provider_posted_at
+                if posted_at is None:
+                    unknown_posting_ids.add(str(observation.posting_id or observation.id or "unknown"))
+                    continue
+                if (posted_at.replace(tzinfo=timezone.utc) if posted_at.tzinfo is None else posted_at.astimezone(timezone.utc)) < cutoff_90d:
+                    excluded_old_ids.add(str(observation.posting_id or observation.id or "unknown"))
+                    continue
+            if observation.posting_id and observation.period:
+                identity = (
+                    str(observation.posting_id).casefold(),
+                    observation.skill.casefold().strip(),
+                    observation.period,
+                )
+                if identity in seen_posting_skills:
+                    duplicate_count += 1
+                    continue
+                seen_posting_skills.add(identity)
+            deduplicated.append(observation)
+
+        excluded_old = len(excluded_old_ids)
+        unknown_date = len(unknown_posting_ids)
+        if deduplicated and self.firestore_store is not None and request_obs is None:
+            from app.storage.firestore_observation_store import FirestoreObservationStore
+            if isinstance(self.firestore_store, FirestoreObservationStore):
+                stats = self._get_posting_sample_stats()
+                if stats:
+                    for index, observation in enumerate(deduplicated):
+                        if observation.signal_type != "demand" or observation.source.casefold() not in {
+                            "jsearch", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters",
+                        }:
+                            continue
+                        key = (
+                            observation.source.casefold(),
+                            observation.period or "",
+                            observation.scope,
+                            (observation.location or "").casefold().strip(),
+                        )
+                        sample = stats.get(key)
+                        if sample and sample["recent"] > 0:
+                            deduplicated[index] = observation.model_copy(update={
+                                "denominator": float(sample["recent"]),
+                                "denominator_unit": "job_postings",
+                            })
+                    if denominator_keys:
+                        excluded_old = sum(stats.get(key, {}).get("older_than_90_days", 0) for key in denominator_keys)
+                        unknown_date = sum(stats.get(key, {}).get("date_unknown", 0) for key in denominator_keys)
+
+        from app.storage.firestore_observation_store import ObservationBatch
+        return ObservationBatch(
+            deduplicated,
+            truncated=bool(getattr(observations, "truncated", False)),
+            duplicate_count=duplicate_count,
+            excluded_old_postings=excluded_old,
+            unknown_posted_at=unknown_date,
+        )
 
     @staticmethod
     def _extract_question_country(message: str) -> str | None:
@@ -273,6 +398,18 @@ class ExecutionOrchestratorService:
         )
         if country_match:
             return country_match.group(1)
+
+    @staticmethod
+    def _company_query_from_message(message: str) -> str | None:
+        match = re.search(
+            r"\b(?:tell me about|information about|details for|profile for|address for)\s+(?:the\s+)?(.+?)\s*(?:company|employer)?[?.!]*$",
+            message,
+            re.IGNORECASE,
+        )
+        if not match:
+            return None
+        value = re.sub(r"\s+(?:company|employer)$", "", match.group(1), flags=re.IGNORECASE).strip(" .?!")
+        return value[:160] or None
 
     @staticmethod
     def _extract_trend_question_location(message: str) -> str | None:
@@ -369,11 +506,28 @@ class ExecutionOrchestratorService:
                 and observation.history_type == "platform_collected"
                 and observation.skill_id
             ]
-            if getattr(observations, "truncated", False):
-                from app.storage.firestore_observation_store import ObservationBatch
-                observations = ObservationBatch(market_observations, truncated=True)
-            else:
-                observations = market_observations
+            from app.storage.firestore_observation_store import ObservationBatch
+            observations = ObservationBatch(
+                market_observations,
+                truncated=bool(getattr(observations, "truncated", False)),
+                duplicate_count=int(getattr(observations, "duplicate_count", 0)),
+                excluded_old_postings=int(getattr(observations, "excluded_old_postings", 0)),
+                unknown_posted_at=int(getattr(observations, "unknown_posted_at", 0)),
+            )
+        demand_sample_sizes: dict[tuple[str, str], int] = {}
+        for observation in observations:
+            if observation.signal_type == "demand" and observation.denominator:
+                key = (observation.period or "unknown", observation.source.casefold())
+                demand_sample_sizes[key] = max(demand_sample_sizes.get(key, 0), int(observation.denominator))
+        plan.context_summary["_demand_sample_sizes"] = [
+            {"period": period, "source": source_name, "n": sample_size}
+            for (period, source_name), sample_size in sorted(demand_sample_sizes.items())
+        ]
+        plan.context_summary["_demand_exclusions"] = {
+            "older_than_90_days": int(getattr(observations, "excluded_old_postings", 0)),
+            "date_unknown": int(getattr(observations, "unknown_posted_at", 0)),
+            "duplicate_observations": int(getattr(observations, "duplicate_count", 0)),
+        }
         analysis = analyze_market_observations(observations)
         if not isinstance(cached_results, dict):
             cached_results = {}
@@ -486,13 +640,15 @@ class ExecutionOrchestratorService:
         authenticated_user: AuthenticatedUser | None = None,
     ) -> CoreIntelligenceAnswerResponse:
         """Execute the end-to-end intelligence query flow and return a validated response."""
+        if request.domain == "auto":
+            request = request.model_copy(update={"domain": None})
         request_id = f"ans_{uuid.uuid4().hex[:12]}"
         portal_type = request.portal_type or "individual"
 
         # 0. Conversation Isolation Access Guard & Idempotency Check
         user_id = authenticated_user.uid if authenticated_user else "anonymous"
         user_company_id = getattr(authenticated_user, "company_id", None) if authenticated_user else request.company_id
-        if not request.conversation_id and request.domain:
+        if not request.conversation_id:
             created_conv = self.conversation_store.create_conversation(
                 user_id=user_id,
                 portal_type=portal_type,
@@ -509,34 +665,204 @@ class ExecutionOrchestratorService:
                 company_id=user_company_id,
             )
             if not allowed:
-                return CoreIntelligenceAnswerResponse(
+                is_missing = deny_reason == "conversation_not_found"
+                if is_missing:
+                    reason_code = "missing_document"
+                elif deny_reason == "conversation_lookup_error" or "could not be verified" in str(deny_reason).lower():
+                    reason_code = "lookup_error"
+                elif deny_reason == "conversation_company_mismatch" or "different company" in str(deny_reason).lower():
+                    reason_code = "company_mismatch"
+                else:
+                    reason_code = "owner_mismatch"
+                logger.warning("conversation_access_denied reason_code=%s", reason_code)
+                raise HTTPException(
+                    status_code=404 if is_missing else 403,
+                    detail="Conversation not found." if is_missing else "Access denied to conversation.",
+                )
+
+        # Read clarification state from the already loaded conversation object.
+        # It is persisted with the ordinary save_turn write below.
+        conversation_state = None
+        if request.conversation_id:
+            conversation_state = self.conversation_store.get_conversation(
+                request.conversation_id,
+                user_id=user_id,
+                company_id=user_company_id,
+            )
+        stored_session_state = dict(conversation_state.session_state or {}) if conversation_state else {}
+        active_clarification = stored_session_state.get("job_clarification")
+        from app.services.question_classification_service import (
+            classify_question, clarification_question, extract_location, extract_role,
+            extract_technology, extract_experience_level, merge_follow_up, missing_job_slot, quick_reply_options,
+            merged_search_query, next_clarification_round,
+        )
+        question_class = classify_question(request.message, active_clarification)
+        aggregate_for_slots: dict[str, Any] | None = None
+
+        def get_slot_aggregate() -> dict[str, Any]:
+            nonlocal aggregate_for_slots
+            if aggregate_for_slots is None:
+                from app.services.collected_posting_skills_service import get_collected_posting_skills
+                aggregate_for_slots = get_collected_posting_skills(
+                    firestore_client=self.firestore_store.client if self.firestore_store is not None else None,
+                )
+            return aggregate_for_slots
+
+        def persist_session_state(value: dict[str, Any]) -> None:
+            request._session_state_update = value
+
+        if question_class == "OFF-TOPIC":
+            persist_session_state({})
+            response = CoreIntelligenceAnswerResponse(
+                request_id=request_id,
+                user_message=request.message,
+                portal_type=portal_type,
+                domain="skill",
+                intent="off_topic",
+                plan_status="ready_to_execute",
+                execution_status="completed",
+                status="ready",
+                answer="I can help with skills, job postings, and market signals. What would you like to explore?",
+                answer_block={
+                    "verdict": "I can help with skills, job postings, and market signals.",
+                    "summary": "What would you like to explore?",
+                },
+                limitations=[],
+                reason_codes=["OFF_TOPIC_SCOPE_BOUNDARY"],
+                follow_up_questions=[],
+                conversation_id=request.conversation_id,
+                client_message_id=request.client_message_id,
+            )
+            self._record_conversation_turn(request, None, response, authenticated_user, portal_type)
+            return response
+
+        if question_class == "TOO BROAD":
+            base_slots = {
+                "role": extract_role(request.message),
+                "location": extract_location(request.message),
+                "technology": extract_technology(request.message, []),
+                "experience_level": extract_experience_level(request.message),
+            }
+            missing = missing_job_slot(base_slots) or "location"
+            next_state = {
+                "active": True,
+                "original_query": request.message,
+                "slots": base_slots,
+                "pending_slot": missing,
+                "round_count": 1,
+            }
+            aggregate = get_slot_aggregate()
+            question = clarification_question(missing, base_slots.get("role"))
+            options = quick_reply_options(missing, aggregate)
+            persist_session_state({**stored_session_state, "job_clarification": next_state})
+            response = CoreIntelligenceAnswerResponse(
+                request_id=request_id,
+                user_message=request.message,
+                portal_type=portal_type,
+                domain="job",
+                intent="search_jobs",
+                plan_status="requires_clarification",
+                execution_status="requires_clarification",
+                status="insufficient_data",
+                answer=question,
+                answer_block={
+                    "verdict": question,
+                    "summary": "Choose a stored option or use an escape option.",
+                    "clarification": {
+                        "classification": "TOO BROAD",
+                        "slot": missing,
+                        "round_count": 1,
+                        "options": options,
+                    },
+                },
+                limitations=["Quick-reply values are drawn from collected stored postings."],
+                reason_codes=["JOB_SEARCH_NEEDS_ONE_CONSTRAINT"],
+                follow_up_questions=[question],
+                conversation_id=request.conversation_id,
+                client_message_id=request.client_message_id,
+            )
+            self._record_conversation_turn(request, None, response, authenticated_user, portal_type)
+            return response
+
+        if question_class == "FOLLOW-UP" and active_clarification:
+            aggregate = get_slot_aggregate()
+            slots, escape_requested = merge_follow_up(
+                active_clarification,
+                request.message,
+                known_skills=[str(row.get("skill")) for row in aggregate.get("skill_counts", [])],
+            )
+            answer_all = request.message.strip().casefold() in {"show everything", "show all", "everything", "all"}
+            if answer_all:
+                slots["location"] = None
+                slots["technology"] = None
+            missing = missing_job_slot(slots)
+            round_count = int(active_clarification.get("round_count") or 1)
+            next_round = next_clarification_round(round_count, missing, escape_requested)
+            if next_round is not None:
+                next_state = {
+                    **active_clarification,
+                    "active": True,
+                    "slots": slots,
+                    "pending_slot": missing,
+                    "round_count": next_round,
+                }
+                question = clarification_question(missing, slots.get("role"))
+                persist_session_state({**stored_session_state, "job_clarification": next_state})
+                response = CoreIntelligenceAnswerResponse(
                     request_id=request_id,
                     user_message=request.message,
                     portal_type=portal_type,
-                    intent="unknown",
-                    plan_status="blocked",
-                    execution_status="blocked",
-                    status="error",
-                    answer="Access denied to conversation.",
-                    facts=[],
-                    evidence=[],
-                    capabilities_used=[],
-                    limitations=["The requested conversation is unavailable or access is not authorized."],
-                    reason_codes=["UNAUTHORIZED_CONVERSATION_ACCESS"],
-                    follow_up_questions=[],
-                    follow_up_suggestions=[],
-                    conversation_id=None,
+                    domain="job",
+                    intent="search_jobs",
+                    plan_status="requires_clarification",
+                    execution_status="requires_clarification",
+                    status="insufficient_data",
+                    answer=question,
+                    answer_block={
+                        "verdict": question,
+                        "summary": "One more detail will help narrow the stored postings.",
+                        "clarification": {
+                            "classification": "TOO BROAD",
+                            "slot": missing,
+                            "round_count": next_round,
+                            "options": quick_reply_options(missing, aggregate),
+                        },
+                    },
+                    limitations=["Quick-reply values are drawn from collected stored postings."],
+                    reason_codes=["JOB_SEARCH_NEEDS_ONE_CONSTRAINT"],
+                    follow_up_questions=[question],
+                    conversation_id=request.conversation_id,
                     client_message_id=request.client_message_id,
                 )
+                self._record_conversation_turn(request, None, response, authenticated_user, portal_type)
+                return response
+
+            # Slot answer, Skip, Show everything, or turn three: execute a best-effort search.
+            request = request.model_copy(update={
+                "target_role": slots.get("role"),
+                "selected_roles": [slots["role"]] if slots.get("role") else [],
+                "location": slots.get("location"),
+                "technology": slots.get("technology"),
+                "selected_skills": [slots["technology"]] if slots.get("technology") else [],
+            })
+            request._session_state_update = {
+                **stored_session_state,
+                "job_clarification": {"active": False, "slots": slots, "round_count": round_count},
+            }
+            request._merged_job_search_query = merged_search_query(slots)
+        elif active_clarification:
+            persist_session_state({**stored_session_state, "job_clarification": {"active": False}})
 
             if request.client_message_id and not request.regenerate:
-                cache_key = (user_id, request.conversation_id, request.client_message_id)
+                cache_key = _answer_idempotency_key(
+                    user_id, request.conversation_id, request.client_message_id, request.message
+                )
                 if cache_key in _IDEMPOTENT_ANSWER_CACHE:
                     return _IDEMPOTENT_ANSWER_CACHE[cache_key]
 
         # 1. Intent Resolver + Context Planner
         plan_req = IntelligencePlanRequest(
-            message=request.message,
+            message=request._merged_job_search_query or request.message,
             portal_type=request.portal_type,
             domain=request.domain,
             capability_id=request.capability_id,
@@ -569,6 +895,33 @@ class ExecutionOrchestratorService:
             plan = self.intent_planner.create_plan(
                 plan_req, authenticated_user=authenticated_user
             )
+
+        if plan.intent == "platform_help":
+            response = self._platform_help_response(request, plan, portal_type)
+            self._record_conversation_turn(request, plan, response, authenticated_user, portal_type)
+            return response
+
+        job_follow_up_kind = self._job_follow_up_kind(request.message)
+        job_follow_up_intents = {
+            "search_jobs",
+            "aggregate_posting_skills",
+            "company_postings_summary",
+        }
+        has_prior_turns = bool(conversation_state and conversation_state.turns)
+        should_handle_saved_job_follow_up = bool(
+            job_follow_up_kind
+            and request.conversation_id
+            and (
+                plan.intent in job_follow_up_intents
+                or (plan.intent == "unsupported_or_unclear" and has_prior_turns)
+            )
+        )
+        if should_handle_saved_job_follow_up:
+            follow_up_response = self._answer_saved_job_follow_up(
+                request, plan, authenticated_user, portal_type, job_follow_up_kind,
+            )
+            self._record_conversation_turn(request, plan, follow_up_response, authenticated_user, portal_type)
+            return follow_up_response
 
         if plan.intent == "retrieve_evidence" and request.conversation_id:
             conv_state = self.conversation_store.get_conversation(
@@ -614,6 +967,20 @@ class ExecutionOrchestratorService:
                     request, plan, response, authenticated_user, portal_type
                 )
                 return response
+
+        if self._looks_like_combined_question(request.message) and len(plan.selected_capabilities) != 2:
+            clarification = CoreIntelligenceAnswerResponse(
+                request_id=request_id, user_message=request.message, portal_type=portal_type,
+                intent="unsupported_or_unclear", plan_status="requires_clarification",
+                execution_status="clarification_required", status="insufficient_data",
+                answer="I can answer this in two evidence-backed parts, but I could not safely identify both requests. Which two should I handle?",
+                limitations=["No handler was run because the combined request could not be split safely."],
+                reason_codes=["COMBINED_QUESTION_NEEDS_CLARIFICATION"],
+                follow_up_questions=["Please name the two parts you want answered."],
+                conversation_id=request.conversation_id, client_message_id=request.client_message_id,
+            )
+            self._record_conversation_turn(request, plan, clarification, authenticated_user, portal_type)
+            return clarification
             if (
                 last_turn
                 and last_turn.intent == "analyze_company_workforce"
@@ -1079,10 +1446,24 @@ class ExecutionOrchestratorService:
                         general_knowledge=True,
                     )
             except Exception as exc:
-                logger.debug("General explanation generation skipped/fallback: %s", type(exc).__name__)
+                logger.warning("Gemini general explanation failed error_class=%s", type(exc).__name__)
+                try:
+                    self.llm_service.last_error_class = "provider_error"
+                    self.llm_service.last_provider_error_class = "provider_error"
+                except Exception:
+                    pass
             used_provider = bool(general_text)
+            provider_failure = getattr(self.llm_service, "last_provider_error_class", None)
+            exhausted_provider = bool(
+                provider_failure
+                and provider_failure not in {"offline", "missing_api_key", "no_grounding_facts"}
+            )
             if not general_text:
-                general_text = _offline_general_explanation(request.message)
+                general_text = (
+                    GEMINI_DEGRADED_MESSAGE
+                    if exhausted_provider
+                    else _offline_general_explanation(request.message)
+                )
             if general_text:
                 resp = CoreIntelligenceAnswerResponse(
                     request_id=request_id,
@@ -1091,20 +1472,27 @@ class ExecutionOrchestratorService:
                     domain=request.domain,
                     intent=plan.intent,
                     plan_status="ready_to_execute",
-                    execution_status="completed",
-                    status="ready",
+                    execution_status="failed" if exhausted_provider else "completed",
+                    status="unavailable" if exhausted_provider else "ready",
                     answer=(
                         ("General AI explanation (not a TalentScope data finding): " + general_text)
                         if used_provider
+                        else general_text if exhausted_provider
                         else "General explanation (offline fallback; not a TalentScope data finding): " + general_text
                     ),
                     answer_origin=("gemini" if used_provider else "deterministic"),
+                    degraded=(not used_provider or exhausted_provider),
+                    degraded_reason=(None if used_provider else (getattr(self.llm_service, "last_error_class", None) or "unavailable")),
                     facts=[],
                     evidence=[],
                     planned_capabilities=[],
                     capabilities_used=[],
-                    limitations=["This is general knowledge, not a measured TalentScope market or hiring result."],
-                    reason_codes=["GENERAL_KNOWLEDGE_EXPLANATION"],
+                    limitations=(
+                        ["Gemini providers failed after bounded retries; no analysis was generated."]
+                        if exhausted_provider
+                        else ["This is general knowledge, not a measured TalentScope market or hiring result."]
+                    ),
+                    reason_codes=["GEMINI_PROVIDERS_UNAVAILABLE" if exhausted_provider else "GENERAL_KNOWLEDGE_EXPLANATION"],
                     conversation_id=request.conversation_id,
                     client_message_id=request.client_message_id,
                 )
@@ -1579,6 +1967,7 @@ class ExecutionOrchestratorService:
         evidence: list[EvidenceItem] = []
         limitations: list[str] = list(plan.limitations)
         capabilities_used: list[str] = []
+        handler_results: list[tuple[str, str, list[StructuredFact], list[EvidenceItem]]] = []
 
         try:
             for cap_id in executable_caps:
@@ -1586,12 +1975,22 @@ class ExecutionOrchestratorService:
                 if not handler:
                     limitations.append(f"Handler for registered capability '{cap_id}' is not yet mounted.")
                     continue
-
-                cap_facts, cap_evidence, cap_limits = handler(request, plan)
+                handler_intent = _feature_intent(cap_id, plan.intent)
+                handler_plan = plan.model_copy(update={"intent": handler_intent})
+                try:
+                    cap_facts, cap_evidence, cap_limits = handler(request, handler_plan)
+                except (DataSourceUnavailableError, Exception) as exc:
+                    if len(executable_caps) < 2:
+                        raise
+                    limitations.append(
+                        f"Missing source for {handler_intent.replace('_', ' ')}: {type(exc).__name__}."
+                    )
+                    continue
                 facts.extend(cap_facts)
                 evidence.extend(cap_evidence)
                 limitations.extend(cap_limits)
                 capabilities_used.append(cap_id)
+                handler_results.append((cap_id, handler_intent, cap_facts, cap_evidence))
 
         except DataSourceUnavailableError as exc:
             logger.warning(
@@ -1655,14 +2054,43 @@ class ExecutionOrchestratorService:
             )
 
         # 8. Synthesize Grounded Natural Language Answer
-        answer_text = self._synthesize_answer(plan.intent, facts, evidence, capabilities_used, request, plan=plan)
+        combined_answer = len(handler_results) > 1
+        if combined_answer:
+            parts = []
+            for index, (cap_id, handler_intent, part_facts, part_evidence) in enumerate(handler_results[:2], start=1):
+                if part_facts:
+                    part_text = self._synthesize_answer(
+                        handler_intent, part_facts, part_evidence, [cap_id], request,
+                        plan=plan.model_copy(update={"intent": handler_intent}),
+                    )
+                else:
+                    part_text = f"Missing source: no verified results were returned by {cap_id}."
+                parts.append(f"**Part {index} — {handler_intent.replace('_', ' ').title()}**\n\n{part_text}")
+            combined_prompt = (
+                "Synthesize the separately labelled evidence for this combined question. Keep the two parts and their "
+                "sources distinct, identify any missing source, and do not add facts. Original question: " + request.message
+            )
+            synthesis = None
+            try:
+                if self.llm_service.is_available():
+                    synthesis = self.llm_service.generate_grounded_explanation(
+                        user_message=combined_prompt, intent=plan.intent, facts=facts,
+                        evidence=evidence, portal_type=portal_type, user_id=user_id,
+                    )
+            except Exception as exc:
+                logger.warning("Gemini combined synthesis failed error_class=%s", type(exc).__name__)
+            answer_text = "\n\n".join(parts)
+            if synthesis:
+                answer_text += "\n\n**Synthesis**\n\n" + synthesis
+            else:
+                answer_text += "\n\n**Synthesis:** Cross-part synthesis is unavailable; the two evidence-backed parts are shown separately."
+        else:
+            answer_text = self._synthesize_answer(plan.intent, facts, evidence, capabilities_used, request, plan=plan)
+        answer_text = self._append_demand_sample_note(answer_text, facts, plan)
 
         # Optional LLM Grounded Explanation if available
         answer_origin = "deterministic"
-        if (
-            self.llm_service.is_available()
-            and plan.intent not in {"lookup_skill_reference", "explain_concept", "lookup_github_adoption"}
-        ):
+        if facts and not combined_answer:
             try:
                 llm_ans = self.llm_service.generate_grounded_explanation(
                     user_message=request.message,
@@ -1684,11 +2112,34 @@ class ExecutionOrchestratorService:
                         answer_text = llm_ans
                         answer_origin = "gemini"
             except Exception as exc:
-                logger.debug(
-                    "LLM explanation skipped request_id=%s error_type=%s",
+                logger.warning(
+                    "Gemini explanation failed request_id=%s error_class=%s",
                     request_id,
                     type(exc).__name__,
                 )
+                try:
+                    self.llm_service.last_error_class = "provider_error"
+                except Exception:
+                    pass
+        if answer_origin != "gemini" and facts:
+            answer_text = "**Deterministic fallback (Gemini unavailable):**\n\n" + answer_text
+            provider_failure = getattr(self.llm_service, "last_provider_error_class", None)
+            if provider_failure and provider_failure not in {"offline", "missing_api_key", "no_grounding_facts"}:
+                answer_text = GEMINI_DEGRADED_MESSAGE + "\n\n" + answer_text
+
+        if plan.intent == "aggregate_posting_skills":
+            aggregate = next((fact for fact in facts if fact.fact_type == "collected_posting_skills_summary"), None)
+            n = int(aggregate.metric_value) if aggregate else 0
+            from app.services.collected_posting_skills_service import format_collected_postings_disclosure
+            answer_text += "\n\n" + format_collected_postings_disclosure(n)
+
+        disclosures = list(dict.fromkeys(
+            str(fact.details.get("mapping_disclosure"))
+            for fact in facts
+            if fact.details.get("mapping_disclosure")
+        ))
+        if disclosures:
+            answer_text += "\n\nOccupation mapping: " + " ".join(disclosures)
 
         # 9. Deterministic Response Validation
         val_status, val_reasons = self._validate_response(
@@ -2042,9 +2493,11 @@ class ExecutionOrchestratorService:
         plan: IntelligencePlanResponse | None,
         authenticated_user: AuthenticatedUser | None,
     ) -> CoreIntelligenceAnswerResponse:
-        """Populate canonical status, applied/unapplied filters, capabilities, confidence, freshness, and source coverage."""
+        """Populate canonical status and additive conversational response metadata."""
+        assistant_fields = self._assistant_contract_fields(resp, request, plan)
         if resp.status in {"unavailable", "error"}:
             return resp.model_copy(update={
+                **assistant_fields,
                 "planned_primary_capability": plan.primary_capability if plan else None,
                 "executed_primary_capability": None,
                 "dependency_capabilities": list(plan.dependency_capabilities) if plan else [],
@@ -2054,7 +2507,13 @@ class ExecutionOrchestratorService:
         primary_ent = plan.context_summary.get("primary_entity") if plan else None
 
         # Applied vs Unapplied filters
-        effective_domain = request.domain or (request.filters.get("domain") if request.filters else None) or "skill"
+        from app.services.answer_block_service import infer_assistant_domain
+        filter_domain = request.filters.get("domain") if request.filters else None
+        effective_domain = (
+            request.domain if request.domain in {"skill", "market", "job"}
+            else filter_domain if filter_domain in {"skill", "market", "job"}
+            else infer_assistant_domain(plan.intent if plan else resp.intent)
+        )
         disclosure_suppressed = bool(
             plan and plan.intent in {"general_explanation", "explain_concept", "lookup_skill_reference"}
         )
@@ -2084,6 +2543,13 @@ class ExecutionOrchestratorService:
             else:
                 applied_filters["selected_companies"] = list(request.selected_companies)
 
+        if request.filters.get("country") and plan and plan.intent in {"search_jobs", "company_postings_summary"}:
+            applied_filters["country"] = request.filters["country"]
+        elif plan and plan.intent in {"search_jobs", "company_postings_summary"}:
+            applied_filters["country"] = self._extract_question_country(request.message) or "India (default stored market)"
+        if plan and plan.intent in {"search_jobs", "company_postings_summary"} and re.search(r"\bremote\b", request.message, re.IGNORECASE):
+            applied_filters["remote_mode"] = "remote (title/location evidence)"
+
         extra_limitations: list[str] = []
         if request.filters and not disclosure_suppressed:
             for fk, fv in request.filters.items():
@@ -2093,7 +2559,9 @@ class ExecutionOrchestratorService:
                 # request filters and should not produce a discarded-filter warning.
                 if fk in {"selected_feature", "selected_skills", "feature_id"}:
                     continue
-                if fk in {"salary_band", "seniority_level", "remote_mode", "visa_sponsorship"}:
+                if fk == "remote_mode" and fv == "remote" and plan and plan.intent in {"search_jobs", "company_postings_summary"}:
+                    applied_filters[fk] = "remote (title/location evidence)"
+                elif fk in {"salary_band", "seniority_level", "remote_mode", "visa_sponsorship"}:
                     unapplied_filters.append({
                         "filter": fk,
                         "value": str(fv),
@@ -2372,9 +2840,19 @@ class ExecutionOrchestratorService:
                 resolution_status=item.resolution_status,
             ))
 
+        from app.services.answer_block_service import build_answer_block
+        answer_block = build_answer_block(
+            intent=resp.intent,
+            user_message=resp.user_message,
+            answer=resp.answer,
+            facts=resp.facts,
+            evidence=resp.evidence,
+            limitations=merged_limitations,
+        )
         return resp.model_copy(
             update={
                 "domain": effective_domain,
+                "answer_block": answer_block,
                 "resolved_entity": primary_ent,
                 "selected_entities": resolved_selections,
                 "applied_filters": applied_filters,
@@ -2397,8 +2875,343 @@ class ExecutionOrchestratorService:
                 "limitations": merged_limitations,
                 "status": response_status,
                 "reason_codes": merged_reason_codes,
+                **assistant_fields,
             }
         )
+
+    def _assistant_contract_fields(
+        self,
+        resp: CoreIntelligenceAnswerResponse,
+        request: CoreIntelligenceAnswerRequest,
+        plan: IntelligencePlanResponse | None,
+    ) -> dict[str, Any]:
+        """Build conversational metadata from the plan and executed facts/evidence."""
+        degraded_reason = resp.degraded_reason or (plan.degraded_reason if plan else None)
+        degraded = resp.degraded or bool(plan and plan.degraded)
+        if resp.answer_origin != "gemini":
+            provider_reason = getattr(self.llm_service, "last_error_class", None)
+            if provider_reason and (
+                resp.facts or provider_reason == "usage_ledger_unavailable"
+            ):
+                degraded = True
+                degraded_reason = self._valid_degraded_reason(provider_reason)
+        if degraded and not degraded_reason:
+            degraded_reason = "unavailable"
+        elif degraded_reason:
+            degraded_reason = self._valid_degraded_reason(degraded_reason)
+
+        sources: list[AssistantSource] = []
+        seen: set[tuple[str, str, str]] = set()
+        items: list[tuple[str, str, str]] = []
+        for fact in resp.facts:
+            items.append((fact.source, str(fact.details.get("source_type", "")), f"{fact.metric_name}: {fact.metric_value}"))
+        for evidence in resp.evidence:
+            items.append((evidence.source, evidence.signal_type, evidence.description))
+        for label, type_hint, detail in items:
+            hint = f"{label} {type_hint} {resp.intent} {request.message}".casefold()
+            if "workforce" in hint or "company_intelligence" in hint:
+                source_type = "workforce"
+            elif any(token in hint for token in ("job_posting", "job posting", "jsearch", "adzuna", "vacancy")):
+                source_type = "job_posting"
+            elif any(token in hint for token in ("onet", "esco", "taxonomy", "occupation_reference")):
+                source_type = "taxonomy"
+            else:
+                source_type = "market_signal"
+            key = (source_type, label, detail)
+            if not label or key in seen:
+                continue
+            seen.add(key)
+            sources.append(AssistantSource(type=source_type, label=label, detail=detail[:500]))
+
+        intent = plan.intent if plan else resp.intent
+        entity = (plan.context_summary.get("primary_entity") if plan else None) or resp.resolved_entity
+        understood = (plan.understood if plan and plan.understood else "") or (
+            resp.understood
+            or f"I understand you’re asking about {intent.replace('_', ' ')} for {entity or 'your intelligence question'}."
+        )
+        return {
+            "understood": understood,
+            "secondary_intents": list(plan.secondary_intents) if plan else list(resp.secondary_intents),
+            "enough_data": bool(resp.facts) and resp.status in {"ready", "partial"},
+            "sources": sources,
+            "features_used": list(resp.capabilities_used),
+            "degraded": degraded,
+            "degraded_reason": degraded_reason,
+        }
+
+    @staticmethod
+    def _job_follow_up_kind(message: str) -> str | None:
+        normalized = message.casefold().strip()
+        if re.search(r"\b(?:what skills|which skills)\b.*\b(?:these|those|the) jobs\b|\bskills do these jobs require\b", normalized):
+            return "skills"
+        if re.search(r"\b(?:show|give|list|open)\b.*\b(?:application )?links?\b|\bshow the links\b", normalized):
+            return "links"
+        if re.search(r"\b(?:only|just|show|which|filter)\b.*\bremote\b|\bremote only\b", normalized):
+            return "remote"
+        if re.search(r"\b(?:which|show|only|filter)\b.*\b(?:in|from|around)\s+[a-z][a-z .'-]{1,40}", normalized):
+            return "city"
+        return None
+
+    @staticmethod
+    def _looks_like_combined_question(message: str) -> bool:
+        has_joiner = bool(re.search(r"\b(?:and|also|plus|as well as)\b", message, re.IGNORECASE))
+        has_job_part = bool(re.search(r"\b(?:jobs?|postings?|vacancies)\b", message, re.IGNORECASE))
+        has_other_part = bool(re.search(r"\b(?:skills?|trend|trends|market|adoption|role|occupation|company)\b", message, re.IGNORECASE))
+        return has_joiner and has_job_part and has_other_part
+
+    def _platform_help_response(
+        self,
+        request: CoreIntelligenceAnswerRequest,
+        plan: IntelligencePlanResponse,
+        portal_type: str,
+    ) -> CoreIntelligenceAnswerResponse:
+        available: list[str] = []
+        experimental: list[str] = []
+        planned: list[str] = []
+        for capability_id, record in CAPABILITY_CATALOG.items():
+            name = str(getattr(record, "name", capability_id))
+            status = str(getattr(record, "global_status", "unavailable"))
+            has_handler = capability_id in HANDLER_METHODS and bool(getattr(record, "handler", None))
+            if has_handler and status == "available":
+                available.append(name)
+            elif has_handler and status == "partial":
+                experimental.append(name)
+            else:
+                planned.append(name)
+        sections = [
+            "**Platform help (from the registered capability and handler catalogs):**",
+            "**Available:** " + (", ".join(sorted(available, key=str.casefold)) or "none recorded."),
+            "**Experimental or partial:** " + (", ".join(sorted(experimental, key=str.casefold)) or "none recorded."),
+            "**Planned or unavailable:** " + (", ".join(sorted(planned, key=str.casefold)) or "none recorded."),
+            "Availability of data-backed answers still depends on each capability's evidence and readiness checks.",
+        ]
+        return CoreIntelligenceAnswerResponse(
+            request_id=f"ans_{uuid.uuid4().hex[:12]}",
+            user_message=request.message,
+            portal_type=portal_type,
+            domain=None,
+            intent="platform_help",
+            plan_status="ready_to_execute",
+            execution_status="completed",
+            status="ready",
+            answer="\n\n".join(sections),
+            answer_origin="deterministic",
+            source_mode="platform_data",
+            facts=[],
+            evidence=[],
+            limitations=["This catalog describes registered capabilities; it does not assert that data is currently available."],
+            reason_codes=["REGISTRY_BACKED_PLATFORM_HELP"],
+            follow_up_questions=[],
+            conversation_id=request.conversation_id,
+            client_message_id=request.client_message_id,
+        )
+
+    def _answer_saved_job_follow_up(
+        self,
+        request: CoreIntelligenceAnswerRequest,
+        plan: IntelligencePlanResponse,
+        authenticated_user: AuthenticatedUser | None,
+        portal_type: str,
+        follow_up_kind: str,
+    ) -> CoreIntelligenceAnswerResponse:
+        user_id = authenticated_user.uid if authenticated_user else "anonymous"
+        company_id = getattr(authenticated_user, "company_id", None) if authenticated_user else request.company_id
+        state = self.conversation_store.get_conversation(
+            request.conversation_id or "", user_id=user_id, company_id=company_id,
+        )
+        prior_turn = next(
+            (turn for turn in reversed(state.turns) if turn.user_message != request.message),
+            None,
+        ) if state else None
+        prior_payload = prior_turn.response_payload if prior_turn else None
+        prior_facts = prior_payload.get("facts", []) if isinstance(prior_payload, dict) else []
+        posting_fact = next(
+            (fact for fact in prior_facts if isinstance(fact, dict) and fact.get("fact_type") == "stored_job_postings"),
+            None,
+        )
+        saved_postings = (posting_fact or {}).get("details", {}).get("postings", [])
+        request_id = f"ans_{uuid.uuid4().hex[:12]}"
+        if not isinstance(saved_postings, list) or not saved_postings:
+            response = CoreIntelligenceAnswerResponse(
+                request_id=request_id, user_message=request.message, portal_type=portal_type,
+                intent="search_jobs", plan_status="insufficient_data", execution_status="insufficient_data",
+                status="insufficient_data",
+                answer=("Saved job results are unavailable in this conversation, so I cannot safely apply that follow-up. "
+                        "Please run a new stored-posting search first."),
+                limitations=["No saved posting IDs and details were available; no new search was run."],
+                reason_codes=["SAVED_JOB_RESULTS_MISSING"],
+                conversation_id=request.conversation_id, client_message_id=request.client_message_id,
+            )
+            return response
+
+        postings = [item for item in saved_postings if isinstance(item, dict) and item.get("posting_id")]
+        missing_filter_evidence = 0
+        filter_label = "saved matching postings"
+        if follow_up_kind == "remote":
+            selected = []
+            for posting in postings:
+                title = str(posting.get("title") or "").strip()
+                location = str(posting.get("location") or "").strip()
+                if not title and not location:
+                    missing_filter_evidence += 1
+                if re.search(r"\bremote\b", f"{title} {location}", re.IGNORECASE):
+                    selected.append(posting)
+            postings = selected
+            filter_label = "postings with remote stated in the stored title or location"
+        elif follow_up_kind == "city":
+            from app.services.question_classification_service import LOCATION_ALIASES
+            city_match = re.search(r"\b(?:in|from|around)\s+([a-z][a-z .'-]{1,40})", request.message, re.IGNORECASE)
+            city = (city_match.group(1).strip(" .?!") if city_match else "")
+            city = re.split(r"\b(?:only|with|that|and|which)\b", city, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+            canonical_city = LOCATION_ALIASES.get(city.casefold(), city).casefold()
+            selected = []
+            for posting in postings:
+                location = str(posting.get("location") or "").strip()
+                if not location:
+                    missing_filter_evidence += 1
+                if canonical_city and canonical_city in location.casefold():
+                    selected.append(posting)
+            postings = selected
+            filter_label = f"postings whose stored location contains {city or 'the requested city'}"
+
+        evidence: list[EvidenceItem] = []
+        for posting in postings:
+            source = str(posting.get("source") or "stored_job_record")
+            posting_id = str(posting["posting_id"])
+            evidence.append(EvidenceItem(
+                evidence_id=posting_id, source=source, signal_type="saved_stored_job_posting",
+                data_origin=str((posting_fact or {}).get("data_origin") or "real"),
+                provenance_id=posting_id, quality="valid",
+                description=f"Saved posting {posting.get('title') or 'job'} at {posting.get('company') or 'company unavailable'}.",
+                source_url=posting.get("source_url") if _valid_application_url(posting.get("source_url")) else None,
+            ))
+
+        title_lines = [
+            f"- {item.get('title') or 'Title unavailable'} — {item.get('company') or 'Company unavailable'} — {item.get('location') or 'Location unavailable'}"
+            for item in postings[:20]
+        ]
+        if follow_up_kind == "skills":
+            counts: dict[str, int] = {}
+            for posting in postings:
+                extracted = extract_posting_skills({
+                    "title": posting.get("title"),
+                    "description": posting.get("summary") or "",
+                    "skills_raw": posting.get("required_skills") or [],
+                }, reference_store=self.reference_store)
+                seen_skills: set[str] = set()
+                for item in extracted:
+                    name = str(item.get("normalized_name") or item.get("name") or "").strip()
+                    key = name.casefold()
+                    if name and key not in seen_skills:
+                        counts[name] = counts.get(name, 0) + 1
+                        seen_skills.add(key)
+            n = len(postings)
+            rows = []
+            for name, count in sorted(counts.items(), key=lambda pair: (-pair[1], pair[0].casefold()))[:30]:
+                suffix = f" ({count}/{n} postings)"
+                if n >= 20:
+                    suffix += f" — {count * 100 / n:.1f}%"
+                rows.append(f"- {name}{suffix}")
+            answer = (
+                f"Skills extracted from the saved postings (n={n}):\n\n" + ("\n".join(rows) if rows else "No skills could be extracted from the saved descriptions and skill fields.")
+            )
+            if n < 20:
+                answer += "\n\nPercentages are omitted because n is below 20."
+        elif follow_up_kind == "links":
+            links = []
+            unavailable = 0
+            for posting in postings:
+                url = posting.get("source_url")
+                if _valid_application_url(url):
+                    links.append(f"- [{posting.get('title') or 'Application link'}]({url}) — {posting.get('company') or 'Company unavailable'}")
+                else:
+                    unavailable += 1
+            answer = "Saved application links:\n\n" + ("\n".join(links) if links else "No valid application links were saved for these postings.")
+            if unavailable:
+                answer += f"\n\nApplication link unavailable for {unavailable} saved posting(s)."
+        else:
+            answer = f"Found **{len(postings)}** {filter_label} from the previous saved results."
+            if title_lines:
+                answer += "\n\n" + "\n".join(title_lines)
+        if missing_filter_evidence:
+            answer += f"\n\n{missing_filter_evidence} saved posting(s) were excluded because the title/location evidence needed for this filter was missing."
+
+        saved_fact = StructuredFact(
+            fact_id=f"fact_saved_jobs_{len(postings)}_{hashlib.sha256(request.message.casefold().encode()).hexdigest()[:8]}",
+            fact_type="stored_job_postings", entity_name=None, canonical_entity_id=None,
+            entity_type=None, metric_name="saved_postings_after_follow_up", metric_value=len(postings),
+            denominator=len(postings), unit="postings", source="saved_conversation_response_payload",
+            data_origin=str((posting_fact or {}).get("data_origin") or "real"),
+            quality_state="valid", readiness_state="ready",
+            details={"postings": postings, "follow_up_kind": follow_up_kind, "saved_from_turn_id": prior_turn.turn_id if prior_turn else None},
+        )
+        response = CoreIntelligenceAnswerResponse(
+            request_id=request_id, user_message=request.message, portal_type=portal_type,
+            intent="search_jobs", plan_status="ready_to_execute", execution_status="completed",
+            status="ready", answer=answer, facts=[saved_fact], evidence=evidence,
+            capabilities_used=["job_posting_search"], limitations=["This follow-up uses only the previous turn's saved posting IDs and details; no new search was run."],
+            reason_codes=["SAVED_JOB_RESULTS_REUSED"],
+            conversation_id=request.conversation_id, client_message_id=request.client_message_id,
+        )
+        return response
+
+    @staticmethod
+    def _valid_degraded_reason(reason: str) -> str:
+        if reason in {
+            "rate_limited",
+            "provider_error",
+            "unavailable",
+            "usage_ledger_unavailable",
+        }:
+            return reason
+        return "provider_error"
+
+    @staticmethod
+    def _append_demand_sample_note(
+        answer_text: str,
+        facts: Sequence[StructuredFact],
+        plan: IntelligencePlanResponse,
+    ) -> str:
+        if plan.intent not in {"search_jobs", "analyze_trend", "rank_skill_trends", "retrieve_snapshot", "analyze_skill_gap"}:
+            return answer_text
+        job_fact = next((fact for fact in facts if fact.fact_type == "stored_job_postings"), None)
+        if job_fact is not None:
+            sample_size = int(job_fact.metric_value or 0)
+            exclusions = job_fact.details
+            note = f"Sample size (n): **{sample_size}** recent matching postings."
+            note += (
+                f" Excluded as older than 90 days: **{int(exclusions.get('excluded_older_than_90_days', 0))}**; "
+                f"date unknown: **{int(exclusions.get('date_unknown_excluded', 0))}**."
+            )
+            if sample_size < 20:
+                note += " Percentages are suppressed because n is below 20."
+            return f"{answer_text}\n\n{note}"
+
+        sample_sizes = plan.context_summary.get("_demand_sample_sizes") or []
+        if not sample_sizes:
+            return answer_text
+        display = ", ".join(
+            f"{item['period']} {item['source']} n={item['n']}"
+            for item in sample_sizes if isinstance(item, dict)
+        )
+        exclusions = plan.context_summary.get("_demand_exclusions") or {}
+        note = f"Sample size (n) by period: {display}."
+        note += (
+            f" Excluded as older than 90 days: **{int(exclusions.get('older_than_90_days', 0))}**; "
+            f"date unknown: **{int(exclusions.get('date_unknown', 0))}**; "
+            f"duplicate observation rows ignored: **{int(exclusions.get('duplicate_observations', 0))}**."
+        )
+        if any(int(item.get("n", 0)) < 20 for item in sample_sizes if isinstance(item, dict)):
+            note += " Percentages are suppressed for periods with n below 20."
+        return f"{answer_text}\n\n{note}"
+
+    def apply_assistant_response_contract(
+        self,
+        resp: CoreIntelligenceAnswerResponse,
+        request: CoreIntelligenceAnswerRequest,
+    ) -> CoreIntelligenceAnswerResponse:
+        """Ensure every answer path returns the additive assistant fields."""
+        return resp.model_copy(update=self._assistant_contract_fields(resp, request, None))
 
     def _record_conversation_turn(
         self,
@@ -2408,6 +3221,8 @@ class ExecutionOrchestratorService:
         authenticated_user: AuthenticatedUser | None,
         portal_type: str,
     ) -> None:
+        for field_name, field_value in self._assistant_contract_fields(resp, request, plan).items():
+            setattr(resp, field_name, field_value)
         if not request.conversation_id:
             return
         try:
@@ -2420,7 +3235,7 @@ class ExecutionOrchestratorService:
             time_range = request.time_range or "30d"
             selected_skills = list(request.selected_skills or [])
             selected_companies = list(request.selected_companies or [])
-            effective_domain = request.domain or (request.filters.get("domain") if request.filters else None) or "skill"
+            effective_domain = resp.domain or request.domain or (request.filters.get("domain") if request.filters else None) or "skill"
             intent = plan.intent if plan else "unknown"
 
             if plan:
@@ -2456,10 +3271,13 @@ class ExecutionOrchestratorService:
                 answer_summary=resp.answer if resp.answer else None,
                 client_message_id=request.client_message_id,
                 response_payload=resp.model_dump(mode="json"),
+                session_state=request._session_state_update,
                 regenerate_existing=request.regenerate,
             )
             if request.client_message_id:
-                _IDEMPOTENT_ANSWER_CACHE[(user_id, request.conversation_id, request.client_message_id)] = resp
+                _IDEMPOTENT_ANSWER_CACHE[_answer_idempotency_key(
+                    user_id, request.conversation_id, request.client_message_id, request.message
+                )] = resp
         except Exception as exc:
             logger.warning("Failed to record conversation turn for %s: %s", request.conversation_id, exc)
 
@@ -2540,6 +3358,7 @@ class ExecutionOrchestratorService:
                         "entity_type": ce.entity_type,
                         "category": ce.category,
                         "raw_token": ent_item.raw_token,
+                        "mapping_disclosure": ce.metadata.get("mapping_disclosure"),
                     },
                     fact_id=f"fact_ent_{ce.entity_id}",
                     canonical_entity_id=ce.entity_id,
@@ -2778,6 +3597,10 @@ class ExecutionOrchestratorService:
                 first_value = int(contiguous[0]["num_pushers"])
                 last_value = int(contiguous[-1]["num_pushers"])
                 direction = "increased" if last_value > first_value else "decreased" if last_value < first_value else "was unchanged"
+                from app.services.answer_verdict_rules import classify_adoption_growth
+                adoption_verdict = classify_adoption_growth(
+                    [int(row["num_pushers"]) for row in contiguous]
+                )
                 trend_id = f"ev_{series_id}_trend_{contiguous[0]['period']}_{latest_period}"
                 facts.append(StructuredFact(
                     fact_id=f"fact_{series_id}_trend_{latest_period}",
@@ -2796,7 +3619,7 @@ class ExecutionOrchestratorService:
                     quality_state="valid",
                     provenance_id=series_id,
                     evidence_reference=trend_id,
-                    details={"first_value": first_value, "latest_value": last_value, "periods": [str(row["period"]) for row in contiguous], "iso2_code": geo, "time_grain": "quarter"},
+                    details={"first_value": first_value, "latest_value": last_value, "periods": [str(row["period"]) for row in contiguous], "iso2_code": geo, "time_grain": "quarter", "signal_type": "adoption", "adoption_label": adoption_verdict["level"], "adoption_growth": adoption_verdict["growth"], "adoption_direction": adoption_verdict["direction"]},
                 ))
                 evidence.append(EvidenceItem(
                     evidence_id=trend_id,
@@ -3290,6 +4113,8 @@ class ExecutionOrchestratorService:
 
         target_soc = None
         esco_uri = None
+        requested_title = request.target_role or ""
+        closest_match = False
         for ent in plan.entities:
             if ent.canonical_entity and ent.canonical_entity.entity_type == "occupation":
                 esco_uri = ent.canonical_entity.metadata.get("esco_uri")
@@ -3316,14 +4141,52 @@ class ExecutionOrchestratorService:
             return facts, evidence, ["ESCO is a static occupational reference taxonomy, not real-time hiring demand."]
 
         if not target_soc and request.target_role:
-            occs = self.reference_store.get_onet_occupations(title=request.target_role)
-            if occs:
-                target_soc = occs[0].soc_code
+            from app.services.role_alias_service import normalize_role_alias, role_alias_soc_code
+            requested_title = request.target_role
+            alias_code = role_alias_soc_code(requested_title)
+            if alias_code:
+                alias_rows = self.reference_store.get_onet_occupations(code=alias_code)
+                if alias_rows:
+                    target_soc = alias_rows[0].soc_code
+            if not target_soc:
+                occs = self.reference_store.get_onet_occupations(title=requested_title, limit=100)
+                exact = [row for row in occs if normalize_role_alias(row.title) == normalize_role_alias(requested_title)]
+                if exact:
+                    target_soc = exact[0].soc_code
+                elif occs:
+                    from difflib import SequenceMatcher
+                    ranked = sorted(
+                        occs,
+                        key=lambda row: SequenceMatcher(
+                            None, normalize_role_alias(requested_title), normalize_role_alias(row.title),
+                        ).ratio(),
+                        reverse=True,
+                    )
+                    best = ranked[0]
+                    score = SequenceMatcher(None, normalize_role_alias(requested_title), normalize_role_alias(best.title)).ratio()
+                    if score >= 0.45:
+                        target_soc = best.soc_code
+                        closest_match = True
 
-        if not target_soc:
-            occs = self.reference_store.get_onet_occupations(limit=1)
-            if occs:
-                target_soc = occs[0].soc_code
+        if not target_soc and request.target_role:
+            from app.services.role_alias_service import normalize_role_alias
+            from difflib import SequenceMatcher
+            local_occupations = self.reference_store.get_onet_occupations(limit=1000)
+            if local_occupations:
+                ranked = sorted(
+                    local_occupations,
+                    key=lambda row: SequenceMatcher(
+                        None, normalize_role_alias(request.target_role), normalize_role_alias(row.title),
+                    ).ratio(),
+                    reverse=True,
+                )
+                best = ranked[0]
+                similarity = SequenceMatcher(
+                    None, normalize_role_alias(request.target_role), normalize_role_alias(best.title),
+                ).ratio()
+                if similarity >= 0.35:
+                    target_soc = best.soc_code
+                    closest_match = normalize_role_alias(best.title) != normalize_role_alias(request.target_role)
 
         if target_soc:
             occs = self.reference_store.get_onet_occupations(code=target_soc)
@@ -3344,7 +4207,11 @@ class ExecutionOrchestratorService:
                     quality_state="valid",
                     provenance_id=occ.soc_code,
                     evidence_reference=ev_id,
-                    details={"description": occ.description},
+                    details={
+                        "description": occ.description,
+                        "requested_title": requested_title,
+                        "closest_match": closest_match,
+                    },
                 ))
                 evidence.append(EvidenceItem(
                     evidence_id=ev_id,
@@ -3353,6 +4220,16 @@ class ExecutionOrchestratorService:
                     quality="valid",
                     description=f"O*NET 2018 SOC Occupation: {occ.title} (SOC {occ.soc_code}).",
                 ))
+        else:
+            facts.append(StructuredFact(
+                fact_id=f"fact_occupation_unresolved_{hashlib.sha256((requested_title or request.message).casefold().encode()).hexdigest()[:12]}",
+                fact_type="occupation_lookup_readiness", entity_name=requested_title or None,
+                canonical_entity_id=None, entity_type="occupation", metric_name="local_occupation_match",
+                metric_value="not_found", source="ref_onet_occupations", data_origin="unavailable",
+                history_type="reference_taxonomy", quality_state="insufficient_data",
+                readiness_state="insufficient_data",
+                details={"requested_title": requested_title, "reason": "No sufficiently similar local occupation record was found."},
+            ))
 
         return facts, evidence, limitations
 
@@ -3528,7 +4405,9 @@ class ExecutionOrchestratorService:
             obs = [
                 observation for observation in obs
                 if observation.signal_type == "demand"
-                and observation.source.casefold() in {"jsearch", "adzuna"}
+                and observation.source.casefold() in {
+                    "jsearch", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters",
+                }
             ]
 
         if obs:
@@ -3688,7 +4567,7 @@ class ExecutionOrchestratorService:
         selected_signal = history_context.get("signal_type")
         country = history_context.get("country")
 
-        if selected_source in {"jsearch", "adzuna"}:
+        if selected_source in {"jsearch", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters"}:
             explanation = (
                 f"{selected_source} records are stored job-posting snapshots, not a source-aggregated historical "
                 "skill-demand series. Historical Skill Signals cannot use them as a time series."
@@ -3871,7 +4750,9 @@ class ExecutionOrchestratorService:
                 "Eligible history consists of completed real monthly Stack Exchange question counts or Wikipedia pageviews, "
                 "and completed real quarterly GitHub developer-activity series. Snapshots and incomplete or untracked series are excluded."
             )
-            if selected_signal == "demand" and selected_source in {None, "jsearch", "adzuna"}:
+            if selected_signal == "demand" and selected_source in {
+                None, "jsearch", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters",
+            }:
                 reason = (
                     f"No supported historical skill-demand series is available for '{plan.context_summary.get('primary_entity') or 'the requested skill'}'. "
                     "JSearch and Adzuna records are job-posting snapshots, not source-aggregated historical demand observations."
@@ -6878,41 +7759,72 @@ class ExecutionOrchestratorService:
         ]
 
         job_source = "configured_market_observation_store"
+        scanned_count: int | None = None
+        search_matched_count: int | None = None
+        missing_city_location_count = 0
+        missing_remote_evidence_count = 0
+        invalid_application_url_count = 0
+        company_query = self._company_query_from_message(request.message) if getattr(plan, "intent", None) == "company_postings_summary" else None
         if self.job_searcher is not None or (not request.observations and self.firestore_store is not None):
             # Job postings have their own normalized Firestore collection. Reuse
             # the existing stored-job search service rather than treating a
             # locally cached observation snapshot as the live postings source.
-            from app.services.job_storage_service import search_stored_jsearch_jobs
+            from app.services.job_storage_service import search_stored_jsearch_jobs_with_stats
+            from app.services.question_classification_service import extract_location
 
             job_source = "injected_job_search" if self.job_searcher is not None else "firestore_jobs"
-            limitations.append(
-                "Search is limited to the 100 most recently fetched stored postings."
-            )
+            limitations.append("Search returns up to 100 matching stored postings after scanning the stored collection.")
             if self.job_searcher is not None:
                 limitations.append("Injected job-search results are test data and are not evidence of real stored postings.")
             query = str(
-                request.target_role
+                company_query
+                or request.target_role
                 or next(iter(request.selected_roles), None)
                 or plan.context_summary.get("primary_entity")
                 or next(iter(request.selected_companies), None)
                 or ""
             ).strip()
+            if request.technology and request.technology.casefold() not in query.casefold():
+                query = f"{query} {request.technology}".strip()
             if not query and not re.search(
                 r"\b(?:which|what)\s+skills?\b.*\b(?:postings?|jobs?)\b|\bskills?\b.*\b(?:in|from|across)\s+(?:the\s+)?postings?\b",
                 request.message,
                 re.IGNORECASE,
             ):
-                query = request.message.strip()
+                query = request._merged_job_search_query or request.message.strip()
             if not query:
-                limitations.append("No keyword was requested; the search reads the bounded most-recent stored posting sample.")
+                limitations.append("No keyword was requested; the search reads the matching stored posting sample.")
             country = (request.filters or {}).get("country")
+            requested_country = self._extract_question_country(request.message)
+            if not requested_country and str(request.location or "").casefold() in {"india", "united states", "united kingdom"}:
+                requested_country = request.location
+            country_codes = {"india": "in", "united states": "us", "united kingdom": "gb"}
+            if not country and requested_country:
+                country = country_codes.get(str(requested_country).casefold(), requested_country)
+            requested_location = (request.filters or {}).get("location") or request.location or extract_location(request.message)
+            if requested_location and requested_location.casefold() in country_codes:
+                requested_location = None
+            remote_requested = bool(
+                re.search(r"\bremote\b", request.message, re.IGNORECASE)
+                or str((request.filters or {}).get("remote_mode") or "").casefold() == "remote"
+            )
             try:
-                searcher = self.job_searcher or search_stored_jsearch_jobs
-                jobs = searcher(
-                    query=query,
-                    country=country,
-                    limit=100,
-                )
+                if self.job_searcher is not None:
+                    jobs = self.job_searcher(query=query, country=country, limit=100)
+                    scanned_count = len(jobs)
+                    search_matched_count = len(jobs)
+                else:
+                    search_result = search_stored_jsearch_jobs_with_stats(
+                        query=query,
+                        country=country,
+                        location=requested_location,
+                        remote=remote_requested,
+                        limit=100,
+                        firestore_client=getattr(self.firestore_store, "client", None),
+                    )
+                    jobs = list(search_result)
+                    scanned_count = getattr(search_result, "scanned_count", len(jobs))
+                    search_matched_count = getattr(search_result, "matched_count", len(jobs))
             except Exception as exc:
                 logger.warning("Configured job source unavailable (%s)", type(exc).__name__)
                 raise DataSourceUnavailableError("Stored job posting source is unavailable.") from exc
@@ -6941,22 +7853,72 @@ class ExecutionOrchestratorService:
                 },
                 data_origin="test" if self.job_searcher is not None else "real",
             ) for job in jobs if job.title and job.job_id]
-            if request.location:
-                all_obs = [o for o in all_obs if request.location.casefold() in (o.location or "").casefold()]
-            if str(request.time_range).lower() not in {"max_available", "max available", "all"}:
-                cutoff = self._observation_cutoff(request.time_range).date()
-                filtered_jobs = []
-                for o in all_obs:
-                    posted = o.metadata.get("posted_at")
-                    if not posted:
-                        continue
-                    try:
-                        if datetime.fromisoformat(str(posted).replace("Z", "+00:00")).date() >= cutoff:
-                            filtered_jobs.append(o)
-                    except ValueError:
-                        continue
-                all_obs = filtered_jobs
+            if requested_location and self.job_searcher is not None:
+                from app.services.question_classification_service import LOCATION_ALIASES
+                clean_location = LOCATION_ALIASES.get(requested_location.casefold(), requested_location)
+                alias_values = {clean_location.casefold()}
+                alias_values.update(
+                    alias for alias, canonical in LOCATION_ALIASES.items()
+                    if canonical.casefold() == clean_location.casefold()
+                )
+                before_location = all_obs
+                missing_city_location_count = sum(1 for o in before_location if not str(o.location or "").strip())
+                all_obs = [
+                    o for o in before_location
+                    if any(alias in (o.location or "").casefold() for alias in alias_values)
+                ]
+            if request.technology:
+                technology_term = request.technology.casefold()
+                technology_matches = []
+                for observation in all_obs:
+                    raw_skills = observation.metadata.get("skills_raw") or []
+                    if isinstance(raw_skills, str):
+                        raw_skills = [raw_skills]
+                    searchable = " ".join((
+                        str(observation.metadata.get("job_title") or ""),
+                        str(observation.metadata.get("description") or ""),
+                        " ".join(str(value) for value in raw_skills),
+                    )).casefold()
+                    if technology_term in searchable:
+                        technology_matches.append(observation)
+                all_obs = technology_matches
+            date_cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+            old_posting_ids: set[str] = set()
+            unknown_posting_ids: set[str] = set()
+            recent_jobs = []
+            for observation in all_obs:
+                posted = observation.metadata.get("posted_at")
+                try:
+                    posted_at = datetime.fromisoformat(str(posted).replace("Z", "+00:00")) if posted else None
+                except ValueError:
+                    posted_at = None
+                posting_id = str(observation.posting_id or observation.id or "unknown")
+                if posted_at is None:
+                    unknown_posting_ids.add(posting_id)
+                    continue
+                if posted_at.tzinfo is None:
+                    posted_at = posted_at.replace(tzinfo=timezone.utc)
+                if posted_at.astimezone(timezone.utc) < date_cutoff:
+                    old_posting_ids.add(posting_id)
+                    continue
+                recent_jobs.append(observation)
+            all_obs = recent_jobs
+            if remote_requested and self.job_searcher is not None:
+                remote_observations = []
+                for observation in all_obs:
+                    title_text = str(observation.metadata.get("job_title") or "").strip()
+                    location_text = str(observation.location or observation.metadata.get("location") or "").strip()
+                    remote_evidence = bool(re.search(r"\bremote\b", f"{title_text} {location_text}", re.IGNORECASE))
+                    if remote_evidence:
+                        remote_observations.append(observation)
+                    elif not title_text or not location_text:
+                        missing_remote_evidence_count += 1
+                all_obs = remote_observations
+            excluded_old_postings = len(old_posting_ids)
+            unknown_posted_at = len(unknown_posting_ids)
         else:
+            excluded_old_postings = 0
+            unknown_posted_at = 0
             all_obs = self._get_market_observations(
                 request_obs=request.observations,
                 skill=plan.context_summary.get("primary_entity"),
@@ -6965,7 +7927,7 @@ class ExecutionOrchestratorService:
             )
         raw_obs = [
             o for o in all_obs
-            if o.source in {"jsearch", "adzuna"} and o.posting_id
+            if o.source in {"jsearch", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters"} and o.posting_id
             and str(o.metadata.get("job_title") or "").strip()
         ]
 
@@ -6973,6 +7935,8 @@ class ExecutionOrchestratorService:
         scope_val = str((request.filters or {}).get("scope") or "").strip().lower()
         scope_empty = bool((request.filters or {}).get("scope_empty"))
         selected_cos_norm = {c.strip().lower() for c in (request.selected_companies or []) if c and c.strip()}
+        if company_query:
+            selected_cos_norm.add(company_query.casefold().strip())
 
         if scope_val in {"favourites", "favorites", "favourite companies", "favorite companies"} and scope_empty and not selected_cos_norm:
             raw_obs = []
@@ -6999,6 +7963,65 @@ class ExecutionOrchestratorService:
             obs.append(o)
 
         postings_found = len(obs)
+        no_match_alternatives: list[str] = []
+        if postings_found == 0 and (request.location or request.technology):
+            try:
+                from app.services.collected_posting_skills_service import get_collected_posting_skills
+                aggregate = get_collected_posting_skills(
+                    firestore_client=self.firestore_store.client if self.firestore_store is not None else None,
+                )
+                from app.services.question_classification_service import LOCATION_ALIASES
+                skill_term = str(request.technology or "").casefold()
+                requested_city = LOCATION_ALIASES.get(
+                    str(request.location or "").casefold(), str(request.location or "")
+                ).casefold()
+                location_skills = aggregate.get("location_skill_counts") or {}
+                if skill_term:
+                    for city, rows in location_skills.items():
+                        clean_city = LOCATION_ALIASES.get(city.casefold(), city).casefold()
+                        if requested_city and clean_city == requested_city:
+                            continue
+                        match = next((row for row in rows if skill_term in str(row.get("skill", "")).casefold()), None)
+                        if match:
+                            no_match_alternatives.append(
+                                f"{match['skill']} appears in {city} ({match['count']} collected postings)."
+                            )
+                if not no_match_alternatives and request.location:
+                    clean_city = requested_city
+                    rows = next(
+                        (values for city, values in location_skills.items()
+                         if LOCATION_ALIASES.get(city.casefold(), city).casefold() == clean_city),
+                        [],
+                    )
+                    no_match_alternatives.extend(
+                        f"{row['skill']} appears in {request.location} ({row['count']} collected postings)."
+                        for row in rows[:3]
+                    )
+                if not no_match_alternatives:
+                    no_match_alternatives.extend(
+                        f"{row['location']} has {row['count']} stored postings."
+                        for row in aggregate.get("location_counts", [])[:3]
+                    )
+            except Exception as exc:
+                logger.debug("Could not build stored-posting alternatives (%s)", type(exc).__name__)
+        if excluded_old_postings or unknown_posted_at:
+            limitations.append(
+                f"Excluded {excluded_old_postings} matching postings older than 90 days and {unknown_posted_at} with unknown posting dates from demand counts."
+            )
+        if scanned_count is not None:
+            limitations.append(
+                f"Scanned {scanned_count} stored postings; {postings_found} matched the applied filters. Live provider search is off."
+            )
+        else:
+            limitations.append("The stored scan count is unavailable for this observation-backed result. Live provider search is off.")
+        if missing_city_location_count:
+            limitations.append(
+                f"Excluded {missing_city_location_count} matching stored postings from the city filter because location was missing."
+            )
+        if missing_remote_evidence_count:
+            limitations.append(
+                f"Excluded {missing_remote_evidence_count} stored postings from the remote filter because both title and location were missing."
+            )
         observed_origins = {item.data_origin for item in obs if item.data_origin}
         job_evidence_origin = (
             "test" if self.job_searcher is not None or observed_origins == {"test"}
@@ -7014,7 +8037,10 @@ class ExecutionOrchestratorService:
             employer = str(o.metadata.get("company") or o.metadata.get("employer_name") or "").strip()
             loc_str = str(o.location or o.metadata.get("location") or "").strip()
             posted_at = str(o.metadata.get("posted_at") or "").strip()[:10] or None
-            source_url = str(o.metadata.get("apply_link") or o.metadata.get("job_url") or o.metadata.get("url") or "").strip()
+            raw_source_url = str(o.metadata.get("apply_link") or o.metadata.get("job_url") or o.metadata.get("url") or "").strip()
+            source_url = raw_source_url if _valid_application_url(raw_source_url) else None
+            if source_url is None:
+                invalid_application_url_count += 1
             posting_id = o.posting_id or o.id
             extracted = extract_posting_skills({
                 "title": title,
@@ -7040,7 +8066,7 @@ class ExecutionOrchestratorService:
                     "evidence_reference": posting_evidence_id,
                     "mentions": skill.get("evidence", []),
                 })
-            if len(structured_postings) < 10:
+            if len(structured_postings) < 100:
                 sample_postings.append(f"{title} at {employer} ({loc_str})")
                 structured_postings.append({
                 "posting_id": o.posting_id or o.id,
@@ -7051,7 +8077,8 @@ class ExecutionOrchestratorService:
                 "source": o.source,
                 "fetch_run_id": o.fetch_run_id,
                 "fetched_at": o.observed_at.isoformat() if o.observed_at else None,
-                "source_url": source_url if source_url.startswith(("http://", "https://")) else None,
+                "source_url": source_url,
+                "application_link_unavailable": source_url is None,
                 "skill": o.skill,
                 "summary": str(o.metadata.get("description") or "").strip()[:1200] or None,
                 "required_skills": [
@@ -7070,7 +8097,7 @@ class ExecutionOrchestratorService:
                 period=o.period,
                 unit="posting",
                 data_origin=o.data_origin or "unavailable",
-                source_url=source_url if source_url.startswith(("http://", "https://")) else None,
+                source_url=source_url,
                 provenance_id=o.posting_id or o.id,
                 quality="valid",
                 description=f"Stored job posting: {title} at {employer} ({loc_str}, {o.source}).",
@@ -7097,7 +8124,9 @@ class ExecutionOrchestratorService:
                 evidence_reference=(item["evidence"][0]["evidence_reference"] if item["evidence"] else None),
                 details={
                     "sample_denominator": postings_found,
-                    "sample_share": round(posting_count / postings_found, 4) if postings_found else None,
+                    "sample_share": round(posting_count / postings_found, 4) if postings_found >= 20 else None,
+                    "sample_size": postings_found,
+                    "percentage_suppressed_below_n20": postings_found < 20,
                     "mapping_status": item["mapping_status"],
                     "reference_source": item["reference_source"],
                     "posting_ids": item["posting_ids"],
@@ -7129,10 +8158,116 @@ class ExecutionOrchestratorService:
                 "skills_observed": list(extracted_counts.values()),
                 "company_filter": sorted(selected_cos_norm) if selected_cos_norm else [],
                 "search_window_limit": 100 if job_source == "firestore_jobs" else None,
+                "sample_size": postings_found,
+                "excluded_older_than_90_days": excluded_old_postings,
+                "date_unknown_excluded": unknown_posted_at,
+                "stored_postings_scanned": scanned_count,
+                "stored_postings_query_matched": search_matched_count,
+                "stored_postings_matched": postings_found,
+                "missing_city_location_excluded": missing_city_location_count,
+                "missing_remote_evidence_excluded": missing_remote_evidence_count,
+                "invalid_application_urls_dropped": invalid_application_url_count,
+                "live_provider_search": "off",
+                "company_query": company_query,
+                "percentages_suppressed_below_n20": postings_found < 20,
+                "no_match_alternatives": no_match_alternatives,
             },
         ))
         facts.extend(skill_facts)
 
+        return facts, evidence, limitations
+
+    def _handle_collected_posting_skills(
+        self,
+        request: CoreIntelligenceAnswerRequest,
+        plan: IntelligencePlanResponse,
+    ) -> tuple[list[StructuredFact], list[EvidenceItem], list[str]]:
+        from app.services.collected_posting_skills_service import get_collected_posting_skills
+
+        aggregate = get_collected_posting_skills(
+            firestore_client=self.firestore_store.client if self.firestore_store is not None else None,
+        )
+        n = aggregate["n"]
+        source = "Firestore jobs.skills_raw"
+        evidence_id = f"ev_collected_posting_skills_{hashlib.sha256(str(aggregate).encode()).hexdigest()[:14]}"
+        evidence = [EvidenceItem(
+            evidence_id=evidence_id,
+            source=source,
+            signal_type="collected_posting_skill_counts",
+            data_origin="real",
+            history_type="bounded_posting_sample",
+            location="India",
+            scope="sample",
+            quality="valid",
+            description=(
+                f"Computed skill counts from {n} distinct collected India postings in jobs.skills_raw; "
+                f"sources: {', '.join(aggregate['source_labels']) or 'none'}; query limit {aggregate['query_limit']}."
+            ),
+        )]
+        facts = [StructuredFact(
+            fact_id=evidence_id.replace("ev_", "fact_"),
+            fact_type="collected_posting_skills_summary",
+            entity_name="Collected India job postings",
+            entity_type="job_posting_sample",
+            metric_name="posting_count",
+            metric_value=n,
+            unit="postings",
+            source=source,
+            data_origin="real",
+            history_type="bounded_posting_sample",
+            quality_state="valid",
+            readiness_state="ready" if n else "insufficient_data",
+            evidence_reference=evidence_id,
+            details={
+                **aggregate,
+                "skill_count_source_of_truth": "jobs.skills_raw",
+                "counting_rule": "Each distinct posting and normalized skill pair is counted once.",
+                "percentages_suppressed": n < 20,
+                "disclosure": (
+                    f"This is a sample of {n} collected India postings, "
+                    "not a measure of hiring demand or the Indian market."
+                ),
+            },
+        )]
+        all_skill_counts = {
+            str(item.get("skill", "")).casefold(): item
+            for item in aggregate.get("skill_counts", [])
+        }
+        for rank, item in enumerate(aggregate["top_skills"], 1):
+            computed = all_skill_counts.get(str(item["skill"]).casefold(), {})
+            details = {
+                "rank": rank,
+                "postings_with_skill": item["count"],
+                "company_count": int(computed.get("company_count", 0)),
+                "demand_verdict": computed.get("verdict", "Not enough data"),
+                "limited_evidence": bool(computed.get("limited_evidence", False)),
+            }
+            if n >= 20:
+                details["sample_share_percent"] = round(item["count"] / n * 100, 1)
+            facts.append(StructuredFact(
+                fact_type="collected_posting_skill_count",
+                entity_name=item["skill"],
+                entity_type="skill",
+                metric_name="posting_count",
+                metric_value=item["count"],
+                unit="postings",
+                denominator=n,
+                source=source,
+                data_origin="real",
+                history_type="bounded_posting_sample",
+                quality_state="valid",
+                readiness_state="ready",
+                evidence_reference=evidence_id,
+                details=details,
+            ))
+        limitations = [
+            "Skill counts use jobs.skills_raw as the sole source of truth and count each posting-skill pair once.",
+            "The collected India postings are a sample, not hiring demand or the Indian market.",
+        ]
+        if n < 20:
+            limitations.append("Percentages are suppressed because fewer than 20 postings were observed.")
+        if aggregate["sample_may_be_incomplete"]:
+            limitations.append("The bounded query reached its record limit; this sample may be incomplete.")
         return facts, evidence, limitations
 
     def _handle_company_intelligence(
@@ -7410,7 +8545,7 @@ class ExecutionOrchestratorService:
             else:
                 questions.append("Which target role should guide the learning suggestions?")
 
-        elif intent == "search_jobs":
+        elif intent in {"search_jobs", "company_postings_summary"}:
             role = primary or "Software Developers"
             questions.append(f"What software tools are required for {role}?")
             questions.append(f"What career pathways branch out from {role}?")
@@ -7471,7 +8606,36 @@ class ExecutionOrchestratorService:
             evidence_citations.append(f"{label}: {ev.description}")
 
         # Intent-specific synthesis
-        if intent == "rank_skill_trends":
+        if intent == "aggregate_posting_skills":
+            summary = next((fact for fact in facts if fact.fact_type == "collected_posting_skills_summary"), None)
+            metadata = summary.details if summary else {}
+            n = int(summary.metric_value) if summary else 0
+            start = metadata.get("date_start")
+            end = metadata.get("date_end")
+            date_range = f"{start} to {end}" if start and end else "unavailable"
+            source_labels = ", ".join(metadata.get("source_labels") or []) or "unavailable"
+            direct_answer = (
+                f"The bounded sample contains {n} collected India postings from "
+                f"{metadata.get('company_count', 0)} companies, covering {date_range}. "
+                f"Source labels: {source_labels}."
+            )
+            skill_facts = [fact for fact in facts if fact.fact_type == "collected_posting_skill_count"]
+            supporting_facts = [
+                f"**{fact.entity_name}**: {fact.metric_value} postings"
+                + (f" ({fact.details['sample_share_percent']}% of this sample)" if n >= 20 else "")
+                for fact in skill_facts
+            ] or ["No skills were recorded in jobs.skills_raw for the postings in this sample."]
+            interpretation = "Skill totals come only from jobs.skills_raw; duplicate posting and skill pairs are counted once."
+            limitations = [
+                "This sample is not hiring demand and does not represent the Indian market.",
+                "The query is bounded to 500 India postings and cached for 60 seconds.",
+            ]
+            if metadata.get("sample_may_be_incomplete"):
+                limitations.append("The query reached its limit, so the sample may be incomplete.")
+            if n < 20:
+                limitations.append("Percentages are suppressed because fewer than 20 postings were observed.")
+
+        elif intent == "rank_skill_trends":
             ranked_facts = [fact for fact in facts if fact.fact_type == "skill_trend_rank"]
             summary = next(
                 (fact for fact in facts if fact.fact_type == "trend_ranking_summary"),
@@ -7551,7 +8715,9 @@ class ExecutionOrchestratorService:
                 signal_label = {
                     "demand": (
                         "job-posting demand"
-                        if provider.casefold() in {"jsearch", "adzuna"}
+                        if provider.casefold() in {
+                            "jsearch", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters",
+                        }
                         else "demand"
                     ),
                     "adoption": "developer adoption/activity",
@@ -8004,7 +9170,13 @@ class ExecutionOrchestratorService:
                 soc = occ_fact.metric_value
                 title = occ_fact.entity_name
                 desc = occ_fact.details.get("description", "")
-                direct_answer = f"O*NET occupational classification for **{title}** resolves to SOC code **{soc}**."
+                if occ_fact.details.get("closest_match"):
+                    direct_answer = (
+                        f"No exact O*NET title match was found for **{occ_fact.details.get('requested_title')}**. "
+                        f"The closest matching local occupation is **{title}** (SOC **{soc}**)."
+                    )
+                else:
+                    direct_answer = f"O*NET occupational classification for **{title}** resolves to SOC code **{soc}**."
                 supporting_facts = [
                     f"**Occupation Title**: {title}",
                     f"**Standard Occupational Classification (SOC)**: {soc}",
@@ -8013,10 +9185,14 @@ class ExecutionOrchestratorService:
                 interpretation = "Standard Occupational Classification (SOC) provides standardized federal taxonomy definitions for labor market categorization."
                 limitations = ["Reference taxonomy definition; does not reflect real-time employer hiring activity."]
             else:
-                direct_answer = "Occupation lookup completed."
+                requested = next((f.entity_name for f in facts if f.fact_type == "occupation_lookup_readiness"), None) or "the requested title"
+                direct_answer = f"No exact or sufficiently close local O*NET occupation record was found for **{requested}**."
                 supporting_facts = [f"**{f.metric_name}**: {f.metric_value}" for f in facts]
-                interpretation = "Reference taxonomy lookup."
-                limitations = ["Taxonomy baseline data."]
+                interpretation = (
+                    "**General guidance:** occupation titles vary across employers and taxonomies. "
+                    "Try a standard role title such as Data Engineer or Machine Learning Engineer; this guidance is not a verified classification."
+                )
+                limitations = ["No occupation was substituted because the local reference data did not provide a sufficiently close match."]
 
         elif intent == "lookup_github_adoption":
             snapshots = [fact for fact in facts if fact.fact_type == "developer_activity_snapshot"]
@@ -8095,25 +9271,70 @@ class ExecutionOrchestratorService:
             interpretation = ""
             limitations = []
 
-        elif intent == "search_jobs":
+        elif intent in {"search_jobs", "company_postings_summary"}:
             job_fact = next((f for f in facts if f.fact_type == "stored_job_postings"), None)
             cnt = job_fact.metric_value if job_fact else 0
+            if job_fact and job_fact.details.get("stored_postings_scanned") is not None:
+                direct_answer = (
+                    f"Scanned **{job_fact.details['stored_postings_scanned']}** stored postings; "
+                    f"**{cnt}** matched the applied filters. Live provider search is off."
+                )
+            else:
+                direct_answer = "Live provider search is off; this answer uses the available stored posting observations."
+            unavailable_links = int(job_fact.details.get("invalid_application_urls_dropped", 0)) if job_fact else 0
+            if unavailable_links:
+                direct_answer += f" Application link unavailable for {unavailable_links} posting(s); invalid URLs were dropped."
+            if intent == "company_postings_summary":
+                postings = job_fact.details.get("postings", []) if job_fact else []
+                company_name = str(
+                    (job_fact.details.get("company_query") if job_fact else None)
+                    or (request.selected_companies[0] if request.selected_companies else "the requested company")
+                )
+                role_names = sorted({str(item.get("title") or "").strip() for item in postings if str(item.get("title") or "").strip()}, key=str.casefold)
+                locations = sorted({str(item.get("location") or "").strip() for item in postings if str(item.get("location") or "").strip()}, key=str.casefold)
+                if cnt:
+                    direct_answer += (
+                        f"\n\n**Stored company records — {company_name}:** {cnt} matching postings. "
+                        f"Job locations: {', '.join(locations) if locations else 'unavailable'}. "
+                        f"Roles: {', '.join(role_names) if role_names else 'unavailable'}. "
+                    )
+                else:
+                    direct_answer += f"\n\nNo matching stored postings were found for {company_name}. "
+                direct_answer += "Company address unavailable; no verified address is stored in these records."
+                supporting_facts = [
+                    f"Stored postings scanned: {job_fact.details.get('stored_postings_scanned', 'unavailable') if job_fact else 'unavailable'}.",
+                    f"Stored postings matched: {cnt}.",
+                    f"Job locations: {', '.join(locations) if locations else 'unavailable'}.",
+                    f"Roles: {', '.join(role_names) if role_names else 'unavailable'}.",
+                    "Company address unavailable.",
+                ]
+                interpretation = ""
+                limitations = ["Company details are limited to stored job postings; no company website or outside source was fetched."]
+                if unavailable_links:
+                    limitations.append(f"Application link unavailable for {unavailable_links} posting(s); invalid URLs were dropped.")
+                company_sections = [direct_answer]
+                if supporting_facts:
+                    company_sections.append("**Stored records**\n" + "\n".join(f"- {item}" for item in supporting_facts))
+                if evidence_citations:
+                    company_sections.append("**Sources**\n" + "\n".join(f"- {item}" for item in evidence_citations))
+                company_sections.append("**Limitations:** " + " ".join(limitations))
+                return "\n\n".join(company_sections)
             observed_skills = [f for f in facts if f.fact_type == "stored_posting_skill"]
             observed_skills.sort(key=lambda fact: (-int(fact.metric_value or 0), str(fact.entity_name or "").casefold()))
             if cnt == 0:
                 if request.selected_companies:
                     comp_str = ", ".join(request.selected_companies)
-                    direct_answer = (
+                    direct_answer += (
                         f"No matching job postings were found in the bounded recent stored search for saved companies ({comp_str}). "
                         "An empty posting sample does not establish hiring demand or the absence of hiring demand."
                     )
                 else:
-                    direct_answer = (
+                    direct_answer += (
                         "No matching job postings were found in the bounded recent stored search. "
                         "An empty posting sample does not establish hiring demand or the absence of hiring demand."
                     )
             else:
-                direct_answer = f"Retrieved **{cnt}** matching job postings from the stored collection runs."
+                direct_answer += f" Retrieved **{cnt}** matching job postings from the stored collection runs."
                 if observed_skills:
                     summaries = [
                         f"{fact.entity_name} ({fact.metric_value}/{fact.denominator} postings)"
@@ -8155,6 +9376,8 @@ class ExecutionOrchestratorService:
             limitations = [
                 "Stored job results are not total global vacancies; they are matching records observed through provider queries.",
             ]
+            if unavailable_links:
+                limitations.append(f"Application link unavailable for {unavailable_links} posting(s); invalid URLs were dropped.")
 
         elif intent == "analyze_skill_gap":
             gap_fact = next((f for f in facts if f.fact_type == "personalized_skill_gap"), None)
@@ -8572,7 +9795,7 @@ class ExecutionOrchestratorService:
                 break
 
         # Rule 5: Quantitative & Numerical Grounding
-        allowed_numbers: set[str] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "50", "100", "2018", "2024", "2025", "2026", "2027"}
+        allowed_numbers: set[str] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "50", "90", "100", "2018", "2024", "2025", "2026", "2027"}
         for f in facts:
             for s in [f.metric_value, f.canonical_entity_id, f.provenance_id, f.entity_name, f.period]:
                 if s is not None:

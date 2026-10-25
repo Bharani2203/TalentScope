@@ -34,6 +34,7 @@ from app.models.skill_intelligence import (
 )
 from app.services.market_collection_service import configured_market_providers, pending_market_sources
 from app.services.onboarding_service import get_individual_profile
+from app.storage.firestore_read_guard import read_guard
 from app.storage.firestore_observation_store import FirestoreObservationStore
 from app.storage.fetch_run_store import FirestoreFetchRunStore
 from app.storage.calculation_record_store import FirestoreCalculationRecordStore
@@ -506,6 +507,7 @@ def update_user_skills(uid: str, request: UserSkillsUpdateRequest) -> UserSkills
     document = client.collection("users").document(uid)
     try:
         snapshot = document.get()
+        read_guard.record_read("users", 1, query_type="targeted_skill_profile_update")
         stored = snapshot.to_dict() if snapshot.exists else {}
         stored = stored if isinstance(stored, dict) else {}
         user_type = stored.get("user_type")
@@ -586,6 +588,7 @@ def update_user_skills(uid: str, request: UserSkillsUpdateRequest) -> UserSkills
 def get_favourite_skills(uid: str) -> FavouriteSkillsResponse:
     try:
         snapshot = get_firestore_client().collection("users").document(uid).get()
+        read_guard.record_read("users", 1, query_type="targeted_skill_favourites")
         record = snapshot.to_dict() if snapshot.exists else {}
         preferences = (record or {}).get("preferences", {})
         stored = preferences.get("favorite_skill_ids", []) if isinstance(preferences, dict) else []
@@ -613,6 +616,7 @@ def update_favourite_skills(uid: str, request: FavouriteSkillsUpdateRequest) -> 
     document = client.collection("users").document(uid)
     try:
         snapshot = document.get()
+        read_guard.record_read("users", 1, query_type="targeted_skill_favourites_update")
         record = snapshot.to_dict() if snapshot.exists else {}
         user_type = (record or {}).get("user_type")
         if user_type not in (None, "individual"):

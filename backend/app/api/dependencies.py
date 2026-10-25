@@ -8,6 +8,7 @@ from google.api_core.exceptions import GoogleAPICallError
 from app.core.firebase import get_firebase_app, get_firestore_client
 from app.core.auth_diagnostics import elapsed_ms, log_auth_trace, uid_reference
 from app.models.auth import AuthenticatedUser
+from app.storage.firestore_read_guard import read_guard
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -17,12 +18,14 @@ def resolve_company_membership(uid: str) -> tuple[str, str] | None:
     try:
         client = get_firestore_client()
         profile = client.collection("users").document(uid).get().to_dict() or {}
+        read_guard.record_read("users", 1, query_type="targeted_company_scope_profile")
         company_id = profile.get("company_id")
         if not isinstance(company_id, str) or not company_id:
             return None
 
         company_ref = client.collection("companies").document(company_id)
         company = company_ref.get().to_dict() or {}
+        read_guard.record_read("companies", 1, query_type="targeted_company_scope")
         if company.get("status") != "active":
             return None
 
@@ -41,6 +44,7 @@ def resolve_company_membership(uid: str) -> tuple[str, str] | None:
         ):
             return None
         member = company_ref.collection("members").document(uid).get().to_dict() or {}
+        read_guard.record_read("companies.members", 1, query_type="targeted_company_membership")
         if member.get("status") != "connected" or member.get("uid") != uid:
             return None
         return company_id, "employee"

@@ -9,6 +9,10 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from app.intelligence_v2.occupation_names import (
+    normalize_occupation_name,
+    occupation_label_matches,
+)
 
 
 ActionPriority = Literal["high", "medium", "foundation"]
@@ -101,6 +105,7 @@ class RolePreparationPlan(BaseModel):
     total_actions: int
     actions: list[PreparationAction] = Field(default_factory=list)
     soc_code: str | None = None
+    resolved_role_name: str | None = None
     role_resolved: bool = True
     user_matched_skills: list[str] = Field(default_factory=list)
     gap_skills_addressed: list[str] = Field(default_factory=list)
@@ -230,8 +235,10 @@ class V2RoleActionEngine:
         - desired_timeline: Optional desired preparation timeframe (e.g. '30d', '3m', '6m').
         - gap_skills: Optional explicit gap skills if precomputed by alignment engine.
         """
-        role_clean = target_role.strip()
+        role_clean = " ".join(target_role.split())
+        normalized_role = normalize_occupation_name(role_clean)
         soc_code: str | None = None
+        resolved_role_name: str | None = None
         role_resolved = False
         role_requirements: list[dict[str, Any]] = []
 
@@ -240,21 +247,21 @@ class V2RoleActionEngine:
             try:
                 with store._connect() as conn:
                     # Check O*NET occupations first
-                    occ = conn.execute(
-                        "SELECT soc_code, title FROM ref_onet_occupations WHERE title LIKE ? LIMIT 1",
-                        (f"%{role_clean}%",),
-                    ).fetchone()
-                    if not occ:
-                        # Try word matching
-                        words = [w for w in role_clean.split() if len(w) > 3]
-                        if words:
-                            occ = conn.execute(
-                                "SELECT soc_code, title FROM ref_onet_occupations WHERE title LIKE ? LIMIT 1",
-                                (f"%{words[0]}%",),
-                            ).fetchone()
+                    occ_candidates = conn.execute(
+                        "SELECT soc_code, title FROM ref_onet_occupations WHERE lower(title) LIKE lower(?)",
+                        (f"%{normalized_role}%",),
+                    ).fetchall()
+                    occ = next(
+                        (
+                            candidate for candidate in occ_candidates
+                            if occupation_label_matches(normalized_role, candidate["title"])
+                        ),
+                        None,
+                    )
 
                     if occ:
                         soc_code = occ["soc_code"]
+                        resolved_role_name = occ["title"]
                         role_resolved = True
                         rows = conn.execute(
                             """
@@ -280,32 +287,52 @@ class V2RoleActionEngine:
 
                     # If not in O*NET, try ESCO
                     if not role_resolved:
-                        esco_occ = conn.execute(
-                            "SELECT occupation_uri, preferred_label FROM ref_esco_occupations WHERE preferred_label LIKE ? LIMIT 1",
-                            (f"%{role_clean}%",),
-                        ).fetchone()
+                        esco_candidates = conn.execute(
+                            """
+                            SELECT concept_uri, preferred_label, alt_labels
+                            FROM ref_esco_occupations
+                            WHERE lower(preferred_label) LIKE lower(?)
+                               OR lower(alt_labels) LIKE lower(?)
+                            ORDER BY CASE WHEN lower(preferred_label) = lower(?) THEN 0 ELSE 1 END,
+                                     length(preferred_label) ASC
+                            """,
+                            (f"%{normalized_role}%", f"%{normalized_role}%", normalized_role),
+                        ).fetchall()
+                        esco_occ = next(
+                            (
+                                candidate for candidate in esco_candidates
+                                if occupation_label_matches(
+                                    normalized_role,
+                                    candidate["preferred_label"],
+                                    candidate["alt_labels"],
+                                )
+                            ),
+                            None,
+                        )
                         if esco_occ:
                             role_resolved = True
-                            soc_code = esco_occ["occupation_uri"]
+                            soc_code = esco_occ["concept_uri"]
+                            resolved_role_name = esco_occ["preferred_label"]
                             rows = conn.execute(
                                 """
                                 SELECT s.preferred_label, r.relation_type, s.skill_type
                                 FROM ref_esco_occupation_skill_relations r
-                                JOIN ref_esco_skills s ON r.skill_uri = s.skill_uri
+                                JOIN ref_esco_skills s ON r.skill_uri = s.concept_uri
                                 WHERE r.occupation_uri = ?
                                 ORDER BY CASE WHEN r.relation_type = 'essential' THEN 1 ELSE 2 END
                                 LIMIT 30
                                 """,
-                                (esco_occ["occupation_uri"],),
+                                (esco_occ["concept_uri"],),
                             ).fetchall()
                             role_requirements = [
                                 {
                                     "name": r["preferred_label"],
                                     "hot_technology": (r["relation_type"] == "essential"),
-                                    "in_demand": True,
+                                    "in_demand": False,
                                     "element_name": r["skill_type"] or "Competency",
-                                    "taxonomy_source": "ESCO v1.1.1",
-                                    "soc_code": esco_occ["occupation_uri"],
+                                    "relation_type": r["relation_type"],
+                                    "taxonomy_source": "ESCO v1.2.1",
+                                    "soc_code": esco_occ["concept_uri"],
                                 }
                                 for r in rows
                             ]
@@ -394,6 +421,7 @@ class V2RoleActionEngine:
                 total_actions=0,
                 actions=[],
                 soc_code=soc_code,
+                resolved_role_name=resolved_role_name,
                 role_resolved=role_resolved,
                 user_matched_skills=user_matched,
                 gap_skills_addressed=[],
@@ -420,7 +448,13 @@ class V2RoleActionEngine:
             elem = item.get("element_name") or "Technical Competency"
             source_label = item.get("taxonomy_source") or "O*NET 28.0"
 
-            if hot or in_demand:
+            if item.get("relation_type") == "essential":
+                priority: ActionPriority = "high"
+                why = f"Listed as an essential occupation skill for {role_clean} ({elem})."
+            elif item.get("relation_type") == "optional":
+                priority = "medium"
+                why = f"Listed as an optional occupation skill for {role_clean} ({elem})."
+            elif hot or in_demand:
                 priority: ActionPriority = "high"
                 why = f"Designated as a Hot Technology and in-demand requirement for {role_clean} ({elem})."
             elif layer == 1:
@@ -508,6 +542,7 @@ class V2RoleActionEngine:
             total_actions=len(actions),
             actions=actions,
             soc_code=soc_code,
+            resolved_role_name=resolved_role_name,
             role_resolved=role_resolved,
             user_matched_skills=user_matched,
             gap_skills_addressed=[a.skill_name for a in actions],

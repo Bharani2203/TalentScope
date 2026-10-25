@@ -98,16 +98,25 @@ def test_gemini_b_model_uses_existing_source_default_when_not_overridden():
     assert settings.gemini_b_model == "gemini-3.8-flash"
 
 
-def test_feature_policy_covers_all_fifteen_canonical_features():
-    from app.intelligence_v2.capability_registry import CAPABILITIES
+def test_feature_policy_covers_all_registered_canonical_features():
+    from app.intelligence_v2.capability_registry import APPROVED_CAPABILITY_IDS, CAPABILITIES
 
-    assert set(FEATURE_ANSWER_POLICIES) == set(CAPABILITIES)
+    # The selectable registry has seven approved features. These three
+    # engine/provider-only policies are also required by the answer pipeline.
+    supplemental_policies = {
+        "skill_demand_trends",
+        "skill_reference_profile",
+        "job_verified_postings",
+    }
+    assert set(CAPABILITIES) == APPROVED_CAPABILITY_IDS
+    assert set(FEATURE_ANSWER_POLICIES) == APPROVED_CAPABILITY_IDS | supplemental_policies
     assert not FEATURE_ANSWER_POLICIES["job_verified_postings"].gemini_b_fallback
     assert FEATURE_ANSWER_POLICIES["job_verified_postings"].provider_data_required
-    assert not FEATURE_ANSWER_POLICIES["skill_evidence_citations"].gemini_b_fallback
-    assert not FEATURE_ANSWER_POLICIES["market_evidence_citations"].gemini_b_fallback
-    assert not FEATURE_ANSWER_POLICIES["skill_role_alignment"].gemini_b_fallback
-    assert not FEATURE_ANSWER_POLICIES["job_profile_alignment"].gemini_b_fallback
+    # These legacy engine IDs are not registered for static Gemini guidance.
+    assert "skill_evidence_citations" not in FEATURE_ANSWER_POLICIES
+    assert "market_evidence_citations" not in FEATURE_ANSWER_POLICIES
+    assert "skill_role_alignment" not in FEATURE_ANSWER_POLICIES
+    assert "job_profile_alignment" not in FEATURE_ANSWER_POLICIES
 
 
 def test_gemini_b_missing_key_fails_closed_without_sending():
@@ -363,6 +372,7 @@ def test_backup_attempt_reserves_a_second_b_application_quota_unit():
     assert len(calls) == 1
 
 
+@pytest.mark.usefixtures("injected_empty_firestore")
 def test_successful_deterministic_result_does_not_call_gemini_b():
     class NoCallB:
         def generate(self, **kwargs):
@@ -386,6 +396,7 @@ def test_successful_deterministic_result_does_not_call_gemini_b():
     assert response.source_mode == "platform_data"
 
 
+@pytest.mark.usefixtures("injected_empty_firestore")
 def test_missing_data_uses_b_and_returns_guidance_without_evidence_or_visualization():
     class FakeB:
         def __init__(self):
@@ -442,6 +453,7 @@ def test_primary_and_backup_failure_never_calls_gemini_a(monkeypatch):
     assert service.generate(capability_id="skill_historical_signals") is None
 
 
+@pytest.mark.usefixtures("injected_empty_firestore")
 def test_provider_only_features_are_never_replaced_by_guidance():
     class NoCallB:
         def generate(self, **kwargs):
@@ -470,6 +482,7 @@ def test_provider_only_features_are_never_replaced_by_guidance():
         assert response.status == "insufficient_data"
 
 
+@pytest.mark.usefixtures("injected_empty_firestore")
 def test_gemini_b_failure_preserves_insufficient_data_response():
     class FailedB:
         def generate(self, **kwargs):

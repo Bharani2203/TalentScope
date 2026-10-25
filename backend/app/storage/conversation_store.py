@@ -72,6 +72,7 @@ class ConversationState(BaseModel):
     selected_skills: list[str] = Field(default_factory=list)
     selected_companies: list[str] = Field(default_factory=list)
     filters: dict[str, Any] = Field(default_factory=dict)
+    session_state: dict[str, Any] = Field(default_factory=dict)
     turns: list[ConversationTurn] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -210,9 +211,11 @@ class ConversationStore:
         # Check Firestore document if available
         try:
             from app.core.firebase import get_firestore_client
+            from app.storage.firestore_read_guard import read_guard
             client = get_firestore_client()
             if client is not None:
                 doc = client.collection("intelligence_conversations").document(f"conv_{conversation_id}").get()
+                read_guard.record_read("intelligence_conversations", 1, query_type="targeted_conversation_get")
                 if doc.exists:
                     data = doc.to_dict() or {}
                     if data.get("user_id") == user_id:
@@ -251,21 +254,31 @@ class ConversationStore:
         if state is None:
             try:
                 from app.core.firebase import get_firestore_client
+                from app.storage.firestore_read_guard import read_guard
                 client = get_firestore_client()
-                if client is not None:
-                    doc = client.collection("intelligence_conversations").document(f"conv_{conversation_id}").get()
-                    if doc.exists:
-                        data = doc.to_dict() or {}
-                        if data.get("user_id") != user_id:
-                            return False, f"Access denied: Conversation {conversation_id} belongs to a different user."
-                        if data.get("portal_type") == "company" and data.get("company_id") and data.get("company_id") != company_id:
-                            return False, f"Access denied: Conversation {conversation_id} belongs to a different company organization."
+                if client is None:
+                    return False, "conversation_not_found"
+                doc = client.collection("intelligence_conversations").document(f"conv_{conversation_id}").get()
+                read_guard.record_read("intelligence_conversations", 1, query_type="targeted_conversation_access")
+                if not doc.exists:
+                    return False, "conversation_not_found"
+                data = doc.to_dict() or {}
+                if data.get("user_id") != user_id:
+                    return False, "conversation_owner_mismatch"
+                if data.get("portal_type") == "company" and data.get("company_id") and data.get("company_id") != company_id:
+                    return False, "conversation_company_mismatch"
+                try:
+                    hydrated = ConversationState.model_validate(data)
+                    with self._access_lock:
+                        self._conversations[conversation_id] = hydrated
+                except Exception:
+                    return False, "conversation_lookup_error"
             except Exception as exc:
                 logger.warning(
                     "Firestore conversation ownership lookup failed (%s); denying access.",
                     type(exc).__name__,
                 )
-                return False, "Conversation access could not be verified. Please retry."
+                return False, "conversation_lookup_error"
             return True, None
 
         if state.user_id != user_id:
@@ -298,6 +311,7 @@ class ConversationStore:
         answer_summary: str | None = None,
         client_message_id: str | None = None,
         response_payload: dict[str, Any] | None = None,
+        session_state: dict[str, Any] | None = None,
         regenerate_existing: bool = False,
     ) -> ConversationState:
         """Record an executed turn into the conversation session (idempotent on client_message_id)."""
@@ -360,6 +374,7 @@ class ConversationStore:
                     selected_skills=selected_skills or [],
                     selected_companies=selected_companies or [],
                     filters=dict(filters or {}),
+                    session_state=dict(session_state or {}),
                     turns=[turn],
                     created_at=now,
                     updated_at=now,
@@ -386,6 +401,8 @@ class ConversationStore:
                     state.selected_companies = list(set(state.selected_companies + selected_companies))
                 if filters:
                     state.filters = dict(filters)
+                if session_state is not None:
+                    state.session_state = dict(session_state)
                 state.time_range = time_range
                 state.updated_at = now
 
@@ -446,10 +463,17 @@ class ConversationStore:
         # Also merge from Firestore if available
         try:
             from app.core.firebase import get_firestore_client
+            from app.storage.firestore_read_guard import read_guard
             client = get_firestore_client()
             if client is not None:
-                query = client.collection("intelligence_conversations").where("user_id", "==", user_id)
+                query = (
+                    client.collection("intelligence_conversations")
+                    .where("user_id", "==", user_id)
+                    .order_by("updated_at", direction="DESCENDING")
+                    .limit(max(1, int(limit)))
+                )
                 docs = list(query.stream())
+                read_guard.record_read("intelligence_conversations", len(docs), query_type="targeted_conversation_list")
                 known_ids = {c["conversation_id"] for c in conversations}
                 for doc in docs:
                     data = doc.to_dict() or {}
@@ -514,6 +538,8 @@ class ConversationStore:
                     doc_ref.delete()
                 else:
                     doc = doc_ref.get()
+                    from app.storage.firestore_read_guard import read_guard
+                    read_guard.record_read("intelligence_conversations", 1, query_type="targeted_conversation_delete_check")
                     if doc.exists:
                         doc_data = doc.to_dict() or {}
                         if doc_data.get("user_id") != user_id:

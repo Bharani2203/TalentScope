@@ -32,6 +32,10 @@ from app.intelligence_v2.contracts import (
     TaxonomyLookupItem,
     TaxonomyLookupResult,
 )
+from app.intelligence_v2.occupation_names import (
+    normalize_occupation_name,
+    occupation_label_matches,
+)
 from app.intelligence_v2.source_registry import V2SourceRegistry
 from app.storage.reference_store import ReferenceDataStore
 
@@ -196,6 +200,7 @@ class ReferenceTaxonomyLookupEngine:
         entity_type: Literal["all", "skill", "occupation"] = "all",
         limit: int = 15,
         context: str | None = None,
+        exact_occupation: bool = False,
     ) -> TaxonomyLookupResult:
         """Look up skills or occupations by canonical ID, exact name, supported alias, or partial search."""
         raw = query.strip()
@@ -210,6 +215,7 @@ class ReferenceTaxonomyLookupEngine:
             )
 
         casefolded = raw.casefold()
+        occupation_query = normalize_occupation_name(raw)
 
         # 1. Ambiguity Guard
         has_tech_context = False
@@ -283,16 +289,26 @@ class ReferenceTaxonomyLookupEngine:
                 # Occupations Lookup
                 if entity_type in {"all", "occupation"}:
                     # O*NET Occupations: by exact SOC code or title
-                    onet_occs = conn.execute(
-                        """
-                        SELECT soc_code, title, description
-                        FROM ref_onet_occupations
-                        WHERE soc_code = ? OR lower(title) = lower(?)
-                        LIMIT ?
-                        """,
-                        (raw, raw, limit),
-                    ).fetchall()
-                    if not onet_occs and len(raw) >= 3:
+                    if exact_occupation:
+                        onet_occs = conn.execute(
+                            """
+                            SELECT soc_code, title, description
+                            FROM ref_onet_occupations
+                            WHERE soc_code = ? OR lower(title) LIKE lower(?)
+                            """,
+                            (raw, f"%{occupation_query}%"),
+                        ).fetchall()
+                    else:
+                        onet_occs = conn.execute(
+                            """
+                            SELECT soc_code, title, description
+                            FROM ref_onet_occupations
+                            WHERE soc_code = ? OR lower(title) = lower(?)
+                            LIMIT ?
+                            """,
+                            (raw, occupation_query, limit),
+                        ).fetchall()
+                    if not onet_occs and len(occupation_query) >= 3:
                         onet_occs = conn.execute(
                             """
                             SELECT soc_code, title, description
@@ -301,8 +317,13 @@ class ReferenceTaxonomyLookupEngine:
                             ORDER BY length(title) ASC
                             LIMIT ?
                             """,
-                            (f"%{raw}%", limit),
+                            (f"%{occupation_query}%", limit),
                         ).fetchall()
+                    if exact_occupation:
+                        onet_occs = [
+                            occ for occ in onet_occs
+                            if occupation_label_matches(occupation_query, occ["title"])
+                        ]
 
                     for occ in onet_occs:
                         soc = occ["soc_code"]
@@ -315,23 +336,34 @@ class ReferenceTaxonomyLookupEngine:
                                     taxonomy="O*NET 28.0 SOC",
                                     description=occ["description"],
                                     source="ONET_2024",
-                                    status="matched" if occ["title"].casefold() == casefolded or soc == raw else "partial",
+                                    status="matched" if occupation_label_matches(occupation_query, occ["title"]) or soc == raw else "partial",
                                     metadata={"soc_code": soc},
                                 )
                             )
                             seen_ids.add(soc)
 
                     # ESCO Occupations: by concept_uri, code, or preferred_label / alt_labels
-                    esco_occs = conn.execute(
-                        """
-                        SELECT concept_uri, preferred_label, code, isco_group, description, alt_labels
-                        FROM ref_esco_occupations
-                        WHERE concept_uri = ? OR code = ? OR lower(preferred_label) = lower(?)
-                        LIMIT ?
-                        """,
-                        (raw, raw, raw, limit),
-                    ).fetchall()
-                    if not esco_occs and len(raw) >= 3:
+                    if exact_occupation:
+                        esco_occs = conn.execute(
+                            """
+                            SELECT concept_uri, preferred_label, code, isco_group, description, alt_labels
+                            FROM ref_esco_occupations
+                            WHERE concept_uri = ? OR code = ? OR lower(preferred_label) LIKE lower(?)
+                               OR lower(alt_labels) LIKE lower(?)
+                            """,
+                            (raw, raw, f"%{occupation_query}%", f"%{occupation_query}%"),
+                        ).fetchall()
+                    else:
+                        esco_occs = conn.execute(
+                            """
+                            SELECT concept_uri, preferred_label, code, isco_group, description, alt_labels
+                            FROM ref_esco_occupations
+                            WHERE concept_uri = ? OR code = ? OR lower(preferred_label) = lower(?)
+                            LIMIT ?
+                            """,
+                            (raw, raw, occupation_query, limit),
+                        ).fetchall()
+                    if not esco_occs and len(occupation_query) >= 3:
                         esco_occs = conn.execute(
                             """
                             SELECT concept_uri, preferred_label, code, isco_group, description, alt_labels
@@ -340,8 +372,17 @@ class ReferenceTaxonomyLookupEngine:
                             ORDER BY length(preferred_label) ASC
                             LIMIT ?
                             """,
-                            (f"%{raw}%", f"%{raw}%", limit),
+                            (f"%{occupation_query}%", f"%{occupation_query}%", limit),
                         ).fetchall()
+                    if exact_occupation:
+                        esco_occs = [
+                            occ for occ in esco_occs
+                            if occupation_label_matches(
+                                occupation_query,
+                                occ["preferred_label"],
+                                occ["alt_labels"],
+                            )
+                        ]
 
                     for eo in esco_occs:
                         uri = eo["concept_uri"]
@@ -354,7 +395,11 @@ class ReferenceTaxonomyLookupEngine:
                                     taxonomy="ESCO v1.2.1 Occupation",
                                     description=eo["description"],
                                     source="ESCO_V120",
-                                    status="matched" if eo["preferred_label"].casefold() == casefolded or uri == raw else "partial",
+                                    status="matched" if occupation_label_matches(
+                                        occupation_query,
+                                        eo["preferred_label"],
+                                        eo["alt_labels"],
+                                    ) or uri == raw else "partial",
                                     metadata={"isco_group": eo["isco_group"], "code": eo["code"]},
                                 )
                             )
@@ -467,7 +512,7 @@ class ReferenceTaxonomyLookupEngine:
                 total_matches=0,
                 results=[],
                 explanation=f"No matching skill or occupation found for query '{raw}' in local O*NET or ESCO taxonomies.",
-                limitations=["Entity is not present in local reference datasets."],
+                limitations=["Entity is not present in local O*NET 28.0 or ESCO v1.2.1 reference taxonomies."],
             )
 
         exact_match = any(r.status == "matched" for r in results)

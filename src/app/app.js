@@ -517,8 +517,8 @@ const navigation = [
     { label: 'Market Insights', icon: 'chart-no-axes-combined', route: '/individual/market-insights' }
   ] },
   { label: 'Workspace', items: [
-    { label: 'AI Assistant', icon: 'sparkles', route: '/individual/ai-assistant' },
-    { label: 'Notifications', icon: 'bell', route: '/individual/notifications' }
+    { label: 'Notifications', icon: 'bell', route: '/individual/notifications' },
+    { label: 'AI Assistant', icon: 'sparkles', route: '/individual/ai-assistant' }
   ] }
 ];
 
@@ -10494,6 +10494,10 @@ async function renderPage() {
   }
 
   const routePath = (window.location.hash.slice(1) || '/login').split('?')[0];
+  if (routePath === '/individual/ai-help') {
+    window.location.hash = '#/individual/ai-assistant';
+    return;
+  }
   let route = routePath;
 
   // 3. Classify route categories

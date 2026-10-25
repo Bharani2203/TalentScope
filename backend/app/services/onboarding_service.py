@@ -6,6 +6,7 @@ from firebase_admin import firestore
 from pydantic import TypeAdapter, ValidationError
 
 from app.core.firebase import get_firestore_client
+from app.storage.firestore_read_guard import read_guard
 from app.models.onboarding import (
     AgeGroup,
     BasicProfileAnswer,
@@ -179,6 +180,7 @@ def save_individual_step(uid: str, step: int, request: OnboardingStepRequest) ->
     document = client.collection("users").document(uid)
     try:
         snapshot = document.get()
+        read_guard.record_read("users", 1, query_type="targeted_onboarding_read")
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -248,6 +250,7 @@ def save_individual_step(uid: str, step: int, request: OnboardingStepRequest) ->
             document.set({"uid": uid}, merge=True)
         document.update(updates)
         saved = document.get().to_dict() or {}
+        read_guard.record_read("users", 1, query_type="targeted_onboarding_readback")
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -265,6 +268,7 @@ def save_individual_step(uid: str, step: int, request: OnboardingStepRequest) ->
 def get_individual_profile(uid: str) -> IndividualProfileResponse:
     try:
         snapshot = get_firestore_client().collection("users").document(uid).get()
+        read_guard.record_read("users", 1, query_type="targeted_profile_get")
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -292,6 +296,7 @@ def get_role_onboarding_profile(uid: str, user_type: str) -> RoleOnboardingProfi
         raise HTTPException(status_code=422, detail={"error_code": "invalid_filter"})
     try:
         snapshot = get_firestore_client().collection("users").document(uid).get()
+        read_guard.record_read("users", 1, query_type="targeted_role_profile_get")
     except Exception:
         raise HTTPException(status_code=503, detail="Onboarding profile is temporarily unavailable.") from None
     stored = snapshot.to_dict() if snapshot.exists else {}
@@ -335,6 +340,7 @@ def save_role_onboarding_step(uid: str, user_type: str, step: int, request: Role
     document = client.collection("users").document(uid)
     try:
         snapshot = document.get()
+        read_guard.record_read("users", 1, query_type="targeted_role_profile_get")
         stored = snapshot.to_dict() if snapshot.exists else {}
         if stored.get("user_type") != user_type:
             raise HTTPException(status_code=403, detail="This onboarding profile does not match the account type.")

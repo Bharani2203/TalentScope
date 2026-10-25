@@ -1,7 +1,7 @@
-"""Greenfield Intelligence Engine V2 — Capability Registry & Readiness Rules.
+"""Greenfield Intelligence Engine V2 capability registry and readiness rules.
 
-Defines the 15 capabilities across Skill Intelligence, Market Intelligence,
-and Job Intelligence, with truthful data-readiness evaluation.
+Defines approved selectable capabilities and internal V2 engine capabilities
+with truthful data-readiness evaluation.
 """
 
 from __future__ import annotations
@@ -45,10 +45,28 @@ class CapabilityReadiness(BaseModel):
     reason: str
 
 
-# Compatibility IDs emitted by the existing frontend capability catalog.
-# Mapping is domain-sensitive because several legacy IDs represent different
-# features in different Intelligence domains.
-LEGACY_CAPABILITY_MAP: dict[tuple[str, str], str] = {}
+# Compatibility IDs emitted by existing frontend and assistant callers.
+# The aliases are domain-sensitive because the legacy name may have different
+# meanings in Skill and Market Intelligence.
+LEGACY_CAPABILITY_MAP: dict[tuple[str, str], str] = {
+    ("skill", "trend_velocity_analysis"): "skill_demand_trends",
+    ("skill", "historical_signal_retrieval"): "skill_historical_signals",
+    ("skill", "skill_gap_role_fit"): "skill_role_alignment",
+    ("skill", "evidence_provenance_retrieval"): "skill_evidence_citations",
+    ("skill", "skill_technology_reference"): "skill_reference_profile",
+    ("skill", "action_recommendations"): "skill_action_recommendations",
+    ("market", "market_snapshot"): "market_intelligence_snapshot",
+    ("market", "historical_signal_retrieval"): "market_tech_signals",
+    ("market", "trend_velocity_analysis"): "market_trend_velocity",
+    ("market", "evidence_provenance_retrieval"): "market_evidence_citations",
+    ("job", "job_posting_search"): "job_verified_postings",
+    ("job", "occupation_software_skills"): "job_role_requirements",
+    ("job", "related_occupations"): "job_mobility_pathways",
+    ("job", "skill_gap_role_fit"): "job_profile_alignment",
+    ("job", "action_recommendations"): "job_preparation_actions",
+    ("job", "role_preparation_actions"): "job_preparation_actions",
+    ("skill", "role_preparation_actions"): "job_preparation_actions",
+}
 
 APPROVED_CAPABILITY_IDS: set[str] = {
     "skill_future_relevance_score",
@@ -62,7 +80,11 @@ APPROVED_CAPABILITY_IDS: set[str] = {
 
 
 def canonical_capability_id(capability_id: str, domain: str | None = None) -> str:
-    """Resolve an explicit feature ID; only accept approved capability IDs without fallback aliases."""
+    """Resolve an approved capability or a domain-specific legacy engine ID."""
+    if domain is not None:
+        mapped = LEGACY_CAPABILITY_MAP.get((domain, capability_id))
+        if mapped:
+            return mapped
     if capability_id in APPROVED_CAPABILITY_IDS:
         return capability_id
     return capability_id
@@ -135,7 +157,27 @@ CAPABILITIES: dict[str, CapabilityDefinition] = {
     ),
 }
 
-EXTENDED_CAPABILITIES: dict[str, CapabilityDefinition] = {}
+EXTENDED_CAPABILITIES: dict[str, CapabilityDefinition] = {
+    # Internal V2 engine capabilities used by the legacy assistant API. They
+    # are executable engine paths, not additional selectable Phase 1 features.
+    "skill_historical_signals": CapabilityDefinition(
+        capability_id="skill_historical_signals",
+        name="Historical Skill Signals",
+        domain="skill_intelligence",
+        description="Retrieve stored historical developer-adoption observations for a skill.",
+        primary_signal_family="developer_adoption",
+        primary_source_id="github_innovation_graph",
+        min_months_required=1,
+    ),
+    "skill_demand_trends": CapabilityDefinition(
+        capability_id="skill_demand_trends",
+        name="Skill Demand Trends",
+        domain="skill_intelligence",
+        description="Analyze platform-collected hiring-demand observations for a skill.",
+        primary_signal_family="hiring_demand",
+        min_months_required=4,
+    ),
+}
 
 
 class V2CapabilityRegistry:
@@ -145,7 +187,7 @@ class V2CapabilityRegistry:
         pass
 
     def get_capability(self, capability_id: str) -> CapabilityDefinition | None:
-        return CAPABILITIES.get(capability_id)
+        return CAPABILITIES.get(capability_id) or EXTENDED_CAPABILITIES.get(capability_id)
 
     def list_capabilities(self, domain: CapabilityDomain | None = None) -> list[CapabilityDefinition]:
         if domain:

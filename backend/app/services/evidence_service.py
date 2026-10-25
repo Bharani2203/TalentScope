@@ -21,6 +21,7 @@ from app.models.skill_evidence import (
 from app.storage.calculation_record_store import FirestoreCalculationRecordStore
 from app.storage.fetch_run_store import FirestoreFetchRunStore
 from app.storage.firestore_observation_store import FirestoreObservationStore
+from app.storage.firestore_read_guard import read_guard
 
 
 def get_skill_evidence(
@@ -203,6 +204,11 @@ def get_skill_evidence(
                 .where(filter=FieldFilter("source", "==", sig.source))
                 .where(filter=FieldFilter("period", "==", sig.period))
                 .stream()
+            )
+            read_guard.record_read(
+                "calculation_records",
+                len(calculation_records_by_source_period[calculation_key]),
+                query_type="targeted_evidence_calculations",
             )
         for c_doc in calculation_records_by_source_period[calculation_key]:
             c_data = c_doc.to_dict() or {}

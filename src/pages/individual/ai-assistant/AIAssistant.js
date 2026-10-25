@@ -21,6 +21,7 @@ import {
   deleteIntelligenceConversation,
   createIntelligenceConversation,
   getActiveConversationId,
+  isClientGeneratedConversationId,
   setActiveConversationId,
   getCapabilityCatalog,
   queryCoreIntelligencePlan,
@@ -507,7 +508,6 @@ export function getAssistantComposerMode(domainState) {
 async function requestRecommendedCapability(question, domain, domState) {
   const plan = await queryCoreIntelligencePlan({
     message: question,
-    domain,
     portalType: 'individual',
     timeRange: 'max',
     conversationId: domState.conversation_id || undefined,
@@ -1115,12 +1115,8 @@ export function renderDedicatedAIAssistantPage() {
     const incomingTopic = queryParams.get('topic');
     const incomingSkill = queryParams.get('skill');
     const incomingRole = queryParams.get('role');
-    const incomingDomain = queryParams.get('domain');
     const incomingQuery = queryParams.get('q');
 
-    if (incomingDomain && ['skill', 'market', 'job'].includes(incomingDomain)) {
-      switchAssistantDomain(incomingDomain);
-    }
     const domState = getActiveDomainSession();
     if (incomingTopic) {
       domState.filters.selectedSkill = incomingTopic;
@@ -1634,7 +1630,7 @@ function generatePageHTML() {
                   <circle cx="10" cy="10" r="1.5" fill="#FFFFFF" />
                 </svg>
               </span>
-              <span class="ai-composer-engine-title">${activeDomain === 'skill' ? 'Skill Intelligence' : activeDomain === 'market' ? 'Market Intelligence' : 'Job Intelligence'} Engine</span>
+              <span class="ai-composer-engine-title">Intelligence Assistant</span>
               <span class="ai-composer-engine-version">v2.7</span>
             </div>
           </div>
@@ -1788,28 +1784,14 @@ function generatePageHTML() {
           </div>
           <div class="ai-header-brand-text">
             <span class="ai-header-title">TalentScope.ai</span>
-            <span class="ai-header-subtitle">Skill, Market & Workforce Intelligence</span>
-          </div>
-        </div>
-
-        <div class="ai-header-center" role="tablist" aria-label="Select Intelligence Domain">
-          <div class="ai-domain-segment-bar">
-            <button type="button" role="tab" aria-selected="${activeDomain === 'skill'}" class="ai-domain-tab-pill ${activeDomain === 'skill' ? 'is-active' : ''}" data-ai-domain="skill">
-              <i data-lucide="brain-circuit"></i>
-              <span>Skill</span>
-            </button>
-            <button type="button" role="tab" aria-selected="${activeDomain === 'market'}" class="ai-domain-tab-pill ${activeDomain === 'market' ? 'is-active' : ''}" data-ai-domain="market">
-              <i data-lucide="building-2"></i>
-              <span>Market</span>
-            </button>
-            <button type="button" role="tab" aria-selected="${activeDomain === 'job'}" class="ai-domain-tab-pill ${activeDomain === 'job' ? 'is-active' : ''}" data-ai-domain="job">
-              <i data-lucide="briefcase"></i>
-              <span>Job</span>
-            </button>
+            <span class="ai-header-subtitle">Workforce intelligence for your next decision</span>
           </div>
         </div>
 
         <div class="ai-header-right">
+          <button type="button" class="ai-header-new-chat" id="btnNewAiConversation">
+            <i data-lucide="plus"></i><span>New chat</span>
+          </button>
           <span class="ai-freshness-pill" id="aiStateIndicator" title="Latest verified backend observation date">
             <span class="ai-freshness-dot ${isBusy ? 'is-busy' : freshness.isLive ? 'is-live' : ''}"></span>
             <span id="aiStateText">${escapeHTML(currentAiState === 'idle' ? freshness.label : getStateLabel(currentAiState))}</span>
@@ -1827,9 +1809,6 @@ function generatePageHTML() {
               </div>
               <button type="button" role="menuitem" class="ai-profile-menu-item" id="btnToggleHistoryModal">
                 <i data-lucide="history"></i><span>History</span>
-              </button>
-              <button type="button" role="menuitem" class="ai-profile-menu-item" id="btnNewAiConversation">
-                <i data-lucide="plus"></i><span>New Chat</span>
               </button>
             </div>
           ` : ''}
@@ -2129,11 +2108,11 @@ export function renderTurnChartOrBaselineHTML(turn, trendFact, facts, jobPosting
               ${Array.isArray(p.required_skills) && p.required_skills.length
                 ? `<div class="ai-res-posting-skills"><strong>Skills recorded:</strong> ${p.required_skills.map(escapeHTML).join(', ')}</div>`
                 : '<div class="ai-res-posting-skills">No structured required-skill list was recorded.</div>'}
-              ${/^https?:\/\//i.test(String(p.source_url || '')) ? `
-                <a href="${escapeHTML(p.source_url)}" target="_blank" rel="noopener noreferrer" class="ai-res-posting-link">
+              ${safeStoredSourceUrl(p.source_url) ? `
+                <a href="${escapeHTML(safeStoredSourceUrl(p.source_url))}" target="_blank" rel="noopener noreferrer" class="ai-res-posting-link">
                   View Source (${escapeHTML(p.source || 'Verified')}) ↗
                 </a>
-              ` : (p.source ? `<span class="ai-res-posting-source">Source: ${escapeHTML(p.source)}</span>` : '')}
+              ` : (p.source_url || p.source ? `<span class="ai-res-posting-source">Source: ${escapeHTML(p.source_url || p.source)}</span>` : '')}
             </div>
           `).join('')}
         </div>
@@ -2430,6 +2409,74 @@ export function resolveDisplayedCapabilityId(turn) {
   return usedCapabilities[0] || plannedCapabilities[0] || null;
 }
 
+function safeStoredSourceUrl(value) {
+  if (typeof value !== 'string' || !value.startsWith('https://')) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname && !url.username && !url.password
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function renderAssistantResponseDetails(turn) {
+  const status = String(turn?.status || turn?.execution_status || '').toLowerCase();
+  const limitations = Array.isArray(turn?.limitations) ? turn.limitations.filter(item => typeof item === 'string' && item.trim()) : [];
+  const showLimitedData = ['partial', 'insufficient_data'].includes(status) || turn?.enough_data === false;
+  const hasDemoOrigin = [
+    ...(Array.isArray(turn?.sources) ? turn.sources : []),
+    ...(Array.isArray(turn?.evidence) ? turn.evidence : []),
+    ...(Array.isArray(turn?.facts) ? turn.facts : [])
+  ].some(item => item?.data_origin === 'demo');
+  const evidence = [
+    ...(Array.isArray(turn?.sources) ? turn.sources : []),
+    ...(Array.isArray(turn?.evidence) ? turn.evidence : [])
+  ].map(item => {
+    const type = item?.type || item?.signal_type || item?.measured_signal_type;
+    const label = item?.label || item?.title || item?.description || item?.source;
+    const sourceUrl = typeof item?.source_url === 'string' ? item.source_url : '';
+    if (!type && !label && !sourceUrl) return '';
+    const safeUrl = safeStoredSourceUrl(sourceUrl);
+    return {
+      source: label || sourceUrl,
+      signal_type: type,
+      source_url: safeUrl,
+      data_origin: item?.data_origin
+    };
+  }).filter(Boolean);
+  const jobCapabilityIds = [
+    ...(Array.isArray(turn?.capabilities_used) ? turn.capabilities_used : []),
+    ...(Array.isArray(turn?.planned_capabilities) ? turn.planned_capabilities : [])
+  ];
+  const jobFact = (Array.isArray(turn?.facts) ? turn.facts : [])
+    .find(fact => fact?.fact_type === 'stored_job_postings');
+  const jobDetails = jobFact?.details || {};
+  const isJobSearch = turn?.intent === 'search_jobs'
+    || jobCapabilityIds.some(id => ['job_verified_postings', 'job_posting_search'].includes(id))
+    || Boolean(jobFact);
+  const hasJobCounts = Number.isFinite(jobDetails.scanned_count)
+    && Number.isFinite(jobDetails.matched_count)
+    && typeof jobDetails.city === 'string';
+  const clarification = typeof turn?.clarification === 'string' && turn.clarification.trim()
+    ? turn.clarification
+    : (Array.isArray(turn?.clarification_questions) ? turn.clarification_questions[0] : '');
+
+  return `
+    ${hasDemoOrigin ? '<p class="ai-demo-sample-banner" role="note">DEMO SAMPLE — illustrative data only; not live market evidence.</p>' : ''}
+    ${turn?.understood ? `<p class="ai-understood-line"><strong>Understood:</strong> ${escapeHTML(turn.understood)}</p>` : ''}
+    ${showLimitedData ? `<section class="ai-limited-data" aria-label="Limited data"><strong>Limited data</strong>${limitations.length ? `<ul>${limitations.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>` : ''}</section>` : ''}
+    ${turn?.degraded === true ? '<p class="ai-degraded-banner" role="status">Gemini unavailable, showing deterministic answer</p>' : ''}
+    ${evidence.length ? renderIntelligenceEvidencePanel({
+      status: turn.status,
+      evidence
+    }, { title: 'Evidence snapshot', compact: true }) : ''}
+    ${isJobSearch ? `<p class="ai-job-search-disclosure">${hasJobCounts ? `scanned ${jobDetails.scanned_count}, matched ${jobDetails.matched_count}, city ${escapeHTML(jobDetails.city)}` : ''}${hasJobCounts ? '<br>' : ''}live search is off</p>` : ''}
+    ${clarification ? `<section class="ai-clarification" aria-label="Clarification"><p>${escapeHTML(clarification)}</p><div role="group" aria-label="Choose a follow-up">${['skills', 'jobs', 'market signals'].map(topic => `<button type="button" data-assistant-follow-up="${topic}">${topic}</button>`).join('')}</div></section>` : ''}
+  `;
+}
+
 export function shouldShowUnappliedFilterDisclosure(turn) {
   const intent = String(turn?.intent || '').toLowerCase();
   const capabilityIds = [
@@ -2525,7 +2572,6 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
 
   const evidenceList = Array.isArray(turn.evidence) ? turn.evidence : [];
   const metricResults = Array.isArray(turn.metric_results) ? turn.metric_results : [];
-  const hasEvidencePanel = allFacts.length > 0 || evidenceList.length > 0 || metricResults.length > 0;
   const hasChartOrPostings = jobPostings.length > 0 || Boolean(trendFact && (trendFact.details?.series?.length >= 2 || trendFact.details?.observation_count >= 2));
   const journeyStep = isLatest
     ? resolveNextJourneyStep(turn, activeDomain, domState.history, domState.guidedJourney)
@@ -2582,6 +2628,7 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
 
         <!-- Flowing Conversational Body (Natural AI Answer First, Requirement 10) -->
         <div class="ai-conv-body">
+          ${renderAssistantResponseDetails(turn)}
           <!-- Main Markdown Response -->
           ${renderConversationAnswer(turn, formatMarkdown, {
             answer: turn.answer || turn.finding || (isServiceError ? 'The intelligence service did not return an answer.' : ''),
@@ -2597,15 +2644,6 @@ function renderTurnHTML(turn, index, isLatest = false, activeDomain = 'skill') {
               </button>
             </div>
           ` : ''}
-
-          ${hasEvidencePanel ? renderIntelligenceEvidencePanel({
-            status: turn.status,
-            metric_results: metricResults,
-            facts: allFacts,
-            evidence: evidenceList,
-            limitations: turn.limitations,
-            freshness: turn.freshness
-          }, { title: 'Evidence snapshot', compact: true }) : ''}
 
           <!-- Trend Chart or Verified Postings (Rendered only when relevant data exists) -->
           ${hasChartOrPostings ? renderTurnChartOrBaselineHTML(turn, trendFact, facts, jobPostings) : ''}
@@ -2778,6 +2816,7 @@ function attachSidebarItemListeners(container) {
               domainIcon: DOMAIN_CONFIG[targetDom]?.icon || 'sparkles',
               badgeClass: 'badge-skill-market',
               answer: payload.answer || t.answer_summary || t.answer || '',
+              answer_block: payload.answer_block || t.answer_block || null,
               finding: payload.answer || t.answer_summary || t.answer || '',
               facts: payload.facts || t.facts || [],
               metric_results: payload.metric_results || t.metric_results || [],
@@ -3056,19 +3095,17 @@ function attachEventListeners(container) {
     const dom = getActiveDomainKey();
     const domState = getActiveDomainSession(dom);
     const newChatButtons = [newChatBtn, sidebarNewChatBtn].filter(Boolean);
-    const domainButtons = [...container.querySelectorAll('[data-ai-domain]')];
     isCreatingConversation = true;
     newChatButtons.forEach(button => {
       button.disabled = true;
       button.setAttribute('aria-busy', 'true');
       button.querySelector('span')?.replaceChildren(document.createTextNode('Starting…'));
     });
-    domainButtons.forEach(button => { button.disabled = true; });
     try {
       const created = await createIntelligenceConversation({
         portalType: 'individual',
         domain: dom,
-        title: `New ${DOMAIN_CONFIG[dom]?.label || 'Intelligence'} Session`
+        title: 'New chat'
       });
       if (!created?.conversation_id) throw new Error('Conversation service did not return an ID.');
       if (created.portal_type && created.portal_type !== 'individual') {
@@ -3079,10 +3116,8 @@ function attachEventListeners(container) {
       }
       planningRequestCounter += 1;
       capabilityPlanning = false;
-      if (currentAiState === 'analyzing' || currentAiState === 'thinking') {
-        activeRequestCounter += 1;
-        currentAiState = 'idle';
-      }
+      activeRequestCounter += 1;
+      currentAiState = 'idle';
       isProfileMenuOpen = false;
       domState.conversation_id = created.conversation_id;
       setActiveConversationId(created.conversation_id, 'individual', dom, resolveCurrentUserId());
@@ -3103,7 +3138,7 @@ function attachEventListeners(container) {
       updateAiState('idle');
       renderDedicatedAIAssistantPage();
       requestAnimationFrame(() => document.getElementById('aiComposerInput')?.focus());
-      showToast(`Started new ${DOMAIN_CONFIG[dom]?.label || 'Intelligence'} chat`);
+      showToast('Started a new chat');
     } catch (error) {
       showToast(error?.message || 'Could not create a new chat. Please try again.');
     } finally {
@@ -3111,9 +3146,8 @@ function attachEventListeners(container) {
       newChatButtons.forEach(button => {
         button.disabled = false;
         button.removeAttribute('aria-busy');
-        button.querySelector('span')?.replaceChildren(document.createTextNode('New Chat'));
+        button.querySelector('span')?.replaceChildren(document.createTextNode('New chat'));
       });
-      domainButtons.forEach(button => { button.disabled = false; });
     }
   }
 
@@ -3156,6 +3190,15 @@ function attachEventListeners(container) {
       submitComposer();
     });
   }
+
+  container.querySelectorAll('[data-assistant-follow-up]').forEach(button => {
+    button.addEventListener('click', () => {
+      if (!input || currentAiState === 'analyzing' || currentAiState === 'thinking') return;
+      input.value = button.dataset.assistantFollowUp;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      submitComposer();
+    });
+  });
 
   async function submitComposer() {
     if (!input) return;
@@ -3395,16 +3438,6 @@ function attachEventListeners(container) {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       isFilterPopoverOpen = false;
-      renderDedicatedAIAssistantPage();
-    });
-  });
-
-  // Domain Selector Pills (Strict Per-Domain Isolation)
-  container.querySelectorAll('[data-ai-domain]').forEach(el => {
-    el.addEventListener('click', () => {
-      const dom = el.getAttribute('data-ai-domain');
-      if (!dom || dom === getActiveDomainKey()) return;
-      switchAssistantDomain(dom);
       renderDedicatedAIAssistantPage();
     });
   });
@@ -3732,6 +3765,12 @@ function attachEventListeners(container) {
       }
     });
   });
+  container.querySelectorAll('[data-clarification-reply]').forEach(button => {
+    button.addEventListener('click', () => {
+      const reply = button.getAttribute('data-clarification-reply');
+      if (reply) executeAiQuery(reply, { selectedFeatureId: null });
+    });
+  });
   container.querySelectorAll('.ai-retry-turn').forEach(button => {
     button.addEventListener('click', () => {
       const question = button.getAttribute('data-retry-question');
@@ -3830,7 +3869,7 @@ function attachEventListeners(container) {
         queryCoreIntelligenceAnswer({
           message: 'clear session',
           portalType: 'individual',
-          domain: dom,
+          domain: null,
           conversationId: domState.conversation_id,
           clearContext: true
         }).catch(() => {});
@@ -3868,7 +3907,7 @@ async function executeAiQuery(question, options = {}) {
     return;
   }
   const requestContext = {
-    domain: dom,
+    domain: null,
     capabilityId: selectedCapabilityId,
     timeRange: 'max',
   };
@@ -3880,17 +3919,33 @@ async function executeAiQuery(question, options = {}) {
   updateAiState('analyzing');
   renderDedicatedAIAssistantPage();
 
+  let planResult = null;
   try {
     updateAiState('thinking');
 
     const currentUid = resolveCurrentUserId();
     const isGuest = currentUid === 'anonymous';
+    const storedConversationId = domState.conversation_id
+      || getActiveConversationId('individual', dom, currentUid);
+    const conversationId = isGuest || isClientGeneratedConversationId(storedConversationId, 'individual', dom)
+      ? null
+      : (storedConversationId || null);
+    if (storedConversationId && !conversationId) {
+      domState.conversation_id = null;
+      setActiveConversationId(null, 'individual', dom, currentUid);
+    }
+    planResult = await queryCoreIntelligencePlan({
+      message: question,
+      portalType: 'individual',
+      timeRange: 'max',
+      conversationId
+    });
     const answerRes = await queryCoreIntelligenceAnswer({
       message: question,
       portalType: 'individual',
       ...requestContext,
       capabilityId: selectedCapabilityId,
-      conversationId: isGuest ? null : (domState.conversation_id || getActiveConversationId('individual', dom, currentUid) || null),
+      conversationId,
       clientMessageId: options.clientMessageId || clientMessageId,
       regenerate: Boolean(options.regenerate)
     }, { guest: isGuest });
@@ -3905,7 +3960,22 @@ async function executeAiQuery(question, options = {}) {
       domState.guidedJourney.conversationId = answerRes.conversation_id || domState.conversation_id;
     }
 
-    const factsList = Array.isArray(answerRes.facts) ? answerRes.facts : [];
+    const factsList = Array.isArray(answerRes.facts) ? answerRes.facts.map(fact => (
+      fact?.fact_type === 'stored_job_postings'
+        ? {
+          ...fact,
+          details: {
+            ...(fact.details || {}),
+            postings: Array.isArray(fact.details?.postings)
+              ? fact.details.postings.map(posting => ({
+                ...posting,
+                source_url: safeStoredSourceUrl(posting.source_url)
+              }))
+              : fact.details?.postings
+          }
+        }
+        : fact
+    )) : [];
     const postingsFact = factsList.find(f => f.fact_type === 'stored_job_postings');
     const jobPostings = Array.isArray(postingsFact?.details?.postings) ? postingsFact.details.postings : [];
     const usedCapabilityIds = Array.isArray(answerRes.capabilities_used) ? answerRes.capabilities_used : [];
@@ -3933,13 +4003,21 @@ async function executeAiQuery(question, options = {}) {
       domainIcon: DOMAIN_CONFIG[dom]?.icon || 'sparkles',
       badgeClass: 'badge-skill-market',
       answer: answerRes.answer,
+      answer_block: answerRes.answer_block || null,
       answer_origin: answerRes.answer_origin,
+      understood: typeof planResult?.understood === 'string' ? planResult.understood : null,
+      clarification: Array.isArray(planResult?.clarification_questions) ? planResult.clarification_questions[0] : null,
+      clarification_questions: Array.isArray(planResult?.clarification_questions) ? planResult.clarification_questions : [],
+      sources: Array.isArray(answerRes.sources) ? answerRes.sources : [],
       finding: answerRes.answer,
       facts: factsList,
       metric_results: answerRes.metric_results || [],
       jobPostings: jobPostings,
       evidence: answerRes.evidence,
       limitations: answerRes.limitations,
+      enough_data: answerRes.enough_data,
+      degraded: answerRes.degraded,
+      degraded_reason: answerRes.degraded_reason,
       reason_codes: answerRes.reason_codes,
       capabilities_used: answerRes.capabilities_used,
       planned_primary_capability: answerRes.planned_primary_capability,
@@ -4067,6 +4145,8 @@ async function executeAiQuery(question, options = {}) {
       domainIcon: 'alert-triangle',
       badgeClass: 'badge-skill',
       answer: errorMessage,
+      understood: typeof planResult?.understood === 'string' ? planResult.understood : null,
+      clarification: Array.isArray(planResult?.clarification_questions) ? planResult.clarification_questions[0] : null,
       finding: errorMessage,
       facts: [],
       jobPostings: [],

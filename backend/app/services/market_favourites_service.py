@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 
 from app.core.firebase import get_firestore_client
 from app.models.skill_intelligence import FavouriteEntityIdsResponse, FavouriteEntityIdsUpdateRequest
+from app.storage.firestore_read_guard import read_guard
 
 
 def update_market_favourites(uid: str, request: FavouriteEntityIdsUpdateRequest) -> FavouriteEntityIdsResponse:
@@ -25,6 +26,7 @@ def update_market_favourites(uid: str, request: FavouriteEntityIdsUpdateRequest)
         client = get_firestore_client()
         document = client.collection("users").document(uid)
         snapshot = document.get()
+        read_guard.record_read("users", 1, query_type="targeted_market_favourites")
         record = snapshot.to_dict() if snapshot.exists else {}
         if (record or {}).get("user_type") not in (None, "individual"):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Market favourites are available to Individual profiles.")

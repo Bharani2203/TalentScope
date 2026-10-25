@@ -12,3 +12,10 @@ node_modules/
 **/__pycache__/
 *.py[cod]
 *.sqlite3
+emulator-data/
+backend/emulator-data/
+.test_reports/
+backend/tests/real_data/
+backend/.env
+data/
+backend/.venv-old/

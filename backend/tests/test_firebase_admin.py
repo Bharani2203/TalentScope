@@ -94,9 +94,10 @@ def test_firestore_client_is_created_once_and_reused(monkeypatch):
 
 
 class FakeSnapshot:
-    def __init__(self, data):
+    def __init__(self, data, document_id=None):
         self.exists = data is not None
         self.data = data
+        self.id = document_id
 
     def to_dict(self):
         return deepcopy(self.data)
@@ -143,6 +144,12 @@ class FakeFirestore:
 
     def batch(self):
         return FakeBatch(self.documents)
+
+    def get_all(self, references):
+        return [
+            FakeSnapshot(self.documents.get(reference.path), reference.path.rsplit("/", 1)[-1])
+            for reference in references
+        ]
 
 
 def test_job_storage_upserts_by_job_id_and_reads_existing_job():

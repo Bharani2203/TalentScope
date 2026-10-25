@@ -11,8 +11,9 @@ from datetime import datetime, timezone
 import json
 import re
 from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
+from app.models.assistant import AssistantSource, DegradedReason
 from app.models.intent_planner import PlanStatus
 from app.models.skill_intelligence import MarketObservation
 from app.models.intelligence_contract import IntelligenceMetricResult
@@ -127,10 +128,12 @@ class CoreIntelligenceAnswerRequest(BaseModel):
     """User prompt and ambient application context submitted for intelligence answering."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    _session_state_update: dict[str, Any] | None = PrivateAttr(default=None)
+    _merged_job_search_query: str | None = PrivateAttr(default=None)
 
     message: str = Field(min_length=1, max_length=2000)
     portal_type: Literal["individual", "employee", "company"] | None = None
-    domain: Literal["skill", "market", "job"] | None = None
+    domain: Literal["skill", "market", "job", "auto"] | None = "auto"
     capability_id: str | None = None
     location: str | None = None
     time_range: str = Field(default="30d", max_length=32)
@@ -194,9 +197,9 @@ class CoreIntelligenceAnswerRequest(BaseModel):
             }.get(normalized, normalized)
             if normalized not in {"skill", "market", "job"}:
                 raise ValueError("filters.domain must identify skill, market, or job intelligence.")
-            if self.domain and self.domain != normalized:
+            if self.domain not in (None, "auto") and self.domain != normalized:
                 raise ValueError("domain conflicts with filters.domain.")
-            if self.domain is None:
+            if self.domain in (None, "auto"):
                 self.domain = normalized  # type: ignore[assignment]
         filter_time_ranges = [
             value for value in (
@@ -266,6 +269,42 @@ class CoreIntelligenceAnswerRequest(BaseModel):
         return self
 
 
+class AnswerBlockTable(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    columns: list[str] = Field(default_factory=list)
+    rows: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AnswerBlockFooter(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    based_on: str | None = None
+    disclosures: list[str] = Field(default_factory=list)
+
+
+class AnswerBlockClarification(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    classification: Literal["TOO BROAD"] = "TOO BROAD"
+    slot: Literal["role", "location", "technology"]
+    round_count: int = Field(ge=1, le=2)
+    options: list[dict[str, str]] = Field(default_factory=list)
+
+
+class AssistantAnswerBlock(BaseModel):
+    """Deterministic presentation block; counts and rows come from backend facts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    verdict: str
+    summary: str = ""
+    table: AnswerBlockTable | None = None
+    bullets: list[str] = Field(default_factory=list)
+    footer: AnswerBlockFooter = Field(default_factory=AnswerBlockFooter)
+    clarification: AnswerBlockClarification | None = None
+
+
 class CoreIntelligenceAnswerResponse(BaseModel):
     """Validated, traceable response produced by Core Intelligence Execution Orchestrator."""
 
@@ -280,6 +319,14 @@ class CoreIntelligenceAnswerResponse(BaseModel):
     execution_status: ExecutionStatus
     status: Literal["ready", "partial", "insufficient_data", "unavailable", "error", "not_applicable"] = "insufficient_data"
     answer: str
+    answer_block: AssistantAnswerBlock | None = None
+    understood: str = ""
+    secondary_intents: list[str] = Field(default_factory=list)
+    enough_data: bool = False
+    sources: list[AssistantSource] = Field(default_factory=list)
+    features_used: list[str] = Field(default_factory=list)
+    degraded: bool = False
+    degraded_reason: DegradedReason | None = None
     answer_origin: Literal["deterministic", "gemini"] = "deterministic"
     answer_title: str | None = None
     answer_type: Literal["explanation", "comparison", "recommendations", "roadmap", "other"] = "other"

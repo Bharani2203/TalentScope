@@ -89,8 +89,108 @@ def test_conversation_access_fails_closed_when_firestore_lookup_fails(monkeypatc
     )
 
     assert allowed is False
-    assert reason == "Conversation access could not be verified. Please retry."
+    assert reason == "conversation_lookup_error"
     assert "ownership lookup failed (RuntimeError); denying access." in caplog.text
+
+
+def _service_with_conversation_guard(store, planner):
+    from app.services.execution_orchestrator_service import ExecutionOrchestratorService
+
+    service = ExecutionOrchestratorService.__new__(ExecutionOrchestratorService)
+    service.conversation_store = store
+    service.intent_planner = planner
+    return service
+
+
+def test_mocked_first_answer_without_id_creates_backend_conversation():
+    from app.models.auth import AuthenticatedUser
+    from app.models.execution_orchestrator import CoreIntelligenceAnswerRequest
+
+    class PlanningReached(Exception):
+        pass
+
+    class Planner:
+        received_request = None
+
+        def create_plan(self, request, authenticated_user=None):
+            self.received_request = request
+            raise PlanningReached
+
+    store = ConversationStore()
+    planner = Planner()
+    service = _service_with_conversation_guard(store, planner)
+    request = CoreIntelligenceAnswerRequest(message="First mocked skill question")
+    user = AuthenticatedUser(uid="mock-first-message-user", email="mock@example.test")
+
+    with pytest.raises(PlanningReached):
+        service.answer(request, authenticated_user=user)
+
+    created_id = planner.received_request.conversation_id
+    assert created_id
+    allowed, reason = store.check_conversation_access(created_id, user_id=user.uid)
+    assert allowed is True
+    assert reason is None
+
+
+def test_mocked_new_conversation_endpoint_returns_backend_id():
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/intelligence/conversations",
+        json={"portal_type": "individual", "domain": "skill"},
+    )
+
+    assert response.status_code == 200
+    conversation = response.json()
+    assert conversation["conversation_id"].startswith("conv_")
+    assert conversation["user_id"] == "test_user_conv_123"
+
+
+def test_mocked_wrong_owner_conversation_stays_denied_and_logs_reason_only(caplog):
+    from app.models.auth import AuthenticatedUser
+    from app.models.execution_orchestrator import CoreIntelligenceAnswerRequest
+    from app.services.execution_orchestrator_service import ExecutionOrchestratorService
+    from fastapi import HTTPException
+
+    store = ConversationStore()
+    conversation = store.create_conversation(user_id="mock-owner-a")
+    service = _service_with_conversation_guard(store, object())
+    request = CoreIntelligenceAnswerRequest(
+        message="Mocked follow-up",
+        conversation_id=conversation.conversation_id,
+    )
+    other_user = AuthenticatedUser(uid="mock-owner-b", email="other@example.test")
+
+    with pytest.raises(HTTPException) as exc:
+        service.answer(request, authenticated_user=other_user)
+
+    assert exc.value.status_code == 403
+    assert exc.value.detail == "Access denied to conversation."
+    assert "conversation_access_denied reason_code=owner_mismatch" in caplog.text
+    assert "mock-owner-a" not in caplog.text
+    assert "mock-owner-b" not in caplog.text
+
+
+def test_mocked_missing_document_conversation_returns_404(monkeypatch, caplog):
+    from app.core import firebase
+    from app.models.auth import AuthenticatedUser
+    from app.models.execution_orchestrator import CoreIntelligenceAnswerRequest
+    from fastapi import HTTPException
+    from app.services.execution_orchestrator_service import ExecutionOrchestratorService
+
+    monkeypatch.setattr(firebase, "get_firestore_client", lambda: None)
+    service = _service_with_conversation_guard(ConversationStore(), object())
+    request = CoreIntelligenceAnswerRequest(
+        message="Mocked request with missing conversation",
+        conversation_id=f"missing-{uuid.uuid4().hex[:10]}",
+    )
+    user = AuthenticatedUser(uid="mock-missing-user", email="missing@example.test")
+
+    with pytest.raises(HTTPException) as exc:
+        service.answer(request, authenticated_user=user)
+
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "Conversation not found."
+    assert "conversation_access_denied reason_code=missing_document" in caplog.text
 
 
 def test_create_empty_conversation_can_be_listed_and_restored():

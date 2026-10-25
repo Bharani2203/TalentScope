@@ -233,10 +233,37 @@ def test_r4_provider_failure_uses_deterministic_answer_without_market_claims(ans
 
     assert response.status_code == 200
     data = response.json()
-    assert data["execution_status"] == "completed"
+    assert data["execution_status"] == "failed"
+    assert data["status"] == "unavailable"
+    assert data["degraded"] is True
     assert data["answer_origin"] == "deterministic"
-    assert "web services" in data["answer"]
-    assert "not a TalentScope market finding" in data["answer"]
+    assert data["answer"] == "The assistant is temporarily experiencing high demand. Please try again shortly."
+
+
+def test_r4_usage_ledger_failure_marks_response_degraded_without_provider_request(answer_api, caplog):
+    client, service, _conversation_store, _user, _firestore = answer_api
+    service.llm_service.is_available = lambda: True
+    provider_calls = []
+
+    def unavailable_ledger(*_args, **_kwargs):
+        raise RuntimeError("private ledger details")
+
+    service.llm_service.reserve_durable_budget = unavailable_ledger
+    service.llm_service._post_json = lambda **_kwargs: provider_calls.append("sent")
+
+    response = client.post(
+        "/api/v1/intelligence/answer",
+        json={"message": "What is Python used for?", "domain": "skill"},
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["degraded"] is True
+    assert data["degraded_reason"] == "usage_ledger_unavailable"
+    assert data["answer_origin"] == "deterministic"
+    assert provider_calls == []
+    assert "private ledger details" not in caplog.text
+    assert "RuntimeError" in caplog.text
     assert "must-not-be-exposed" not in response.text
     assert "must-not-be-exposed" not in caplog.text
 
@@ -332,11 +359,7 @@ def test_r4_clarification_and_conversation_access_are_isolated(answer_api, monke
         },
     )
 
-    assert denied.status_code == 200
-    denied_data = denied.json()
-    assert denied_data["execution_status"] == "blocked"
-    assert denied_data["facts"] == [] and denied_data["evidence"] == []
-    assert "access denied" in denied_data["answer"].lower()
+    assert denied.status_code == 403
     assert "private-conversation-sentinel" not in denied.text
     assert conversation_id not in denied.text
 

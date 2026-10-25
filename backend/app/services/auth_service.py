@@ -4,6 +4,7 @@ from time import perf_counter
 from app.core.auth_diagnostics import elapsed_ms, log_auth_trace, uid_reference
 from app.core.firebase import get_firestore_client
 from app.models.auth import AuthSyncRequest, AuthenticatedUser, UserProfile
+from app.storage.firestore_read_guard import read_guard
 
 
 def _utc_now() -> datetime:
@@ -42,6 +43,7 @@ def sync_user_profile(
     )
     try:
         existing_snapshot = document.get()
+        read_guard.record_read("users", 1, query_type="targeted_auth_profile")
     except Exception as exc:
         log_auth_trace(
             "firestore_profile_read",

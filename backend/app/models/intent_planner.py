@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.assistant import AssistantSource, DegradedReason
 from app.models.capability_registry import CapabilityEvaluationResult, CapabilityId
 from app.models.entity_registry import CanonicalEntity, EntityCandidate
 from app.models.skill_intelligence import MarketObservation
@@ -43,7 +44,10 @@ IntentCategory = Literal[
     "analyze_skill_gap",
     "synthesize_actions",
     "search_jobs",
+    "aggregate_posting_skills",
     "analyze_company_workforce",
+    "company_postings_summary",
+    "platform_help",
     "forecast_future_demand",
     "analyze_ai_task_exposure",
     "simulate_workforce_scenarios",
@@ -89,7 +93,7 @@ class IntelligencePlanRequest(BaseModel):
 
     message: str = Field(min_length=1, max_length=2000)
     portal_type: Literal["individual", "employee", "company"] | None = None
-    domain: Literal["skill", "market", "job"] | None = None
+    domain: Literal["skill", "market", "job", "auto"] | None = "auto"
     capability_id: CapabilityId | None = None
     location: str | None = None
     time_range: str = "30d"
@@ -118,6 +122,13 @@ class IntelligencePlanResponse(BaseModel):
     intent: str
     intent_confidence: float
     intent_explanation: str
+    understood: str = ""
+    secondary_intents: list[str] = Field(default_factory=list)
+    enough_data: bool = False
+    sources: list[AssistantSource] = Field(default_factory=list)
+    features_used: list[str] = Field(default_factory=list)
+    degraded: bool = False
+    degraded_reason: DegradedReason | None = None
     conversation_id: str | None = None
     entities: list[ResolvedEntityItem] = Field(default_factory=list)
     primary_capability: str | None = None

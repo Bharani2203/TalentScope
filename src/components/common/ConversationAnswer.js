@@ -66,10 +66,34 @@ export function cleanConversationAnswer(text) {
     .trim();
 }
 
+function renderStructuredAnswerBlock(block, formatMarkdown) {
+  const table = block?.table;
+  const columns = Array.isArray(table?.columns) ? table.columns : [];
+  const rows = Array.isArray(table?.rows) ? table.rows : [];
+  const footer = block?.footer || {};
+  const disclosures = Array.isArray(footer.disclosures) ? footer.disclosures : [];
+  const bullets = Array.isArray(block?.bullets) ? block.bullets : [];
+  const quickReplies = Array.isArray(block?.clarification?.options) ? block.clarification.options : [];
+  const escapeAttribute = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
+  return `<section class="assistant-answer-block" aria-label="Answer">
+    <h3 class="assistant-answer-block__verdict">${formatMarkdown(cleanConversationAnswer(block.verdict || 'Answer'))}</h3>
+    ${block.summary ? `<p class="assistant-answer-block__summary">${formatMarkdown(cleanConversationAnswer(block.summary))}</p>` : ''}
+    ${quickReplies.length ? `<div class="assistant-answer-block__quick-replies" role="group" aria-label="Quick replies">${quickReplies.map(option => `<button type="button" class="assistant-quick-reply" data-clarification-reply="${escapeAttribute(option?.value)}">${formatMarkdown(cleanConversationAnswer(String(option?.label ?? option?.value ?? '')))}</button>`).join('')}</div>` : ''}
+    ${columns.length && rows.length ? `<div class="assistant-answer-block__table-wrap" role="region" aria-label="Answer details" tabindex="0"><table class="assistant-answer-block__table"><thead><tr>${columns.map(column => `<th scope="col">${formatMarkdown(String(column))}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${columns.map(column => `<td>${formatMarkdown(cleanConversationAnswer(String(row?.[column] ?? '')))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}
+    ${bullets.length ? `<ul class="assistant-answer-block__bullets">${bullets.map(item => `<li>${formatMarkdown(cleanConversationAnswer(String(item)))}</li>`).join('')}</ul>` : ''}
+    ${(footer.based_on || disclosures.length) ? `<footer class="assistant-answer-block__footer">${footer.based_on ? `<p><strong>Based on:</strong> ${formatMarkdown(cleanConversationAnswer(String(footer.based_on)))}</p>` : ''}${disclosures.length ? `<ul>${disclosures.map(item => `<li>${formatMarkdown(cleanConversationAnswer(String(item)))}</li>`).join('')}</ul>` : ''}</footer>` : ''}
+  </section>`;
+}
+
 export function renderConversationAnswer(response, formatMarkdown, {
   answer = response?.answer || response?.finding || '',
   explanation = ''
 } = {}) {
+  if (response?.answer_block?.verdict) {
+    return renderStructuredAnswerBlock(response.answer_block, formatMarkdown);
+  }
   const status = responseStatus(response);
   const intent = String(response?.intent || '').toLowerCase();
   const responsePresentation = {

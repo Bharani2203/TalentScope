@@ -59,21 +59,21 @@ def test_no_firestore_imports_in_capability_service():
 # =============================================================================
 
 def test_capability_catalog_completeness_and_states():
-    """Verify exactly 7 capabilities are registered with available status."""
+    """Catalog availability is derived from callable handler registrations."""
     service = CapabilityRegistryService()
     catalog = service.get_catalog()
 
-    assert catalog.total_capabilities == 7
-    assert len(catalog.capabilities) == 7
+    assert catalog.total_capabilities == len(CAPABILITY_CATALOG)
+    assert len(catalog.capabilities) == 26
 
     # Check breakdown
-    assert catalog.available_count == 7
+    assert catalog.available_count == 21
     assert catalog.partial_count == 0
-    assert catalog.building_count == 0
+    assert catalog.building_count == 5
     assert catalog.insufficient_data_count == 0
     assert catalog.blocked_count == 0
 
-    assert set(CAPABILITY_CATALOG.keys()) == {
+    assert {
         "skill_future_relevance_score",
         "skill_change_alert",
         "adaptive_skill_roadmap",
@@ -81,7 +81,9 @@ def test_capability_catalog_completeness_and_states():
         "technology_impact_explorer",
         "skill_based_job_match",
         "career_transition_opportunity",
-    }
+    }.issubset(CAPABILITY_CATALOG)
+    for cap in catalog.capabilities:
+        assert bool(cap.handler) == (cap.capability_id in __import__("app.services.assistant_feature_registry", fromlist=["HANDLER_METHODS"]).HANDLER_METHODS)
 
 
 def test_capability_records_have_complete_contracts():
@@ -95,12 +97,20 @@ def test_capability_records_have_complete_contracts():
         assert len(cap.description) > 10
         assert cap.supported_intent
         assert len(cap.supported_entity_types) > 0
-        assert len(cap.required_inputs) > 0
+        if cap.handler and cap.capability_id != "collected_posting_skills":
+            assert len(cap.required_inputs) > 0
+        if cap.capability_id == "collected_posting_skills":
+            assert cap.required_inputs == []
+            assert cap.required_sources == ["jobs"]
         assert len(cap.limitations) > 0, f"Capability {cap.capability_id} missing explicit limitations"
-        assert len(cap.provenance_requirements) > 0, f"Capability {cap.capability_id} missing provenance requirements"
-        assert cap.global_status == "available"
-        assert cap.implementation_status == "pending"
-        assert cap.handler is None  # Pending implementation in Phase 2; no phantom module reference
+        if cap.handler:
+            assert len(cap.provenance_requirements) > 0, f"Capability {cap.capability_id} missing provenance requirements"
+        if cap.handler:
+            assert cap.global_status == "available"
+            assert cap.implementation_status == "implemented"
+        else:
+            assert cap.global_status == "building"
+            assert cap.implementation_status == "pending"
 
 
 # =============================================================================
@@ -111,7 +121,9 @@ def test_pending_capabilities_evaluation():
     """Verify Phase 1 features return pending implementation status upon evaluation."""
     service = CapabilityRegistryService()
 
-    for cap_id in CAPABILITY_CATALOG:
+    for cap_id, cap in CAPABILITY_CATALOG.items():
+        if cap.handler:
+            continue
         req = CapabilityEvaluationRequest(
             capability_id=cap_id,
             entity_name="python",
@@ -120,9 +132,9 @@ def test_pending_capabilities_evaluation():
         resp = service.evaluate(req)
         assert len(resp.results) == 1
         res = resp.results[0]
-        assert res.global_status == "available"
+        assert res.global_status == "building"
         assert res.can_execute is False
-        assert "CAPABILITY_PENDING_IMPLEMENTATION" in res.reason_codes
+        assert "FEATURE_NOT_IMPLEMENTED" in res.reason_codes
         assert len(res.missing_requirements) > 0
 
 
@@ -184,9 +196,9 @@ def test_capabilities_api_endpoints():
         cat_resp = client.get("/api/v1/intelligence/capabilities")
         assert cat_resp.status_code == 200
         cat_data = cat_resp.json()
-        assert cat_data["total_capabilities"] == 7
-        assert cat_data["available_count"] == 7
-        assert len(cat_data["capabilities"]) == 7
+        assert cat_data["total_capabilities"] == 26
+        assert cat_data["available_count"] == 21
+        assert len(cat_data["capabilities"]) == 26
 
         # 2. POST /api/v1/intelligence/capabilities/evaluate
         eval_resp = client.post(
@@ -202,10 +214,10 @@ def test_capabilities_api_endpoints():
         assert len(eval_data["results"]) == 1
         res = eval_data["results"][0]
         assert res["capability_id"] == "skill_future_relevance_score"
-        assert res["global_status"] == "available"
+        assert res["global_status"] == "building"
         assert res["implementation_status"] == "pending"
         assert res["can_execute"] is False
-        assert "CAPABILITY_PENDING_IMPLEMENTATION" in res["reason_codes"]
+        assert "FEATURE_NOT_IMPLEMENTED" in res["reason_codes"]
     finally:
         app.dependency_overrides.pop(dependencies.get_current_user, None)
 
@@ -226,9 +238,9 @@ def test_technology_impact_explorer_with_technology_input():
     assert len(resp.results) == 1
     res = resp.results[0]
     assert res.global_status == "available"
-    assert res.implementation_status == "pending"
-    assert res.can_execute is False
-    assert "CAPABILITY_PENDING_IMPLEMENTATION" in res.reason_codes
+    assert res.implementation_status == "implemented"
+    assert res.can_execute is True
+    assert "HANDLER_REGISTERED" in res.reason_codes
     assert any("primary_input:technology" in p for p in res.provenance_references)
 
 
@@ -244,9 +256,9 @@ def test_technology_impact_explorer_with_skill_input():
     assert len(resp.results) == 1
     res = resp.results[0]
     assert res.global_status == "available"
-    assert res.implementation_status == "pending"
-    assert res.can_execute is False
-    assert "CAPABILITY_PENDING_IMPLEMENTATION" in res.reason_codes
+    assert res.implementation_status == "implemented"
+    assert res.can_execute is True
+    assert "HANDLER_REGISTERED" in res.reason_codes
     assert any("primary_input:skill" in p for p in res.provenance_references)
 
 
@@ -262,8 +274,8 @@ def test_technology_impact_explorer_with_optional_occupation():
     resp = service.evaluate(req)
     assert len(resp.results) == 1
     res = resp.results[0]
-    assert res.can_execute is False
-    assert "CAPABILITY_PENDING_IMPLEMENTATION" in res.reason_codes
+    assert res.can_execute is True
+    assert "HANDLER_REGISTERED" in res.reason_codes
     assert any("optional_input:occupation" in p for p in res.provenance_references)
 
 
@@ -294,9 +306,9 @@ def test_career_transition_opportunity_with_current_role():
     assert len(resp.results) == 1
     res = resp.results[0]
     assert res.global_status == "available"
-    assert res.implementation_status == "pending"
-    assert res.can_execute is False
-    assert "CAPABILITY_PENDING_IMPLEMENTATION" in res.reason_codes
+    assert res.implementation_status == "implemented"
+    assert res.can_execute is True
+    assert "HANDLER_REGISTERED" in res.reason_codes
     assert any("role_input:current_role" in p for p in res.provenance_references)
 
 
@@ -312,9 +324,9 @@ def test_career_transition_opportunity_with_target_role():
     assert len(resp.results) == 1
     res = resp.results[0]
     assert res.global_status == "available"
-    assert res.implementation_status == "pending"
-    assert res.can_execute is False
-    assert "CAPABILITY_PENDING_IMPLEMENTATION" in res.reason_codes
+    assert res.implementation_status == "implemented"
+    assert res.can_execute is True
+    assert "HANDLER_REGISTERED" in res.reason_codes
     assert any("role_input:target_role" in p for p in res.provenance_references)
 
 
@@ -330,8 +342,8 @@ def test_career_transition_opportunity_with_skills():
     resp = service.evaluate(req)
     assert len(resp.results) == 1
     res = resp.results[0]
-    assert res.can_execute is False
-    assert "CAPABILITY_PENDING_IMPLEMENTATION" in res.reason_codes
+    assert res.can_execute is True
+    assert "HANDLER_REGISTERED" in res.reason_codes
     assert any("optional_input:current_skills" in p for p in res.provenance_references)
 
 

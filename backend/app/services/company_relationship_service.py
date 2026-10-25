@@ -9,6 +9,7 @@ from firebase_admin import firestore
 from app.core.firebase import get_firestore_client
 from app.models.auth import AuthenticatedUser
 from app.models.company import CompanyConnectionReviewResponse, CompanyInvitationCreate
+from app.storage.firestore_read_guard import read_guard
 
 
 def create_invitation(user: AuthenticatedUser, request: CompanyInvitationCreate) -> dict:
@@ -17,17 +18,21 @@ def create_invitation(user: AuthenticatedUser, request: CompanyInvitationCreate)
         raise HTTPException(status_code=422, detail="Enter a valid employee email address.")
     client = get_firestore_client()
     admin = client.collection("users").document(user.uid).get().to_dict() or {}
+    read_guard.record_read("users", 1, query_type="targeted_company_invitation_admin")
     company_id = admin.get("company_id")
     company_ref = client.collection("companies").document(company_id or "__missing__")
     company = company_ref.get().to_dict() or {}
+    read_guard.record_read("companies", 1, query_type="targeted_company_invitation_company")
     if admin.get("user_type") != "company" or not company_id or company.get("owner_uid") != user.uid:
         raise HTTPException(status_code=403, detail="Only the verified company owner can invite employees.")
     connected = list(client.collection("users").where("email", "==", email).limit(10).stream())
+    read_guard.record_read("users", len(connected), query_type="targeted_company_invitation_email")
     if any((row.to_dict() or {}).get("company_id") == company_id for row in connected):
         raise HTTPException(status_code=409, detail="This employee is already connected to your company.")
     # Use the single-field company query and apply the remaining checks locally;
     # this does not require a new composite Firestore index for invitation writes.
-    existing = client.collection("company_invitations").where("company_id", "==", company_id).stream()
+    existing = list(client.collection("company_invitations").where("company_id", "==", company_id).stream())
+    read_guard.record_read("company_invitations", len(existing), query_type="targeted_company_invitation_list")
     now = datetime.now(timezone.utc)
     for row in existing:
         invitation = row.to_dict() or {}
@@ -63,8 +68,10 @@ def list_company_invitations(user: AuthenticatedUser) -> list[dict]:
     """List safe invitation metadata for the authenticated company owner."""
     client = get_firestore_client()
     admin = client.collection("users").document(user.uid).get().to_dict() or {}
+    read_guard.record_read("users", 1, query_type="targeted_company_invitation_admin")
     company_id = admin.get("company_id")
     company = client.collection("companies").document(company_id or "__missing__").get().to_dict() or {}
+    read_guard.record_read("companies", 1, query_type="targeted_company_invitation_company")
     if admin.get("user_type") != "company" or not company_id or company.get("owner_uid") != user.uid:
         raise HTTPException(status_code=403, detail="Only the verified company owner can list invitations.")
 
@@ -73,6 +80,8 @@ def list_company_invitations(user: AuthenticatedUser) -> list[dict]:
     snapshots = client.collection("company_invitations").where(
         "company_id", "==", company_id,
     ).limit(100).stream()
+    snapshots = list(snapshots)
+    read_guard.record_read("company_invitations", len(snapshots), query_type="targeted_company_invitation_list")
     for snapshot in snapshots:
         record = snapshot.to_dict() or {}
         if record.get("company_id") != company_id:
@@ -116,6 +125,7 @@ def change_invitation(user: AuthenticatedUser, token: str, *, accept: bool) -> d
     client = get_firestore_client()
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     matches = list(client.collection("company_invitations").where("token_hash", "==", token_hash).limit(1).stream())
+    read_guard.record_read("company_invitations", len(matches), query_type="targeted_invitation_token")
     if not matches:
         raise HTTPException(status_code=404, detail="Invitation is invalid or expired.")
     ref = client.collection("company_invitations").document(matches[0].id)
@@ -125,6 +135,7 @@ def change_invitation(user: AuthenticatedUser, token: str, *, accept: bool) -> d
     @firestore.transactional
     def commit(tx):
         snapshot = ref.get(transaction=tx)
+        read_guard.record_read("company_invitations", 1, query_type="targeted_invitation_transaction")
         invitation = snapshot.to_dict() or {}
         expiry = invitation.get("expires_at")
         if not isinstance(expiry, datetime) or expiry <= datetime.now(timezone.utc):
@@ -141,6 +152,7 @@ def change_invitation(user: AuthenticatedUser, token: str, *, accept: bool) -> d
         if accept:
             company_id = invitation["company_id"]
             employee_snapshot = user_ref.get(transaction=tx)
+            read_guard.record_read("users", 1, query_type="targeted_invitation_transaction")
             employee = employee_snapshot.to_dict() or {}
             if employee.get("user_type") != "employee":
                 raise HTTPException(status_code=403, detail="Only Employee profiles can accept company invitations.")
@@ -170,8 +182,11 @@ def request_company_connection(user: AuthenticatedUser, company_id: str) -> dict
     @firestore.transactional
     def commit(tx):
         employee = employee_ref.get(transaction=tx).to_dict() or {}
+        read_guard.record_read("users", 1, query_type="targeted_connection_transaction")
         company = company_ref.get(transaction=tx).to_dict() or {}
+        read_guard.record_read("companies", 1, query_type="targeted_connection_transaction")
         existing = request_ref.get(transaction=tx).to_dict() or {}
+        read_guard.record_read("companies.connection_requests", 1, query_type="targeted_connection_transaction")
         if employee.get("user_type") != "employee" or company.get("status") != "active":
             raise HTTPException(status_code=403, detail="Employee or company profile is unavailable.")
         linked_company = employee.get("company_id")
@@ -207,11 +222,13 @@ def review_company_connection(
     client = get_firestore_client()
     admin_ref = client.collection("users").document(user.uid)
     admin = admin_ref.get().to_dict() or {}
+    read_guard.record_read("users", 1, query_type="targeted_connection_review_admin")
     company_id = admin.get("company_id")
     if admin.get("user_type") != "company" or not company_id:
         raise HTTPException(status_code=403, detail="A company admin profile is required.")
     company_ref = client.collection("companies").document(company_id)
     company = company_ref.get().to_dict() or {}
+    read_guard.record_read("companies", 1, query_type="targeted_connection_review_company")
     if company.get("owner_uid") != user.uid:
         raise HTTPException(status_code=403, detail="Only an authorized admin of this company can review requests.")
     request_ref = company_ref.collection("connection_requests").document(employee_uid)
@@ -221,7 +238,9 @@ def review_company_connection(
     @firestore.transactional
     def commit(tx):
         request = request_ref.get(transaction=tx).to_dict() or {}
+        read_guard.record_read("companies.connection_requests", 1, query_type="targeted_connection_review_transaction")
         employee = employee_ref.get(transaction=tx).to_dict() or {}
+        read_guard.record_read("users", 1, query_type="targeted_connection_review_transaction")
         if request.get("company_id") != company_id or request.get("employee_uid") != employee_uid:
             raise HTTPException(status_code=404, detail="Company connection request was not found.")
         if employee.get("user_type") != "employee":
@@ -260,6 +279,7 @@ def review_company_connection(
 def set_independent(user: AuthenticatedUser) -> dict:
     ref = get_firestore_client().collection("users").document(user.uid)
     stored = ref.get().to_dict() or {}
+    read_guard.record_read("users", 1, query_type="targeted_connection_profile")
     if stored.get("user_type") != "employee":
         raise HTTPException(status_code=403, detail="This connection state is for Employee profiles.")
     value = {"status": "independent", "company_id": None}
@@ -271,12 +291,14 @@ def search_companies(user: AuthenticatedUser, query: str) -> list[dict]:
     """Return a small authenticated directory of active companies for employee requests."""
     client = get_firestore_client()
     profile = client.collection("users").document(user.uid).get().to_dict() or {}
+    read_guard.record_read("users", 1, query_type="targeted_company_search_profile")
     if profile.get("user_type") != "employee":
         raise HTTPException(status_code=403, detail="Only Employee profiles can search companies.")
     needle = query.strip().casefold()
     if len(needle) < 2:
         return []
-    companies = client.collection("companies").where("status", "==", "active").limit(100).stream()
+    companies = list(client.collection("companies").where("status", "==", "active").limit(100).stream())
+    read_guard.record_read("companies", len(companies), query_type="targeted_company_directory")
     matches = []
     for snapshot in companies:
         record = snapshot.to_dict() or {}
@@ -294,12 +316,16 @@ def search_companies(user: AuthenticatedUser, query: str) -> list[dict]:
 def list_pending_connection_requests(user: AuthenticatedUser) -> list[dict]:
     client = get_firestore_client()
     admin = client.collection("users").document(user.uid).get().to_dict() or {}
+    read_guard.record_read("users", 1, query_type="targeted_pending_requests_admin")
     company_id = admin.get("company_id")
     company_ref = client.collection("companies").document(company_id or "__missing__")
     company = company_ref.get().to_dict() or {}
+    read_guard.record_read("companies", 1, query_type="targeted_pending_requests_company")
     if admin.get("user_type") != "company" or not company_id or company.get("owner_uid") != user.uid:
         raise HTTPException(status_code=403, detail="Only the verified company owner can review requests.")
     rows = company_ref.collection("connection_requests").where("status", "==", "pending").limit(100).stream()
+    rows = list(rows)
+    read_guard.record_read("companies.connection_requests", len(rows), query_type="targeted_pending_requests_list")
     return [
         {
             "employee_uid": row.get("employee_uid"),

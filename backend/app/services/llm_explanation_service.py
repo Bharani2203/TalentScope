@@ -16,8 +16,12 @@ import hashlib
 import json
 import logging
 import os
+import random
+import re
+import threading
 import time
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 import httpx
@@ -28,6 +32,7 @@ from app.models.execution_orchestrator import EvidenceItem, StructuredFact
 import re
 
 logger = logging.getLogger(__name__)
+GEMINI_DEGRADED_MESSAGE = "The assistant is temporarily experiencing high demand. Please try again shortly."
 
 
 def _numeric_literals(text: str) -> set[Decimal]:
@@ -71,19 +76,26 @@ class LLMExplanationService:
     _MAX_OUTPUT_TOKENS: int = 1024
     _REQUEST_TIMEOUT_SECONDS: float = 5
     _inflight_keys: set[str] = set()
+    _unusable_key_fingerprints: set[str] = set()
+    _unusable_keys_lock = threading.Lock()
 
-    def __init__(self, api_key: str | None = None, model_name: str = "gemini-1.5-flash", *, settings=None) -> None:
+    def __init__(self, api_key: str | None = None, model_name: str | None = None, *, settings=None) -> None:
         self.settings = settings or get_settings()
         configured_key = self.settings.gemini_api_key
         self.api_key = api_key or (configured_key.get_secret_value() if configured_key else None)
-        self.model_name = model_name
+        self.model_name = model_name if model_name is not None else self.settings.gemini_model
+        logger.info("Gemini configured model=%s", self.model_name)
         self.timeout_seconds = self.settings.gemini_request_timeout_seconds
         self._MAX_INPUT_CHARS = self.settings.gemini_max_input_chars
         self._MAX_OUTPUT_TOKENS = self.settings.gemini_max_output_tokens
         self._GLOBAL_MAX_CALLS_PER_MINUTE = self.settings.gemini_max_calls_per_minute
         self._GLOBAL_MAX_CALLS_PER_DAY = self.settings.gemini_max_calls_per_day
         self._USER_MAX_REQUESTS_PER_WINDOW = self.settings.gemini_max_calls_per_user_per_hour
-        self.max_retries = 1
+        self.max_retries = 2
+        self.max_rate_limit_retries = 1
+        self.last_error_class: str | None = None
+        self.last_provider_error_class: str | None = None
+        self.last_http_status: int | None = None
 
     def is_available(self) -> bool:
         """Return True if an API key is configured and not running in offline test mode."""
@@ -94,7 +106,252 @@ class LLMExplanationService:
         # In test environments without explicit opt-in, disable external network calls
         if os.getenv("PYTEST_CURRENT_TEST") and os.getenv("RUN_LIVE_LLM_TESTS") != "1":
             return False
+        fingerprint = self._key_fingerprint(self.api_key)
+        if fingerprint:
+            with self._unusable_keys_lock:
+                if fingerprint in self._unusable_key_fingerprints:
+                    self.last_provider_error_class = "invalid_key"
+                    self.last_error_class = "provider_error"
+                    return False
         return True
+
+    @staticmethod
+    def _key_fingerprint(api_key: str | None) -> str | None:
+        if not api_key:
+            return None
+        return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+    def _set_provider_error(self, error_class: str, *, status: int | None = None, attempt: int = 1, operation: str) -> None:
+        self.last_provider_error_class = error_class
+        self.last_http_status = status
+        self.last_error_class = (
+            "rate_limited" if error_class in {"per_minute_quota", "daily_project_quota"}
+            else "unavailable" if error_class in {"missing_api_key", "offline"}
+            else "provider_error"
+        )
+        logger.warning(
+            "Gemini provider failure operation=%s error_class=%s http_status=%s attempt=%s",
+            operation,
+            error_class,
+            status if status is not None else "none",
+            attempt,
+        )
+
+    @staticmethod
+    def _quota_class(payload: Any) -> str:
+        try:
+            details = json.dumps(payload, ensure_ascii=True, default=str).casefold()
+        except (TypeError, ValueError):
+            details = ""
+        if re.search(r"per[ _-]?minute|per[ _-]?min|requests/minute|\brpm\b", details):
+            return "per_minute_quota"
+        # Unknown 429s are treated as daily/project quota to avoid spending a
+        # second request against a quota that may be exhausted for the day.
+        return "daily_project_quota"
+
+    @staticmethod
+    def _retry_delay_seconds(payload: Any, headers: Any) -> float | None:
+        header_value = None
+        try:
+            header_value = headers.get("Retry-After") or headers.get("retry-after")
+        except (AttributeError, TypeError):
+            pass
+        if header_value:
+            try:
+                return max(0.0, min(float(header_value), 60.0))
+            except (TypeError, ValueError):
+                try:
+                    return max(0.0, min((parsedate_to_datetime(str(header_value)) - datetime.now(timezone.utc)).total_seconds(), 60.0))
+                except (TypeError, ValueError, OverflowError):
+                    pass
+        details = payload.get("error", {}).get("details", []) if isinstance(payload, dict) else []
+        if isinstance(details, list):
+            for detail in details:
+                if not isinstance(detail, dict):
+                    continue
+                delay = detail.get("retryDelay")
+                if isinstance(delay, str):
+                    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)s\s*", delay)
+                    if match:
+                        return min(float(match.group(1)), 60.0)
+        return None
+
+    @staticmethod
+    def _is_blocked_output(payload: Any) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        blocked_reasons = {"SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY"}
+        prompt_feedback = payload.get("promptFeedback") or {}
+        if str(prompt_feedback.get("blockReason") or "").upper() in blocked_reasons:
+            return True
+        candidates = payload.get("candidates") or []
+        return bool(candidates and str(candidates[0].get("finishReason") or "").upper() in blocked_reasons)
+
+    def _post_json(self, *, url: str, body: dict[str, Any], operation: str) -> dict[str, Any] | None:
+        """Send one Gemini request with bounded quota and transient-error handling."""
+        headers = {"x-goog-api-key": self.api_key or "", "Content-Type": "application/json"}
+        transient_retries = 0
+        quota_retries = 0
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                with httpx.Client(timeout=self.timeout_seconds) as client:
+                    response = client.post(url, json=body, headers=headers)
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                if transient_retries < self.max_retries:
+                    delay = min(0.25 * (2 ** transient_retries), 2.0) + random.uniform(0.0, 0.25)
+                    transient_retries += 1
+                    time.sleep(delay)
+                    continue
+                error_class = "timeout" if isinstance(exc, httpx.TimeoutException) else "network_error"
+                self._set_provider_error(error_class, operation=operation, attempt=attempt)
+                return None
+            except Exception as exc:
+                self._set_provider_error("transport_error", operation=operation, attempt=attempt)
+                return None
+
+            status = response.status_code
+            self.last_http_status = status
+            if status == 200:
+                try:
+                    payload = response.json()
+                except Exception:
+                    self._set_provider_error("invalid_response", status=status, attempt=attempt, operation=operation)
+                    return None
+                if not isinstance(payload, dict):
+                    self._set_provider_error("invalid_response", status=status, attempt=attempt, operation=operation)
+                    return None
+                return payload
+            if status == 400:
+                self._set_provider_error("bad_request", status=status, attempt=attempt, operation=operation)
+                return None
+            if status in {401, 403}:
+                fingerprint = self._key_fingerprint(self.api_key)
+                if fingerprint:
+                    with self._unusable_keys_lock:
+                        self._unusable_key_fingerprints.add(fingerprint)
+                self._set_provider_error("invalid_key", status=status, attempt=attempt, operation=operation)
+                return None
+            if status == 429:
+                try:
+                    error_payload = response.json()
+                except Exception:
+                    error_payload = None
+                quota_class = self._quota_class(error_payload)
+                delay = self._retry_delay_seconds(error_payload, getattr(response, "headers", {}))
+                if quota_class == "per_minute_quota" and delay is not None and quota_retries < self.max_rate_limit_retries:
+                    quota_retries += 1
+                    time.sleep(delay)
+                    continue
+                self._set_provider_error(quota_class, status=status, attempt=attempt, operation=operation)
+                return None
+            if 500 <= status <= 599:
+                if transient_retries < self.max_retries:
+                    delay = min(0.25 * (2 ** transient_retries), 2.0) + random.uniform(0.0, 0.25)
+                    transient_retries += 1
+                    time.sleep(delay)
+                    continue
+                self._set_provider_error("server_error", status=status, attempt=attempt, operation=operation)
+                return None
+            self._set_provider_error("http_error", status=status, attempt=attempt, operation=operation)
+            return None
+
+    def generate_structured_json(
+        self,
+        *,
+        system_instruction: str,
+        user_content: str,
+        user_id: str | None = None,
+        request_key: str,
+    ) -> dict[str, Any] | None:
+        """Make one bounded Gemini JSON call for intent/entity extraction.
+
+        The request key must not contain user text. Failures are exposed through
+        ``last_error_class`` for the assistant response contract.
+        """
+        self.last_error_class = None
+        self.last_provider_error_class = None
+        self.last_http_status = None
+        if not self.is_available():
+            if self.last_provider_error_class is None:
+                self.last_provider_error_class = (
+                    "offline" if os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") == "1"
+                    or (os.getenv("PYTEST_CURRENT_TEST") and os.getenv("RUN_LIVE_LLM_TESTS") != "1")
+                    else "missing_api_key"
+                )
+            self.last_error_class = "unavailable" if self.last_provider_error_class in {"offline", "missing_api_key"} else "provider_error"
+            logger.warning(
+                "Gemini structured intent parsing unavailable error_class=ProviderUnavailable http_status=none"
+            )
+            return None
+        if len(user_content) + len(system_instruction) > self._MAX_INPUT_CHARS:
+            self.last_error_class = "provider_error"
+            logger.warning("Gemini structured request rejected error_class=InvalidRequest http_status=none")
+            return None
+        try:
+            budget_reserved = self.reserve_durable_budget(
+                user_id,
+                request_key,
+                (self._GLOBAL_MAX_CALLS_PER_MINUTE, self._GLOBAL_MAX_CALLS_PER_DAY,
+                 self._USER_MAX_REQUESTS_PER_WINDOW),
+            )
+        except Exception as exc:
+            self.last_error_class = "usage_ledger_unavailable"
+            self.last_provider_error_class = "usage_ledger_unavailable"
+            logger.warning(
+                "Gemini usage ledger unavailable error_class=%s http_status=none",
+                type(exc).__name__,
+            )
+            return None
+        if not budget_reserved:
+            self.last_error_class = "rate_limited"
+            logger.warning("Gemini structured request unavailable error_class=BudgetExhausted http_status=none")
+            return None
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent"
+        request_body = {
+            "systemInstruction": {"parts": [{"text": system_instruction}]},
+            "contents": [{"role": "user", "parts": [{"text": user_content}]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": min(self._MAX_OUTPUT_TOKENS, 512),
+                "responseMimeType": "application/json",
+                "responseSchema": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "intent": {"type": "STRING"},
+                        "secondary_intents": {"type": "ARRAY", "items": {"type": "STRING"}},
+                        "features": {"type": "ARRAY", "items": {"type": "STRING"}},
+                        "skills": {"type": "ARRAY", "items": {"type": "STRING"}},
+                        "technologies": {"type": "ARRAY", "items": {"type": "STRING"}},
+                        "role": {"type": "STRING"},
+                        "location": {"type": "STRING"},
+                    },
+                    "required": ["intent", "secondary_intents", "features", "skills", "technologies", "role", "location"],
+                },
+            },
+        }
+        payload = self._post_json(url=url, body=request_body, operation="structured_intent")
+        if payload is None:
+            return None
+        if self._is_blocked_output(payload):
+            self._set_provider_error("blocked_output", status=200, operation="structured_intent")
+            return None
+        try:
+            candidates = payload.get("candidates", []) if isinstance(payload, dict) else []
+            parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+            text = parts[0].get("text") if parts and isinstance(parts[0], dict) else None
+            if not isinstance(text, str) or not text.strip():
+                self._set_provider_error("empty_output", status=200, operation="structured_intent")
+                return None
+            result = json.loads(text)
+            if not isinstance(result, dict):
+                raise ValueError("structured output must be an object")
+            return result
+        except (ValueError, json.JSONDecodeError, KeyError, IndexError, TypeError):
+            self._set_provider_error("invalid_output", status=200, operation="structured_intent")
+            return None
 
     @classmethod
     def reserve_durable_budget(
@@ -244,7 +501,21 @@ class LLMExplanationService:
         Returns None if the provider is unavailable, exceeds user budget, or fails,
         triggering deterministic fallback.
         """
-        if (not facts and not general_knowledge) or not self.is_available():
+        self.last_error_class = None
+        self.last_provider_error_class = None
+        self.last_http_status = None
+        if not self.is_available():
+            if self.last_provider_error_class is None:
+                self.last_provider_error_class = (
+                    "offline" if os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") == "1"
+                    or (os.getenv("PYTEST_CURRENT_TEST") and os.getenv("RUN_LIVE_LLM_TESTS") != "1")
+                    else "missing_api_key"
+                )
+            self.last_error_class = "unavailable" if self.last_provider_error_class in {"offline", "missing_api_key"} else "provider_error"
+            return None
+        if not facts and not general_knowledge:
+            self.last_error_class = "unavailable"
+            self.last_provider_error_class = "no_grounding_facts"
             return None
 
         # Check deduplication cache first (does not consume quota budget)
@@ -279,16 +550,21 @@ class LLMExplanationService:
                 ),
             )
         except Exception as exc:
+            self.last_error_class = "usage_ledger_unavailable"
+            self.last_provider_error_class = "usage_ledger_unavailable"
             logger.warning(
-                "Durable Gemini usage ledger unavailable (%s); using deterministic fallback",
+                "Durable Gemini usage ledger unavailable error_class=%s http_status=none; using deterministic fallback",
                 type(exc).__name__,
             )
             return None
         if not budget_reserved:
+            self.last_error_class = "rate_limited"
+            self.last_provider_error_class = "application_budget_exhausted"
             logger.info("Gemini call budget reached or request duplicated; using deterministic fallback")
             return None
 
         self._inflight_keys.add(cache_key)
+        http_status: int | None = None
         try:
             # Bound prompt size and sanitize all external fields as untrusted data
             bounded_facts = facts[:15]
@@ -361,10 +637,6 @@ class LLMExplanationService:
                 user_content = compose_user_content()
 
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent"
-            headers = {
-                "x-goog-api-key": self.api_key,
-                "Content-Type": "application/json",
-            }
             request_body = {
                 "systemInstruction": {"parts": [{"text": system_instruction}]},
                 "contents": [
@@ -376,47 +648,25 @@ class LLMExplanationService:
                 },
             }
 
-            for attempt in range(self.max_retries + 1):
-                try:
-                    with httpx.Client(timeout=self.timeout_seconds) as client:
-                        resp = client.post(url, json=request_body, headers=headers)
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            candidates = data.get("candidates", [])
-                            if not candidates:
-                                return None
-                            parts = candidates[0].get("content", {}).get("parts", [])
-                            if not parts or not parts[0].get("text"):
-                                return None
-                            text = str(parts[0]["text"]).strip()
-                            if not self.validate_generated_claims(text, bounded_facts):
-                                logger.warning("LLM explanation failed deterministic claim validation; using fallback")
-                                return None
-                            if len(self._cache) >= self._CACHE_MAX_ENTRIES:
-                                oldest_k = next(iter(self._cache))
-                                self._cache.pop(oldest_k, None)
-                            self._cache[cache_key] = (now, text)
-                            return text
-                        elif resp.status_code == 429:
-                            # Never retry loop on HTTP 429
-                            logger.info("LLM quota rate-limit encountered (HTTP 429); immediate deterministic fallback")
-                            return None
-                        elif resp.status_code in {500, 502, 503, 504} and attempt < self.max_retries:
-                            time.sleep(0.5)
-                            continue
-                        else:
-                            logger.debug("LLM API returned non-200 code %s; falling back to deterministic generator", resp.status_code)
-                            return None
-                except (httpx.TimeoutException, httpx.NetworkError) as net_err:
-                    if attempt < self.max_retries:
-                        time.sleep(0.5)
-                        continue
-                    logger.debug("LLM call network/timeout error: %s (falling back to deterministic generator)", type(net_err).__name__)
-                    return None
-                except Exception as exc:
-                    logger.debug("LLM call failed: %s (falling back to deterministic generator)", type(exc).__name__)
-                    return None
-
-            return None
+            data = self._post_json(url=url, body=request_body, operation="grounded_explanation")
+            if data is None:
+                return None
+            if self._is_blocked_output(data):
+                self._set_provider_error("blocked_output", status=200, operation="grounded_explanation")
+                return None
+            candidates = data.get("candidates", [])
+            parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+            if not parts or not parts[0].get("text"):
+                self._set_provider_error("empty_output", status=200, operation="grounded_explanation")
+                return None
+            text = str(parts[0]["text"]).strip()
+            if not self.validate_generated_claims(text, bounded_facts):
+                self._set_provider_error("invalid_output", status=200, operation="grounded_explanation")
+                return None
+            if len(self._cache) >= self._CACHE_MAX_ENTRIES:
+                oldest_k = next(iter(self._cache))
+                self._cache.pop(oldest_k, None)
+            self._cache[cache_key] = (now, text)
+            return text
         finally:
             self._inflight_keys.discard(cache_key)

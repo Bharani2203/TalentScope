@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.intelligence_v2.capability_registry import CAPABILITIES, CapabilityDefinition
+from app.intelligence_v2.occupation_names import normalize_occupation_name
 from app.intelligence_v2.skill_mapping import V2SkillMapper
 from app.models.execution_orchestrator import SelectedEntityResolution
 
@@ -20,7 +21,7 @@ class PlannedIntent(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    capability_id: str
+    capability_id: str | None
     target_skill: str | None = None
     target_role: str | None = None
     geography: str | None = None
@@ -37,6 +38,20 @@ ROLE_KEYWORDS = {
     "analyst", "administrator", "specialist",
 }
 
+ROLE_DESCRIPTION_QUERY = re.compile(
+    r"^\s*(?:"
+    r"what\s+does\s+(?:(?:a|an|the)\s+)?[\w/-]+(?:\s+[\w/-]+){0,3}\s+"
+    r"(?:developer|engineer|analyst|scientist|architect|manager|designer|administrator|specialist)s?\s+do"
+    r"|(?:the\s+)?role\s+of\s+(?:(?:a|an|the)\s+)?[\w/-]+(?:\s+[\w/-]+){0,3}\s+"
+    r"(?:developer|engineer|analyst|scientist|architect|manager|designer|administrator|specialist)s?"
+    r"|responsibilities\s+of\s+(?:(?:a|an|the)\s+)?[\w/-]+(?:\s+[\w/-]+){0,3}\s+"
+    r"(?:developer|engineer|analyst|scientist|architect|manager|designer|administrator|specialist)s?"
+    r"|what\s+is\s+(?:a|an)\s+[\w/-]+(?:\s+[\w/-]+){0,3}\s+"
+    r"(?:developer|engineer|analyst|scientist|architect|manager|designer|administrator|specialist)s?"
+    r")\s*[?.!]*$",
+    re.IGNORECASE,
+)
+
 
 class V2IntentPlanner:
     """Plans capability invocation and resolves entity arguments."""
@@ -50,7 +65,7 @@ class V2IntentPlanner:
         portal_type: str = "individual",
         context: dict[str, Any] | None = None,
     ) -> PlannedIntent:
-        """Route query to the best matching capability among the 15 features."""
+        """Route a natural-language request to a supported capability."""
         ctx = context or {}
         q = query.strip().casefold()
         entities: list[SelectedEntityResolution] = []
@@ -66,6 +81,19 @@ class V2IntentPlanner:
         target_skill: str | None = ctx.get("selected_skill")
         target_role: str | None = ctx.get("selected_role")
 
+        role_patterns = (
+            r"\bwhat\s+does\s+(?:a|an|the)\s+([\w+#./-]+(?:\s+[\w+#./-]+){0,3})\s+do\b",
+            r"\bwhat\s+skills?\s+does\s+(?:a|an|the)\s+([\w+#./-]+(?:\s+[\w+#./-]+){0,3})\s+(?:need|use|required?)\b",
+            r"\b(?:preparation\s+plan|plan|prepare|roadmap|learning\s+path)\s+for\s+(?:a|an|the)\s+([\w+#./-]+(?:\s+[\w+#./-]+){0,3})",
+            r"\b(?:preparation\s+plan|plan|prepare|roadmap|learning\s+path)\s+for\s+([\w+#./-]+(?:\s+[\w+#./-]+){0,3})",
+        )
+        if not target_role:
+            for pattern in role_patterns:
+                match = re.search(pattern, query, re.IGNORECASE)
+                if match:
+                    target_role = " ".join(match.group(1).split())
+                    break
+
         if target_skill:
             mapping = self.skill_mapper.normalize(target_skill)
             entities.append(
@@ -79,16 +107,18 @@ class V2IntentPlanner:
 
         # Detect role mentions
         search_roles = [
-            ("python developer", "Software Developers"),
-            ("backend developer", "Software Developers"),
-            ("frontend developer", "Software Developers"),
-            ("software engineer", "Software Developers"),
+            ("python developer", "Python Developer"),
+            ("backend developer", "Backend Developer"),
+            ("frontend developer", "Frontend Developer"),
+            ("web developer", "Web Developer"),
+            ("software engineer", "Software Engineer"),
             ("software developers", "Software Developers"),
-            ("developer", "Software Developers"),
-            ("data scientist", "Data Scientists"),
-            ("data engineer", "Data Engineers"),
-            ("cloud architect", "Computer Network Architects"),
-            ("devops engineer", "Software Developers"),
+            ("data analyst", "Data Analyst"),
+            ("data scientist", "Data Scientist"),
+            ("data engineer", "Data Engineer"),
+            ("cloud architect", "Cloud Architect"),
+            ("devops engineer", "DevOps Engineer"),
+            ("developer", "Developer"),
         ]
         for role_phrase, canonical_occ in search_roles:
             if role_phrase in q:
@@ -108,7 +138,7 @@ class V2IntentPlanner:
         if not target_role:
             for role_kw in ROLE_KEYWORDS:
                 if role_kw in q:
-                    target_role = "Software Developers" if role_kw in {"developer", "engineer"} else role_kw.title()
+                    target_role = normalize_occupation_name(role_kw)
                     entities.append(
                         SelectedEntityResolution(
                             entity_id=f"role:{role_kw.replace(' ', '_')}",
@@ -156,7 +186,7 @@ class V2IntentPlanner:
 
             # If no registry skill was detected, check if query asks to explain or define a specific technology
             if not target_skill and not target_role:
-                concept_m = re.search(r"\b(?:explain|what is|tell me about|definition of)\s+([A-Za-z0-9#+.\s\-]+?)(?:\.|\?|$)", query, re.I)
+                concept_m = re.search(r"\b(?:explain|tell me about|definition of)\s+([A-Za-z0-9#+.\s\-]+?)(?:\.|\?|$)", query, re.I)
                 if concept_m:
                     extracted_concept = concept_m.group(1).strip()
                     if extracted_concept and extracted_concept.casefold() not in common_stopwords:
@@ -172,6 +202,33 @@ class V2IntentPlanner:
                 geography=geography,
                 portal_type=portal_type,
                 reason="Query requests historical developer adoption series.",
+                entities=entities,
+            )
+
+        if ROLE_DESCRIPTION_QUERY.fullmatch(query):
+            return PlannedIntent(
+                capability_id="skill_lookup",
+                target_skill=target_skill,
+                target_role=target_role,
+                geography=geography,
+                portal_type=portal_type,
+                reason="Query asks for reference information about an occupation.",
+                entities=entities,
+            )
+
+        if re.search(
+            r"\bwhat\s+skills?\s+(?:does|do)\s+(?:(?:a|an|the)\s+)?[\w/-]+(?:\s+[\w/-]+){0,3}\s+"
+            r"(?:developer|engineer|analyst|scientist|architect|manager|designer|administrator|specialist)s?\s+"
+            r"(?:need|use|required?)\b",
+            q,
+        ):
+            return PlannedIntent(
+                capability_id="job_role_requirements",
+                target_skill=target_skill,
+                target_role=target_role,
+                geography=geography,
+                portal_type=portal_type,
+                reason="Query asks for occupation skill requirements from reference data.",
                 entities=entities,
             )
 
@@ -199,11 +256,23 @@ class V2IntentPlanner:
                 entities=entities,
             )
 
+        # Health queries must precede the broad "what is" concept matcher.
+        if any(k in q for k in ["health", "healthy", "momentum score", "health score", "strengthening", "weakening"]):
+            return PlannedIntent(
+                capability_id="skill_health_analysis",
+                target_skill=target_skill or "Python",
+                target_role=target_role,
+                geography=geography,
+                portal_type=portal_type,
+                reason="Query requests Skill Health analysis (relative-momentum evaluation).",
+                entities=entities,
+            )
+
         # Reference taxonomy profile / hot tech / concept explanation
         is_concept_query = (
             any(k in q for k in ["reference profile", "hot tech", "hot technology", "similar to", "similar skills", "similar"])
             or any(k in q for k in ["explain", "definition of", "tell me about"])
-            or ("what is" in q and not target_role and not any(w in q for w in ["roadmap", "learning path", "prepare", "preparation", "job", "career", "demand", "trend"]))
+            or ("what is" in q and target_skill and not target_role and not any(w in q for w in ["roadmap", "learning path", "prepare", "preparation", "job", "career", "demand", "trend"]))
         )
         if is_concept_query:
             return PlannedIntent(
@@ -213,18 +282,6 @@ class V2IntentPlanner:
                 geography=geography,
                 portal_type=portal_type,
                 reason="Query requests reference taxonomy profile or educational concept explanation.",
-                entities=entities,
-            )
-
-        # Skill Health / relative momentum
-        if any(k in q for k in ["health", "healthy", "momentum score", "health score", "strengthening", "weakening"]):
-            return PlannedIntent(
-                capability_id="skill_health_analysis",
-                target_skill=target_skill or "Python",
-                target_role=target_role,
-                geography=geography,
-                portal_type=portal_type,
-                reason="Query requests Skill Health analysis (relative-momentum evaluation).",
                 entities=entities,
             )
 
@@ -304,6 +361,29 @@ class V2IntentPlanner:
                     reason="Query requests skill-to-role alignment evaluation.",
                     entities=entities,
                 )
+
+        comparison_skills = list(dict.fromkeys(
+            entity.canonical_name
+            for entity in entities
+            if entity.entity_type in {"skill", "technology"}
+        ))
+        if len(comparison_skills) >= 2 and re.search(
+            r"\b(?:compare|versus|vs\.?|difference between)\b",
+            q,
+        ):
+            return PlannedIntent(
+                capability_id=None,
+                target_skill=None,
+                target_role=target_role,
+                geography=geography,
+                portal_type=portal_type,
+                reason=(
+                    "Direct skill comparisons are not supported yet. I can run separate "
+                    f"trend lookups for {comparison_skills[0]} and {comparison_skills[1]}; "
+                    "please ask about each skill separately."
+                ),
+                entities=entities,
+            )
 
         # Hiring demand trends (job postings) partitioned from developer adoption (GitHub)
         if any(k in q for k in ["hiring demand", "job demand", "employer demand", "hiring trends", "hiring trend"]):
@@ -409,13 +489,13 @@ class V2IntentPlanner:
                 entities=entities,
             )
 
-        # Default fallback
+        # Do not guess a data capability for an unrecognized question.
         return PlannedIntent(
-            capability_id="market_intelligence_snapshot",
+            capability_id=None,
             target_skill=None,
             target_role=target_role,
             geography=geography,
             portal_type=portal_type,
-            reason="General inquiry defaulted to market intelligence snapshot.",
+            reason="Would you like help with skills, jobs, market signals, or role information?",
             entities=entities,
         )

@@ -6,14 +6,14 @@ and records calculation reuse metrics without logging credentials or secrets.
 
 from __future__ import annotations
 
-import logging
 import os
 import threading
 from contextlib import contextmanager
+from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import Any, Iterator
 
-logger = logging.getLogger(__name__)
+_request_reads: ContextVar[dict[str, int] | None] = ContextVar("firestore_request_reads", default=None)
 
 
 class UnboundedFirestoreReadWarning(RuntimeWarning):
@@ -48,6 +48,7 @@ class FirestoreReadGuard:
         return os.getenv("STRICT_FIRESTORE_READ_GUARD", "").lower() in {"1", "true", "yes"}
 
     def record_read(self, collection: str, count: int = 1, query_type: str = "targeted") -> None:
+        """Single read-count wrapper used by Firestore stores and request logging."""
         if count <= 0:
             return
         with self._lock:
@@ -57,6 +58,33 @@ class FirestoreReadGuard:
             )
             if query_type.startswith("targeted"):
                 self._metrics.targeted_queries += 1
+        request_reads = _request_reads.get()
+        if request_reads is not None:
+            request_reads[collection] = request_reads.get(collection, 0) + count
+
+    @contextmanager
+    def track_request(self, route: str) -> Iterator[None]:
+        """Aggregate wrapper-reported reads and log them only when explicitly enabled."""
+        enabled = os.getenv("FIRESTORE_READ_LOG", "") == "1"
+        if not enabled:
+            yield
+            return
+        reads: dict[str, int] = {}
+        token: Token[dict[str, int] | None] = _request_reads.set(reads)
+        try:
+            yield
+        finally:
+            if not reads:
+                collection_label = "none"
+                document_count = 0
+            else:
+                collection_label = ",".join(sorted(reads))
+                document_count = sum(reads.values())
+            print(
+                f"firestore_request_reads route={route} collection={collection_label} documents_read={document_count}",
+                flush=True,
+            )
+            _request_reads.reset(token)
 
     def record_cache_hit(self) -> None:
         with self._lock:

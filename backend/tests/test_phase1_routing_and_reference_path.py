@@ -29,6 +29,8 @@ EXPECTED_FRONTEND_ROUTES = {
     ("job", "related_occupations"): "job_mobility_pathways",
     ("job", "skill_gap_role_fit"): "job_profile_alignment",
     ("job", "action_recommendations"): "job_preparation_actions",
+    ("job", "role_preparation_actions"): "job_preparation_actions",
+    ("skill", "role_preparation_actions"): "job_preparation_actions",
 }
 
 
