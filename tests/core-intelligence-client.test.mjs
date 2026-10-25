@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 // Setup browser globals for test environment
 globalThis.window = {
   TALENTSCOPE_API_BASE_URL: 'http://127.0.0.1:8000',
@@ -695,6 +696,29 @@ test('queryCoreIntelligencePlan uses authenticated planner endpoint and preserve
     assert.equal(requestBody.portal_type, 'individual');
     assert.equal(requestBody.conversation_id, 'conversation-market');
     assert.deepEqual(plan.selected_capabilities, ['market_snapshot']);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test('queryCoreIntelligencePlan matches the frontend plan request fixture', async () => {
+  const expected = JSON.parse(
+    await readFile(new URL('./fixtures/plan_request_frontend.json', import.meta.url), 'utf8')
+  );
+  const previousFetch = globalThis.fetch;
+  let receivedBody;
+  globalThis.fetch = async (_url, options) => {
+    receivedBody = JSON.parse(options.body);
+    return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  try {
+    await queryCoreIntelligencePlan({
+      message: 'jobs in Bangalore',
+      portalType: 'individual',
+      timeRange: 'max',
+      conversationId: null
+    }, { token: 'mock-firebase-id-token' });
+    assert.deepEqual(receivedBody, expected);
   } finally {
     globalThis.fetch = previousFetch;
   }

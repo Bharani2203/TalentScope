@@ -1,0 +1,18 @@
+{
+  "message": "jobs in Bangalore",
+  "portal_type": "individual",
+  "domain": null,
+  "capability_id": null,
+  "location": null,
+  "time_range": "max",
+  "target_role": null,
+  "selected_skills": [],
+  "selected_roles": [],
+  "selected_companies": [],
+  "company_id": null,
+  "conversation_id": null,
+  "filters": {},
+  "clear_context": false,
+  "observations": [],
+  "context_override": {}
+}

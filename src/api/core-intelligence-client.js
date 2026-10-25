@@ -796,6 +796,8 @@ export async function queryCoreIntelligenceAnswer(requestData, options = {}) {
 
 export async function queryCoreIntelligencePlan(requestData, options = {}) {
   const payload = buildAnswerRequest(requestData);
+  delete payload.client_message_id;
+  delete payload.regenerate;
   const token = await getAuthIdToken(options.token);
   const headers = {
     Accept: 'application/json',

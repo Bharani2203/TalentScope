@@ -16,7 +16,9 @@ Verifies:
 from __future__ import annotations
 
 import inspect
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
@@ -497,6 +499,21 @@ def test_plan_api_endpoint():
         assert data_fc["intent"] == "forecast_future_demand"
         assert data_fc["plan_status"] == "insufficient_data"
         assert data_fc["clarification_required"] is False
+    finally:
+        app.dependency_overrides.pop(dependencies.get_current_user, None)
+
+def test_plan_api_accepts_frontend_request_fixture():
+    fixture = (
+        Path(__file__).resolve().parents[2]
+        / "tests"
+        / "fixtures"
+        / "plan_request_frontend.json"
+    )
+    body = json.loads(fixture.read_text(encoding="utf-8"))
+    app.dependency_overrides[dependencies.get_current_user] = mock_auth_user
+    try:
+        response = TestClient(app).post("/api/v1/intelligence/plan", json=body)
+        assert response.status_code == 200, response.text
     finally:
         app.dependency_overrides.pop(dependencies.get_current_user, None)
 
