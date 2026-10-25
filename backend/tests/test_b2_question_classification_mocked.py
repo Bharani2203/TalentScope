@@ -28,6 +28,10 @@ from app.storage.conversation_store import ConversationStore
         ("What is Python used for?", None, "CLEAR"),
         ("What is Terraform?", None, "CLEAR"),
         ("What should I learn next based on evidence?", None, "CLEAR"),
+        ("Simulate workforce headcount changes across departments", None, "CLEAR"),
+        ("Run a workforce simulation", None, "CLEAR"),
+        ("Headcount what-if scenarios", None, "OFF-TOPIC"),
+        ("What-if planning for the workforce", None, "CLEAR"),
         ("Bengaluru", {"active": True}, "FOLLOW-UP"),
         ("Skip", {"active": True}, "FOLLOW-UP"),
         ("What is Python used for?", {"active": True}, "CLEAR"),
@@ -38,6 +42,148 @@ from app.storage.conversation_store import ConversationStore
 )
 def test_mocked_four_way_question_classification(message, state, expected):
     assert classify_question(message, state) == expected
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "airport timetable",
+        "air quality forecast",
+        "airline route delays",
+        "air traffic control schedule",
+        "airplane maintenance schedule",
+        "aid application for college",
+        "AI-generated poem about dragons",
+        "simulate a chess game",
+        "simulate a chess tournament",
+        "what if I buy a car",
+        "what if my team wins cricket",
+        "headcount of a cricket team",
+        "headcount of bees in a hive",
+        "movie recommendations",
+        "recommend a restaurant",
+    ],
+)
+def test_mocked_off_topic_phrases_do_not_enter_scope(message):
+    assert classify_question(message) == "OFF-TOPIC"
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("Find data engineer jobs in Bangalore", "CLEAR"),
+        ("Find python developer jobs in Chennai", "CLEAR"),
+        ("What does a data engineer do?", "CLEAR"),
+        ("What skills does a data engineer need?", "CLEAR"),
+        ("Is Python becoming more popular?", "CLEAR"),
+        ("Compare Python and Java", "CLEAR"),
+        ("Give me a preparation plan for Web Developer", "CLEAR"),
+        ("what is the weather", "OFF-TOPIC"),
+    ],
+)
+def test_mocked_demo_questions_keep_their_scope_contract(message, expected):
+    assert classify_question(message) == expected
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("What skills are in demand?", "CLEAR"),
+        ("jobs in Bangalore", "TOO BROAD"),
+        ("Which technologies are growing?", "CLEAR"),
+        ("recommend some skills to learn", "CLEAR"),
+        ("salaries for data engineers", "CLEAR"),
+        ("What software tools does a Data Scientist use?", "CLEAR"),
+        ("Tell me about Go", "CLEAR"),
+    ],
+)
+def test_mocked_additional_in_scope_phrases(message, expected):
+    assert classify_question(message) == expected
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Learn Python",
+        "Python roadmap for beginners",
+        "Python market in India",
+        "Study Java for interviews",
+        "Which companies use Go?",
+        "Python careers",
+        "Excel skills for analysts",
+        "What should I learn first, Python or Java?",
+        "Is R still used for statistics jobs?",
+        "Suggest a Python study plan",
+    ],
+)
+def test_mocked_learning_and_career_questions_stay_in_scope(message):
+    assert classify_question(message) == "CLEAR"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "What is a banana?",
+        "What is the time?",
+        "What is a black hole?",
+        "What is the best pizza?",
+        "What is a bicycle?",
+        "What is the capital of France?",
+        "What is a dog?",
+        "What is my favorite color?",
+        "What is the weather?",
+        "What is a chess opening?",
+        "What is a movie review?",
+        "What is a garden hose?",
+    ],
+)
+def test_mocked_generic_what_is_questions_are_off_topic(message):
+    assert classify_question(message) == "OFF-TOPIC"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Simulate what happens if 50% of workforce shifts to AI",
+        "Simulate workforce reskilling scenario for our team.",
+        "Simulate workforce what-if transition scenario.",
+        "Simulate workforce headcount changes across departments",
+        "Simulate workforce what-if transition to AI engineering.",
+    ],
+)
+def test_mocked_workforce_simulation_phrases_remain_in_scope(message):
+    assert classify_question(message) == "CLEAR"
+
+
+def test_mocked_software_tools_question_is_in_scope():
+    message = "What software tools does a Data Scientist use?"
+    assert classify_question(message) == "CLEAR"
+
+
+def test_mocked_registry_skill_classification_handles_ambiguous_names():
+    assert classify_question("What is Node.js used for?") == "CLEAR"
+    # Kafka remains a known limitation because it is not in the skill registry.
+    assert classify_question("Tell me about Kafka.") == "OFF-TOPIC"
+    assert classify_question("Java island travel tips") == "OFF-TOPIC"
+    assert classify_question("Is a python a snake?") == "OFF-TOPIC"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Java skills for e-commerce shopping platforms",
+        "Python developer jobs in Chennai for sports analytics",
+        "Which Go skills are used in travel booking software?",
+        "What Rust skills do car software engineers need?",
+    ],
+)
+def test_mocked_ambiguous_skills_with_domain_context_stay_in_scope(message):
+    assert classify_question(message) == "CLEAR"
+
+
+def test_mocked_movie_recommendation_question_stays_off_topic():
+    # known limitation: 'recommendation' needs a domain context
+    assert classify_question("Is Python used in movie recommendation systems?") == "OFF-TOPIC"
 
 
 def test_mocked_follow_up_merges_location_and_technology_slots():

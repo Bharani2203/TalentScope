@@ -5,11 +5,47 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.analytics.skill_registry import extract_skills
+
 
 SLOT_NAMES = ("role", "location", "technology", "experience_level")
 JOB_WORDS = re.compile(r"\b(?:jobs?|postings?|openings?|vacancies|positions|hiring)\b", re.I)
+JOB_INFORMATION_QUESTION = re.compile(
+    r"\bis\s+[A-Za-z][A-Za-z0-9+#./-]*(?:\s+still)?\s+used\s+(?:for|in)\b",
+    re.I,
+)
 IN_SCOPE_WORDS = re.compile(
-    r"\b(?:skill|technology|tech|developer|engineer|designer|analyst|job|posting|hiring|market|demand|adoption|salary|career|role|occupation|company|employer|trend|learn|learning|recommend\w*|suggest\w*|roadmap|practice|practise|study|evidence|python|excel|aws|react|sql|java|javascript|databricks|ai|ui/ux|ux|kubernetes|docker)\w*\b",
+    r"\b(?:skill\w*|technolog\w*|tech|developer\w*|engineer\w*|designer\w*|analyst\w*|job\w*|posting\w*|hiring|market\w*|demand|adoption|salar\w*|career\w*|role\w*|occupation\w*|companies|employer\w*|trend\w*|learn\w*|suggest\w*|roadmap|practice|practise|study|evidence|python|terraform|excel|aws|react|sql|java|javascript|databricks|ai\b|ui/ux|ux|kubernetes|docker|workforce)\b",
+    re.I,
+)
+SIMULATION_WORDS = re.compile(r"\b(?:simulate\w*|what[- ]if|headcount)\b", re.I)
+SIMULATION_CONTEXT = re.compile(
+    r"\b(?:workforce|employee\w*|staff|department\w*|hiring|organization\w*)\b",
+    re.I,
+)
+RECOMMEND_WORDS = re.compile(r"\brecommend\w*\b", re.I)
+RECOMMEND_CONTEXT = re.compile(
+    r"\b(?:career\w*|role\w*|skill\w*|technolog\w*|hiring|workforce|learn\w*|job\w*|developer\w*|engineer\w*|trend\w*|salar\w*|market\w*)\b",
+    re.I,
+)
+TOOLS_CONTEXT = re.compile(r"\b(?:software\s+tools|tools?)\b", re.I)
+AMBIGUOUS_SKILL_NAMES = frozenset({
+    "go", "r", "rust", "python", "java", "excel", "apache spark", "c",
+})
+AMBIGUOUS_SKILL_CONTEXT = re.compile(
+    r"\b(?:career\w*|learn\w*|roadmap|study\w*|interview\w*|jobs?|occupation|role|skills?|technolog(?:y|ies)|software|developer|engineer|programmer|programming|data|analytics|analyst|database|framework|library|coding|code|platform|tools?|hiring|salary|salaries|demand|adoption|trends?|popular|growing|compare|versus|vs|used|systems?|companies|company|market\w*)\b",
+    re.I,
+)
+AMBIGUOUS_STRONG_CONTEXT = re.compile(
+    r"\b(?:career\w*|learn\w*|roadmap|study\w*|interview\w*|jobs?|occupation|role|skills?|software|developer|engineer|programmer|programming|data|analytics|analyst|database|framework|library|coding|code|platform|tools?|hiring|salary|salaries|demand|systems?|companies|company|market\w*)\b",
+    re.I,
+)
+AMBIGUOUS_NONTECH_CONTEXT = re.compile(
+    r"\b(?:nature|wildlife|animal|snake|island|travel|trip|airport|concert|tickets?|shopping|shop|necklace|price|buy|purchase|car|door|movie|film|rating|cooking|recipe|pizza|restaurant|shoes|runner|sports?|entertainment)\b",
+    re.I,
+)
+KNOWN_AMBIGUOUS_LANGUAGE_QUESTION = re.compile(
+    r"\b(?:what is|tell me about|explain)\s+(?:the\s+)?go\b",
     re.I,
 )
 ROLE_TERMS = (
@@ -28,20 +64,60 @@ LOCATION_ALIASES = {
 
 def classify_question(message: str, active_state: dict[str, Any] | None = None) -> str:
     text = (message or "").strip()
-    if re.search(r"\b(?:weather|recipe|cooking|capital of|politics|election|football|basketball|movie review)\b", text, re.I):
+    if re.search(r"\b(?:weather|recipe|cooking|capital of|politics|election|football|basketball|movie review|poem)\b", text, re.I):
         return "OFF-TOPIC"
     if active_state and active_state.get("active"):
         is_new_question = bool(re.search(r"\b(?:what|how|why|compare|trend|trends|demand|market|explain)\b", text, re.I))
         if len(text.split()) <= 8 and not is_new_question:
             return "FOLLOW-UP"
-    technical_question = bool(re.search(
-        r"\b(?:what is|explain|tell me about|how does|compare)\s+(?:the\s+)?[A-Za-z][A-Za-z0-9+#./-]+",
-        text,
-        re.I,
-    ))
-    if not IN_SCOPE_WORDS.search(text) and not technical_question:
+    has_simulation_context = bool(
+        SIMULATION_WORDS.search(text) and SIMULATION_CONTEXT.search(text)
+    )
+    has_recommendation_context = bool(
+        not RECOMMEND_WORDS.search(text) or RECOMMEND_CONTEXT.search(text)
+    )
+    has_domain_context = bool(
+        IN_SCOPE_WORDS.search(text)
+        or has_simulation_context
+        or TOOLS_CONTEXT.search(text)
+        or KNOWN_AMBIGUOUS_LANGUAGE_QUESTION.search(text)
+    )
+    matched_skills = extract_skills(text)
+    if matched_skills:
+        ambiguous_matches = [
+            skill.casefold() in AMBIGUOUS_SKILL_NAMES for skill in matched_skills
+        ]
+        has_only_ambiguous_skills = all(ambiguous_matches)
+        if has_only_ambiguous_skills:
+            text_without_ambiguous_skills = text
+            for skill in matched_skills:
+                text_without_ambiguous_skills = re.sub(
+                    rf"(?<!\w){re.escape(skill)}(?!\w)",
+                    " ",
+                    text_without_ambiguous_skills,
+                    flags=re.I,
+                )
+            has_other_domain_context = bool(
+                IN_SCOPE_WORDS.search(text_without_ambiguous_skills)
+                or has_simulation_context
+                or TOOLS_CONTEXT.search(text_without_ambiguous_skills)
+                or KNOWN_AMBIGUOUS_LANGUAGE_QUESTION.search(text)
+            )
+            has_explicit_tech_context = bool(AMBIGUOUS_SKILL_CONTEXT.search(text))
+            has_nontech_context = bool(AMBIGUOUS_NONTECH_CONTEXT.search(text))
+            if not has_other_domain_context and not has_explicit_tech_context:
+                has_domain_context = False
+            if has_nontech_context and not has_explicit_tech_context:
+                has_domain_context = False
+        elif not has_domain_context:
+            has_domain_context = True
+    if not has_domain_context or not has_recommendation_context:
         return "OFF-TOPIC"
-    if JOB_WORDS.search(text) and not has_job_constraints(text):
+    if (
+        JOB_WORDS.search(text)
+        and not JOB_INFORMATION_QUESTION.search(text)
+        and not has_job_constraints(text)
+    ):
         return "TOO BROAD"
     return "CLEAR"
 
