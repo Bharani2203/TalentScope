@@ -448,7 +448,12 @@ class V2Orchestrator:
 
             # Job Intelligence features
             elif cap == "job_verified_postings":
-                role_or_skill = target_r if target_r and target_r != "Software Developer" else (target_s or target_r or "Software Developer")
+                if planned_intent.target_role is None and planned_intent.target_skill is None:
+                    role_or_skill = None
+                    question = request.message
+                else:
+                    role_or_skill = target_r if target_r and target_r != "Software Developer" else (target_s or target_r or "Software Developer")
+                    question = None
                 filters = request.filters or {}
                 country = filters.get("country") or (geo if geo and geo not in {"all", "global"} else None)
                 location = filters.get("location") or request.location
@@ -467,6 +472,7 @@ class V2Orchestrator:
                     location=location,
                     date_posted=date_posted,
                     remote=remote,
+                    question=question,
                 )
             elif cap == "job_role_requirements":
                 result = self.job_engine.run_role_requirements(target_r)

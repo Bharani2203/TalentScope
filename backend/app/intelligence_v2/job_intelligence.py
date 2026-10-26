@@ -74,12 +74,17 @@ class V2JobIntelligenceEngine:
         providers: dict[str, Any] | None = None,
         settings: Any | None = None,
         remote: bool = False,
+        question: str | None = None,
     ) -> JobIntelligenceResult:
         """Inspect verified job postings inventory using configured providers."""
         import uuid
         from app.services.verified_job_search_service import search_configured_job_providers
 
         query_str = (role_or_skill or "Software Developer").strip()
+        if role_or_skill is None and question is None:
+            stored_query = "Software Developer"
+        else:
+            stored_query = (role_or_skill or question or "").strip()
         search_res = search_configured_job_providers(
             query=query_str,
             country=country,
@@ -223,7 +228,7 @@ class V2JobIntelligenceEngine:
             from app.services.job_storage_service import search_stored_jsearch_jobs_with_stats
 
             stored = search_stored_jsearch_jobs_with_stats(
-                query=query_str,
+                query=stored_query,
                 country=country,
                 location=location,
                 remote=remote,
