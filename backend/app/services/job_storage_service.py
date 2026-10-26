@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from google.api_core.exceptions import ResourceExhausted
 from google.cloud.firestore_v1 import FieldFilter
+from app.analytics.skill_registry import BY_ID, normalize_skill_entry
 from app.core.firebase import get_firestore_client
 from app.models.job import Job
 from app.models.skill_intelligence import MarketPosting
@@ -26,6 +27,16 @@ _ROLE_QUERY_WORDS = {
     "programmer", "programmers", "job", "jobs", "role", "roles", "position", "positions",
 }
 
+_QUERY_IGNORED_WORDS = {
+    "jobs", "job", "roles", "role", "positions", "in", "at", "for",
+    "show", "me", "find", "get", "list", "search", "postings", "posting",
+}
+
+_RELATED_TITLE_GENERIC_WORDS = {
+    "engineer", "engineers", "developer", "developers", "senior", "staff",
+    "lead", "manager", "managers", "principal", "junior", "associate", "sr",
+}
+
 _CITY_ALIASES = {
     "bangalore": "bengaluru",
     "bengaluru": "bengaluru",
@@ -33,8 +44,66 @@ _CITY_ALIASES = {
 
 
 def _normalize_city(value: Any) -> str:
-    city = re.split(r"[,;|]", str(value or ""), maxsplit=1)[0].strip().casefold()
-    return _CITY_ALIASES.get(city, city)
+    segments = _city_segments(value)
+    if not segments:
+        return ""
+    city = segments[0]
+    for alias, canonical in sorted(_CITY_ALIASES.items(), key=lambda item: -len(item[0])):
+        if re.match(rf"^{re.escape(alias)}(?:$|[^a-z])", city):
+            return canonical
+    return city
+
+
+def _city_segments(value: Any) -> list[str]:
+    return [
+        segment.strip().casefold()
+        for segment in re.split(r"[,;|/]+", str(value or ""))
+        if segment.strip()
+    ]
+
+
+def _location_matches_city(value: Any, normalized_city: str) -> bool:
+    expected = _normalize_city(normalized_city)
+    if not expected:
+        return False
+    return any(_normalize_city(segment) == expected for segment in _city_segments(value))
+
+
+def _contains_whole_phrase(phrase: str, text: str) -> bool:
+    if not phrase.strip() or not text:
+        return False
+    escaped = re.escape(phrase.strip()).replace(r"\ ", r"\s+")
+    return re.search(rf"(?<![a-z0-9]){escaped}(?![a-z0-9])", text, re.IGNORECASE) is not None
+
+
+def _query_skill(query_words: list[str]) -> tuple[str | None, bool]:
+    candidate = " ".join(
+        word for word in query_words
+        if word not in _QUERY_IGNORED_WORDS and word not in _ROLE_QUERY_WORDS
+    )
+    if not candidate:
+        return None, False
+    normalized = normalize_skill_entry(candidate)
+    if not normalized.is_known or not normalized.canonical_skill_id:
+        return None, False
+    definition = BY_ID.get(normalized.canonical_skill_id)
+    return normalized.canonical_name, bool(definition and definition.ambiguous)
+
+
+def _title_matches_query(title: str, query: str, meaningful_words: list[str]) -> bool:
+    if _contains_whole_phrase(query, title):
+        return True
+    return bool(meaningful_words) and all(
+        _contains_whole_phrase(word, title) for word in meaningful_words
+    )
+
+
+def _related_title_matches(title: str, meaningful_words: list[str]) -> bool:
+    related_words = {
+        word for word in meaningful_words
+        if word not in _QUERY_IGNORED_WORDS and word not in _RELATED_TITLE_GENERIC_WORDS
+    }
+    return any(_contains_whole_phrase(word, title) for word in related_words)
 
 
 def _job_document_id(job_id: str) -> str:
@@ -244,11 +313,15 @@ class StoredJobSearchResult(list[Job]):
         scanned_count: int,
         matched_count: int,
         country_filter_applied: str | None = None,
+        city_posting_count: int | None = None,
+        related_titles: list[str] | None = None,
     ) -> None:
         super().__init__(jobs)
         self.scanned_count = scanned_count
         self.matched_count = matched_count
         self.country_filter_applied = country_filter_applied
+        self.city_posting_count = city_posting_count
+        self.related_titles = related_titles or []
 
     @property
     def jobs(self) -> list[Job]:
@@ -272,10 +345,25 @@ def search_stored_jsearch_jobs_with_stats(
     if normalized_country == "india":
         normalized_country = "in"
     normalized_location = _normalize_city(location) if location else None
-    query_terms = [
-        item for item in re.findall(r"[a-z0-9+#.]+", normalized)
-        if item not in _ROLE_QUERY_WORDS
+    query_words = re.findall(r"[a-z0-9+#.]+", normalized)
+    location_tokens: set[str] = set()
+    if location:
+        location_tokens.update(re.findall(r"[a-z0-9]+", str(location).casefold()))
+    if normalized_location:
+        location_tokens.update(re.findall(r"[a-z0-9]+", normalized_location))
+        for alias, canonical in _CITY_ALIASES.items():
+            if canonical == normalized_location or alias == normalized_location:
+                location_tokens.update(re.findall(r"[a-z0-9]+", alias))
+    if normalized_country:
+        location_tokens.add(normalized_country)
+        if normalized_country == "in":
+            location_tokens.add("india")
+
+    meaningful_words = [
+        word for word in query_words
+        if word not in _QUERY_IGNORED_WORDS and word not in location_tokens
     ]
+    skill_name, ambiguous_skill = _query_skill(meaningful_words)
 
     firestore = firestore_client if firestore_client is not None else get_firestore_client()
     query_ref = firestore.collection("jobs")
@@ -319,29 +407,59 @@ def search_stored_jsearch_jobs_with_stats(
 
     results: list[Job] = []
     matched_count = 0
+    city_posting_count = 0
+    related_titles: list[str] = []
+    related_title_keys: set[str] = set()
     for snapshot in snapshots:
         record = snapshot.to_dict()
         if not isinstance(record, dict):
             continue
         source_job_id = record.pop("source_job_id", None)
         record.setdefault("job_id", source_job_id or snapshot.id)
-        searchable_fields = " ".join(
-            str(record.get(field) or "") for field in ("title", "description", "company_name")
-        )
+        title = str(record.get("title") or "")
         extracted_skills = record.get("skills_raw") or []
         if isinstance(extracted_skills, str):
             extracted_skills = [extracted_skills]
-        skills_text = " ".join(str(item) for item in extracted_skills)
-        searchable = f"{searchable_fields} {skills_text}".casefold()
-        phrase_match = bool(normalized and normalized in searchable)
-        term_match = any(term in searchable for term in query_terms)
-        if normalized and not phrase_match and not term_match:
-            continue
         if normalized_country and str(record.get("country_code") or "").casefold() != normalized_country:
             continue
-        record_location = record.get("city") or record.get("location")
-        if normalized_location and _normalize_city(record_location) != normalized_location:
+        matches_city = normalized_location is None or any(
+            _location_matches_city(record.get(field), normalized_location)
+            for field in ("city", "location")
+        )
+        if normalized_location and matches_city:
+            city_posting_count += 1
+        if normalized_location and not matches_city:
             continue
+        if meaningful_words:
+            title_match = _title_matches_query(title, normalized, meaningful_words)
+            skill_match = False
+            if skill_name:
+                skill_patterns = [skill_name]
+                definition = BY_ID.get(normalize_skill_entry(skill_name).canonical_skill_id or "")
+                if definition:
+                    skill_patterns.extend(definition.aliases)
+                structured_text = " ".join(str(item) for item in extracted_skills)
+                structured_match = any(
+                    _contains_whole_phrase(phrase, structured_text)
+                    for phrase in skill_patterns
+                )
+                description_match = (
+                    not ambiguous_skill
+                    and _contains_whole_phrase(skill_name, str(record.get("description") or ""))
+                )
+                skill_match = structured_match or description_match
+            if not title_match and not skill_match:
+                if (
+                    normalized_location
+                    and matches_city
+                    and title
+                    and _related_title_matches(title, meaningful_words)
+                ):
+                    title_key = title.casefold()
+                    if title_key not in related_title_keys and len(related_titles) < 5:
+                        related_title_keys.add(title_key)
+                        related_titles.append(title)
+                continue
         if remote and not re.search(
             r"\bremote\b",
             f"{record.get('title') or ''} {record.get('location') or ''}",
@@ -361,6 +479,8 @@ def search_stored_jsearch_jobs_with_stats(
         scanned_count=len(snapshots),
         matched_count=matched_count,
         country_filter_applied=normalized_country,
+        city_posting_count=city_posting_count if normalized_location else None,
+        related_titles=related_titles if matched_count == 0 else [],
     )
 
 
