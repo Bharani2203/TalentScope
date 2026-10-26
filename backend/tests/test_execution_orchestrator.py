@@ -1016,12 +1016,20 @@ def test_firestore_job_search_limit_matches_reported_metadata(monkeypatch):
     service.firestore_store = object()
     search_args = {}
 
+    from app.services.job_storage_service import StoredJobSearchResult
+
     def fake_search(**kwargs):
         search_args.update(kwargs)
-        return []
+        return StoredJobSearchResult(
+            jobs=[],
+            scanned_count=0,
+            matched_count=0,
+            city_posting_count=None,
+            related_titles=[],
+        )
 
     monkeypatch.setattr(
-        "app.services.job_storage_service.search_stored_jsearch_jobs",
+        "app.services.job_storage_service.search_stored_jsearch_jobs_with_stats",
         fake_search,
     )
     request = CoreIntelligenceAnswerRequest(
