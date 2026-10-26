@@ -260,11 +260,12 @@ def test_related_titles_does_not_include_location_matched_titles():
         ("jobs in Bangalore", 3),
         ("Bangalore jobs", 3),
         ("show me jobs", 5),
+        ("jobs in Bangalore India", 3),
     ],
 )
 def test_caller_path_preparation_generic_queries(fake_corpus_client, query, expected_matches):
-    from app.services.question_classification_service import extract_location
     from app.services.execution_orchestrator_service import ExecutionOrchestratorService
+    from app.services.question_classification_service import extract_location
 
     loc = extract_location(query)
     country = ExecutionOrchestratorService._extract_question_country(query)
@@ -275,4 +276,105 @@ def test_caller_path_preparation_generic_queries(fake_corpus_client, query, expe
         firestore_client=fake_corpus_client,
     )
     assert result.matched_count == expected_matches
+
+
+def test_generic_jobs_in_bangalore_india(fake_corpus_client):
+    result = search_stored_jsearch_jobs_with_stats(
+        query="jobs in Bangalore India",
+        location="Bangalore",
+        country=None,
+        firestore_client=fake_corpus_client,
+    )
+    assert result.matched_count == 3
+    assert len(result) == 3
+
+
+def test_generic_bangalore_india_jobs(fake_corpus_client):
+    result = search_stored_jsearch_jobs_with_stats(
+        query="Bangalore India jobs",
+        location="Bangalore",
+        firestore_client=fake_corpus_client,
+    )
+    assert result.matched_count == 3
+    assert len(result) == 3
+
+
+def test_generic_jobs_in_bangalore_comma_india(fake_corpus_client):
+    result = search_stored_jsearch_jobs_with_stats(
+        query="jobs in Bangalore, India",
+        location="Bangalore",
+        firestore_client=fake_corpus_client,
+    )
+    assert result.matched_count == 3
+    assert len(result) == 3
+
+
+def test_specific_python_developer_jobs_in_bangalore_india(fake_corpus_client):
+    result = search_stored_jsearch_jobs_with_stats(
+        query="python developer jobs in Bangalore India",
+        location="Bangalore",
+        firestore_client=fake_corpus_client,
+    )
+    assert result.matched_count == 1
+    assert len(result) == 1
+    assert result[0].title == "Python Developer"
+
+
+def test_generic_jobs_in_india_with_country_filter(fake_corpus_client):
+    result = search_stored_jsearch_jobs_with_stats(
+        query="jobs in India",
+        country="in",
+        location=None,
+        firestore_client=fake_corpus_client,
+    )
+    assert result.matched_count == 5
+    assert len(result) == 5
+
+
+def test_jobs_in_canada_infers_country_and_excludes_indian_postings(fake_corpus_client):
+    result = search_stored_jsearch_jobs_with_stats(
+        query="jobs in Canada",
+        country=None,
+        location=None,
+        firestore_client=fake_corpus_client,
+    )
+    assert result.matched_count == 0
+    assert len(result) == 0
+    assert result.country_filter_applied == "ca"
+
+
+def test_bangalore_germany_jobs_returns_zero_due_to_conflicting_country(fake_corpus_client):
+    result = search_stored_jsearch_jobs_with_stats(
+        query="Bangalore Germany jobs",
+        location="Bangalore",
+        country=None,
+        firestore_client=fake_corpus_client,
+    )
+    assert result.matched_count == 0
+    assert len(result) == 0
+    assert result.country_filter_applied == "de"
+
+
+def test_ca_jobs_in_bangalore_does_not_drop_ca(fake_corpus_client):
+    result = search_stored_jsearch_jobs_with_stats(
+        query="ca jobs in Bangalore",
+        location="Bangalore",
+        country=None,
+        firestore_client=fake_corpus_client,
+    )
+    assert result.matched_count == 0
+    assert len(result) == 0
+
+
+def test_explicit_country_wins_over_query_country(fake_corpus_client):
+    result = search_stored_jsearch_jobs_with_stats(
+        query="jobs in Canada",
+        country="in",
+        location=None,
+        firestore_client=fake_corpus_client,
+    )
+    assert result.matched_count == 5
+    assert len(result) == 5
+    assert result.country_filter_applied == "in"
+
 

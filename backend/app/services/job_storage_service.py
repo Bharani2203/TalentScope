@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from google.api_core.exceptions import ResourceExhausted
 from google.cloud.firestore_v1 import FieldFilter
+from app.analytics.historical_signals import COUNTRY_CODES
 from app.analytics.skill_registry import BY_ID, normalize_skill_entry
 from app.core.firebase import get_firestore_client
 from app.models.job import Job
@@ -30,6 +31,12 @@ _ROLE_QUERY_WORDS = {
 _QUERY_IGNORED_WORDS = {
     "jobs", "job", "roles", "role", "positions", "in", "at", "for",
     "show", "me", "find", "get", "list", "search", "postings", "posting",
+}
+
+_COUNTRY_NAMES_TO_CODE: dict[str, str] = {
+    name.casefold(): code.casefold()
+    for name, code in COUNTRY_CODES.items()
+    if len(name) > 2
 }
 
 _RELATED_TITLE_GENERIC_WORDS = {
@@ -74,6 +81,17 @@ def _contains_whole_phrase(phrase: str, text: str) -> bool:
         return False
     escaped = re.escape(phrase.strip()).replace(r"\ ", r"\s+")
     return re.search(rf"(?<![a-z0-9]){escaped}(?![a-z0-9])", text, re.IGNORECASE) is not None
+
+
+def _extract_query_countries(text: str) -> tuple[str | None, set[str]]:
+    detected_country = None
+    country_tokens: set[str] = set()
+    for phrase, code in sorted(_COUNTRY_NAMES_TO_CODE.items(), key=lambda x: -len(x[0])):
+        if _contains_whole_phrase(phrase, text):
+            if detected_country is None:
+                detected_country = code
+            country_tokens.update(re.findall(r"[a-z0-9]+", phrase))
+    return detected_country, country_tokens
 
 
 def _query_skill(query_words: list[str]) -> tuple[str | None, bool]:
@@ -341,9 +359,12 @@ def search_stored_jsearch_jobs_with_stats(
     """Search stored jobs and expose truthful scan/match counts to callers."""
     normalized = query.casefold().strip()
     result_limit = max(1, min(int(limit), 100))
+    detected_country, country_tokens = _extract_query_countries(query or "")
     normalized_country = country.casefold().strip() if country else None
-    if normalized_country == "india":
-        normalized_country = "in"
+    if normalized_country:
+        normalized_country = _COUNTRY_NAMES_TO_CODE.get(normalized_country, normalized_country)
+    elif detected_country:
+        normalized_country = detected_country
     normalized_location = _normalize_city(location) if location else None
     query_words = re.findall(r"[a-z0-9+#.]+", normalized)
     location_tokens: set[str] = set()
@@ -356,12 +377,15 @@ def search_stored_jsearch_jobs_with_stats(
                 location_tokens.update(re.findall(r"[a-z0-9]+", alias))
     if normalized_country:
         location_tokens.add(normalized_country)
-        if normalized_country == "in":
-            location_tokens.add("india")
+        for name, code in _COUNTRY_NAMES_TO_CODE.items():
+            if code == normalized_country:
+                location_tokens.update(re.findall(r"[a-z0-9]+", name))
 
     meaningful_words = [
         word for word in query_words
-        if word not in _QUERY_IGNORED_WORDS and word not in location_tokens
+        if word not in _QUERY_IGNORED_WORDS
+        and word not in location_tokens
+        and word not in country_tokens
     ]
     skill_name, ambiguous_skill = _query_skill(meaningful_words)
 
