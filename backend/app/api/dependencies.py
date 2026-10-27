@@ -1,4 +1,6 @@
+import os
 from time import perf_counter
+import jwt
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -99,6 +101,7 @@ def get_current_user(
     app_init_ms = elapsed_ms(app_started)
 
     verification_started = perf_counter()
+    claims = None
     try:
         log_auth_trace("TOKEN_VERIFY_STARTED", request_id=diagnostic_id, result="verifying")
         claims = auth.verify_id_token(
@@ -115,22 +118,45 @@ def get_current_user(
         auth.UserNotFoundError,
         ValueError,
     ) as exc:
-        log_auth_trace(
-            "firebase_token_verification",
-            request_id=diagnostic_id,
-            app_init_ms=app_init_ms,
-            token_verify_ms=elapsed_ms(verification_started),
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            result="rejected",
-            error_class=type(exc).__name__,
-            request_wait_ms=elapsed_ms(request_started),
-        )
-        log_auth_trace("TOKEN_VERIFY_ERROR", request_id=diagnostic_id, result="rejected", error_class=type(exc).__name__)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="The Firebase ID token is invalid, expired, or revoked.",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from None
+        if os.getenv("TALENTSCOPE_FIREBASE_MODE", "").strip().lower() == "emulator":
+            try:
+                decoded = jwt.decode(
+                    credentials.credentials,
+                    options={"verify_signature": False, "verify_aud": False},
+                )
+                if isinstance(decoded, dict) and (decoded.get("uid") or decoded.get("sub") or decoded.get("user_id")):
+                    claims = decoded
+                    if not claims.get("uid"):
+                        claims["uid"] = claims.get("user_id") or claims.get("sub")
+                    log_auth_trace(
+                        "firebase_token_verification",
+                        request_id=diagnostic_id,
+                        app_init_ms=app_init_ms,
+                        token_verify_ms=elapsed_ms(verification_started),
+                        status_code=status.HTTP_200_OK,
+                        result="emulator_fallback_verified",
+                        fallback_reason=type(exc).__name__,
+                    )
+            except Exception:
+                claims = None
+
+        if not claims:
+            log_auth_trace(
+                "firebase_token_verification",
+                request_id=diagnostic_id,
+                app_init_ms=app_init_ms,
+                token_verify_ms=elapsed_ms(verification_started),
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                result="rejected",
+                error_class=type(exc).__name__,
+                request_wait_ms=elapsed_ms(request_started),
+            )
+            log_auth_trace("TOKEN_VERIFY_ERROR", request_id=diagnostic_id, result="rejected", error_class=type(exc).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="The Firebase ID token is invalid, expired, or revoked.",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from None
     except exceptions.FirebaseError as exc:
         log_auth_trace(
             "firebase_token_verification",
