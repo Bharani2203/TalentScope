@@ -20,6 +20,32 @@ const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
 
 export function renderEmployeeMyGrowth() {
   const p = getEmployeeProfile();
+  if (p.profileLoaded) {
+    const list = values => Array.isArray(values) && values.length
+      ? values.map(value => `<li>${esc(value)}</li>`).join('')
+      : '<li>Not provided yet</li>';
+    return `
+      <div class="employee-page">
+        <section class="emp-hero">
+          <div class="emp-hero-content">
+            <span class="emp-eyebrow"><i data-lucide="trending-up"></i> YOUR CAREER AND LEARNING CONTEXT</span>
+            <h1 class="emp-hero-title">My Growth</h1>
+            <p class="emp-hero-desc">This view uses your stated goals and available learning time. It does not imply verified promotion criteria or company-specific recommendations.</p>
+          </div>
+          <div class="emp-hero-actions"><a href="#/employee/skills" class="emp-btn-secondary">Review current skills</a></div>
+        </section>
+        <section class="emp-grid-4">
+          <article class="emp-card"><span class="emp-badge emp-badge-primary">Career direction · self-reported</span><h2 class="emp-card-title">${esc(p.targetRole || 'Not provided yet')}</h2><p>Current role: ${esc(p.role || 'Not provided')}</p></article>
+          <article class="emp-card"><span class="emp-badge emp-badge-primary">Weekly availability</span><h2 class="emp-card-title">${esc(p.weeklyLearningTime || 'Not provided yet')}</h2><p>Based on your onboarding response</p></article>
+        </section>
+        <section class="emp-grid-4">
+          <article class="emp-card"><h2 class="emp-card-title">Development priorities</h2><ul>${list(p.growthPriorities)}</ul></article>
+          <article class="emp-card"><h2 class="emp-card-title">Skills you want to build</h2><ul>${list(p.desiredSkills)}</ul></article>
+          <article class="emp-card"><h2 class="emp-card-title">Preferred support</h2><ul>${list(p.preferredHelp)}</ul></article>
+        </section>
+      </div>
+    `;
+  }
   const isCompany = isCompanyEmployee();
   const evo = roleEvolutionData;
   const path = careerPathsData[0];

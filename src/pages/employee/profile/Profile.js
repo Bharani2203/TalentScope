@@ -19,6 +19,37 @@ const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
 
 export function renderEmployeeProfile() {
   const p = getEmployeeProfile();
+  if (p.profileLoaded) {
+    const list = values => Array.isArray(values) && values.length
+      ? values.map(value => `<li>${esc(value)}</li>`).join('')
+      : '<li>Not provided yet</li>';
+    const confidence = Object.entries(p.skillLevels || {});
+    return `
+      <div class="employee-page">
+        <section class="emp-hero">
+          <div class="emp-hero-content">
+            <span class="emp-eyebrow"><i data-lucide="user-round"></i> EMPLOYEE-PROVIDED PROFILE</span>
+            <h1 class="emp-hero-title">${esc(p.name || 'My Profile')}</h1>
+            <p class="emp-hero-desc">Information below comes from your onboarding responses. Workplace details and skill confidence are self-reported and are not proof of company membership or verified skill assessments.</p>
+          </div>
+          <div class="emp-hero-actions"><a href="#/employee/skills" class="emp-btn-primary">Edit My Skills</a></div>
+        </section>
+        <section class="emp-grid-4">
+          <article class="emp-card"><span class="emp-badge emp-badge-primary">Workplace · self-reported</span><h2>${esc(p.company || 'Not provided')}</h2><p>${esc(p.department || '')}</p></article>
+          <article class="emp-card"><span class="emp-badge emp-badge-primary">Current role</span><h2>${esc(p.role || 'Not provided')}</h2></article>
+          <article class="emp-card"><span class="emp-badge emp-badge-primary">Experience</span><h2>${esc(p.experience || 'Not provided')}</h2></article>
+          <article class="emp-card"><span class="emp-badge emp-badge-primary">Location</span><h2>${esc(p.location || 'Not provided')}</h2></article>
+        </section>
+        <section class="emp-grid-4">
+          <article class="emp-card"><h2 class="emp-card-title">Skills used at work</h2><ul>${list(p.skills)}</ul></article>
+          <article class="emp-card"><h2 class="emp-card-title">Self-reported confidence</h2>${confidence.length ? `<ul>${confidence.map(([skill, level]) => `<li>${esc(skill)}: ${esc(level)}</li>`).join('')}</ul>` : '<p>No confidence ratings provided yet.</p>'}</article>
+          <article class="emp-card"><h2 class="emp-card-title">Areas to improve</h2><ul>${list(p.growthPriorities)}</ul></article>
+          <article class="emp-card"><h2 class="emp-card-title">Skills to build</h2><ul>${list(p.desiredSkills)}</ul></article>
+        </section>
+        <section class="emp-card"><h2 class="emp-card-title">Career direction and support</h2><p>${esc(p.targetRole || 'Career direction not provided')}</p><p>Weekly learning time: ${esc(p.weeklyLearningTime || 'Not provided')}</p><ul>${list(p.preferredHelp)}</ul></section>
+      </div>
+    `;
+  }
   const isCompany = isCompanyEmployee();
   const skills = employeeSkillsData;
   const learn = employeeLearningTrack;

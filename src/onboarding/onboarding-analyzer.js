@@ -13,6 +13,8 @@ import {
   setCurrentUser,
   clearOnboardingDraft
 } from '../auth/auth-state.js';
+import { generateEmployeeReport } from './employee-report-data.js';
+import { loadRoleOnboardingProfile } from './onboarding-api.js';
 
 export function renderAnalysisPage(container) {
   const root = container || document.getElementById('mainContent') || document.getElementById('appShell') || document.body;
@@ -26,13 +28,21 @@ export function renderAnalysisPage(container) {
       ? '#2735F5'
       : '#B22DEF';
 
-  const stages = [
-    { id: 1, label: 'Understanding your profile context', icon: 'user-check' },
-    { id: 2, label: 'Mapping your skills & capability clusters', icon: 'layers' },
-    { id: 3, label: 'Preparing illustrative workforce & market context', icon: 'trending-up' },
-    { id: 4, label: 'Evaluating role alignment & mobility avenues', icon: 'compass' },
-    { id: 5, label: 'Preparing your personalized intelligence profile', icon: 'sparkles' }
-  ];
+  const stages = userType === 'employee'
+    ? [
+        { id: 1, label: 'Loading your saved onboarding answers', icon: 'user-check' },
+        { id: 2, label: 'Organizing your self-reported skills', icon: 'layers' },
+        { id: 3, label: 'Reviewing your development priorities', icon: 'trending-up' },
+        { id: 4, label: 'Preparing your career context', icon: 'compass' },
+        { id: 5, label: 'Building your employee profile', icon: 'sparkles' }
+      ]
+    : [
+        { id: 1, label: 'Understanding your profile context', icon: 'user-check' },
+        { id: 2, label: 'Mapping your skills & capability clusters', icon: 'layers' },
+        { id: 3, label: 'Preparing illustrative workforce & market context', icon: 'trending-up' },
+        { id: 4, label: 'Evaluating role alignment & mobility avenues', icon: 'compass' },
+        { id: 5, label: 'Preparing your personalized intelligence profile', icon: 'sparkles' }
+      ];
 
   root.innerHTML = `
     <div class="ts-onboarding-viewport" style="--ob-accent: ${accentColor}; align-items: center; justify-content: center; min-height: 100vh;">
@@ -52,7 +62,7 @@ export function renderAnalysisPage(container) {
           Building your intelligence profile...
         </h2>
         <p style="font-size: 14px; color: #6C6078; margin: 0 0 32px;" id="analyzerStageSub">
-          Calibrating competencies against industry benchmarks...
+          ${userType === 'employee' ? 'Using your saved onboarding answers...' : 'Calibrating competencies against industry benchmarks...'}
         </p>
 
         <!-- Progressive Pipeline Stages -->
@@ -85,10 +95,46 @@ export function renderAnalysisPage(container) {
   }
 
   // Animate the pipeline across 2.4 seconds
+  if (userType === 'employee') {
+    loadRoleOnboardingProfile('employee').then(savedProfile => {
+      if (!root.isConnected || !window.location.hash.includes('/onboarding/analysis')) return;
+      if (!savedProfile.onboarding?.completed) {
+        showAnalysisError(root, 'Your employee onboarding is not complete yet. Return to onboarding and finish saving your answers.');
+        return;
+      }
+      const savedDraft = {
+        ...draft,
+        userType,
+        answers: savedProfile.answers || {}
+      };
+      runPipelineAnimation(root, stages, savedDraft, user, userType, savedProfile.profile);
+    }).catch(error => {
+      if (!root.isConnected || !window.location.hash.includes('/onboarding/analysis')) return;
+      showAnalysisError(error?.message || 'Your saved employee profile could not be loaded.');
+    });
+    return;
+  }
+
   runPipelineAnimation(root, stages, draft, user, userType);
 }
 
-function runPipelineAnimation(root, stages, draft, user, userType) {
+function showAnalysisError(root, message) {
+  root.innerHTML = `
+    <section class="emp-card" role="alert">
+      <h1>Profile analysis unavailable</h1>
+      <p>${String(message).replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[char])}</p>
+      <button type="button" class="emp-btn-primary" id="retryProfileAnalysis">Retry</button>
+      <a href="#/onboarding">Return to onboarding</a>
+    </section>
+  `;
+  root.querySelector('#retryProfileAnalysis')?.addEventListener('click', () => {
+    renderAnalysisPage(root);
+  });
+}
+
+function runPipelineAnimation(root, stages, draft, user, userType, savedEmployeeProfile = null) {
   let step = 0;
   const stageInterval = setInterval(() => {
     step++;
@@ -121,7 +167,7 @@ function runPipelineAnimation(root, stages, draft, user, userType) {
       clearInterval(stageInterval);
 
       // Synthesize deterministic profile
-      const report = generateDeterministicReport(draft, user, userType);
+      const report = generateDeterministicReport(draft, user, userType, savedEmployeeProfile);
       saveGeneratedReport(report);
 
       // Update and finalize user
@@ -150,12 +196,14 @@ function runPipelineAnimation(root, stages, draft, user, userType) {
 // DETERMINISTIC REPORT GENERATOR
 // Translates exact answers into human-friendly intelligence cards
 // ----------------------------------------------------------------------------
-export function generateDeterministicReport(draft = {}, user = {}, userType = 'individual') {
+export function generateDeterministicReport(draft = {}, user = {}, userType = 'individual', savedEmployeeProfile = null) {
   const answers = draft.answers || {};
 
   // Extract common personal identity
   const nameData = answers['name_and_location'] || answers['emp_name_and_location'] || {};
-  const userName = nameData.name || user.name || 'Alex Mercer';
+  const userName = userType === 'employee'
+    ? nameData.name || ''
+    : nameData.name || user.name || 'Alex Mercer';
   const userCity = nameData.city || 'Bangalore';
   const userCountry = nameData.country || 'India';
   const userLocation = `${userCity}, ${userCountry}`;
@@ -163,7 +211,7 @@ export function generateDeterministicReport(draft = {}, user = {}, userType = 'i
   if (userType === 'company') {
     return generateCompanyReport(answers, user);
   } else if (userType === 'employee') {
-    return generateEmployeeReport(answers, user, draft.employeeType);
+    return generateEmployeeReport(answers, savedEmployeeProfile);
   } else {
     return generateIndividualReport(answers, user, userName, userLocation);
   }
@@ -242,69 +290,6 @@ function generateIndividualReport(answers, user, userName, userLocation) {
       why: 'Review your personalized learning milestones and bridge your priority capability gaps.',
       cta: 'Explore My Intelligence',
       route: '#/individual/home'
-    }
-  };
-}
-
-function generateEmployeeReport(answers, user, employeeType) {
-  const isConnected = employeeType === 'company-connected';
-  const nameData = answers['emp_name_and_location'] || {};
-  const userName = nameData.name || user.name || 'Sarah Jenkins';
-
-  const workplaceData = answers['emp_workplace'] || {};
-  const companyName = workplaceData.company || user.companyName || (isConnected ? 'TechCorp Global' : 'Independent Practitioner');
-  const department = workplaceData.department || 'Platform Engineering';
-  const currentRole = workplaceData.currentRole || 'Software Engineer';
-  const industry = workplaceData.industry || 'Enterprise Cloud & AI';
-
-  const expField = answers['emp_experience_field'] || '3–5 years';
-  const rawSkills = answers['emp_skills'] || ['Python', 'Docker', 'Kubernetes'];
-  const skills = Array.isArray(rawSkills) ? rawSkills : (rawSkills.skills || ['Python', 'Docker', 'Kubernetes']);
-  const skillLevels = answers['emp_skill_confidence'] || {};
-
-  const improvements = answers['emp_improvements'] || ['My technical skills', 'My career growth'];
-  const trajectory = answers['emp_trajectory'] || 'Move to a senior role';
-  const desiredSkills = answers['emp_next_skills'] || ['CUDA & GPU Optimization', 'Distributed Systems'];
-  const internalGoals = answers['emp_internal_goals'] || ['Prepare for promotion milestone'];
-
-  return {
-    reportType: isConnected ? 'employee-connected' : 'employee-independent',
-    title: isConnected ? 'YOUR WORKFORCE & CAREER PROFILE' : 'YOUR CAREER INTELLIGENCE PROFILE',
-    userName,
-    companyName: isConnected ? companyName : null,
-    department: isConnected ? department : null,
-    currentRole,
-    industry,
-    experience: expField,
-    isConnected,
-    currentSkills: skills,
-    skillHealth: {
-      score: 84,
-      status: 'Healthy & Aligned',
-      strongCount: skills.length,
-      gapCount: Array.isArray(desiredSkills) ? desiredSkills.length : 2
-    },
-    roleDirection: {
-      targetTrajectory: trajectory,
-      keyAreas: improvements
-    },
-    companyAlignment: isConnected ? {
-      alignmentSummary: `Your current skills align well with your role in ${department}.`,
-      futureRelevance: `Advanced infrastructure and AI workflows are becoming more relevant to your team.`,
-      promotionFocus: `Demonstrating verified project outcomes in ${desiredSkills[0] || 'System Scalability'} will support your promotion packet.`
-    } : null,
-    careerGrowthAreas: [
-      'Production System Optimization',
-      'Cross-Team Technical Mentorship',
-      'AI Tooling & Automation Integration'
-    ],
-    nextAction: {
-      headline: isConnected ? 'Explore My Growth' : 'Explore Career Intelligence',
-      why: isConnected
-        ? 'View your departmental skill health, milestone progress, and internal promotion criteria.'
-        : 'Explore independent career benchmarks and verified skill milestones.',
-      cta: isConnected ? 'Explore My Growth' : 'Explore Career Intelligence',
-      route: '#/employee/home'
     }
   };
 }

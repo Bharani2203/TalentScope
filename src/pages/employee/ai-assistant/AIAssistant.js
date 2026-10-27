@@ -51,7 +51,11 @@ export function renderEmployeeAIAssistant() {
   const p = getEmployeeProfile();
   const isCompany = isCompanyEmployee();
 
-  const samplePrompts = isCompany ? [
+  const samplePrompts = p.profileLoaded ? [
+    p.desiredSkills?.length ? `How can I build ${p.desiredSkills[0]} with my available learning time?` : 'What information would help personalize a learning plan?',
+    p.growthPriorities?.length ? `How can I work on ${p.growthPriorities[0]}?` : 'How can I use my saved profile to plan my next step?',
+    'Which parts of my profile are self-reported versus verified?'
+  ] : isCompany ? [
     "What changed in my company?",
     "Which skills do I need for Senior AI Platform Engineer?",
     "Why is CUDA recommended for me?",
@@ -232,14 +236,19 @@ async function runAnalysisAndRespond(query, rerenderFn) {
   rerenderFn();
 
   const user = getCurrentUser();
+  const employeeProfile = getEmployeeProfile();
   const targetRole = user?.target_role
     || user?.targetRole
     || user?.target_roles?.[0]
     || user?.targetRoles?.[0]
     || null;
   const profileSkills = user?.skills || user?.selected_skills;
-  const selectedSkills = Array.isArray(profileSkills) ? profileSkills.filter(Boolean) : [];
-  const location = typeof user?.location === 'string'
+  const selectedSkills = employeeProfile.profileLoaded
+    ? employeeProfile.skills
+    : Array.isArray(profileSkills) ? profileSkills.filter(Boolean) : [];
+  const location = employeeProfile.profileLoaded
+    ? [employeeProfile.city, employeeProfile.country].filter(Boolean).join(', ') || null
+    : typeof user?.location === 'string'
     ? user.location
     : user?.location?.city || user?.location?.region || null;
 
@@ -250,9 +259,24 @@ async function runAnalysisAndRespond(query, rerenderFn) {
     const res = await queryCoreIntelligenceAnswer({
       message: query,
       portalType: 'employee',
-      targetRole,
+      targetRole: employeeProfile.profileLoaded ? null : targetRole,
       selectedSkills,
       location,
+      contextOverride: employeeProfile.profileLoaded ? {
+        employee_provided_profile: {
+          preferred_name: employeeProfile.name || null,
+          workplace_claim: employeeProfile.company || null,
+          current_role: employeeProfile.role || null,
+          field_experience_band: employeeProfile.experience || null,
+          skill_confidence: employeeProfile.skillLevels,
+          development_priorities: employeeProfile.growthPriorities,
+          career_direction: employeeProfile.targetRole || null,
+          desired_skills: employeeProfile.desiredSkills,
+          weekly_learning_time: employeeProfile.weeklyLearningTime || null,
+          preferred_help: employeeProfile.preferredHelp
+        },
+        context_source: 'employee_provided'
+      } : {},
       conversationId: activeConversationId || null
     });
 

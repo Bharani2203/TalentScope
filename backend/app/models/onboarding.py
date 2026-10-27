@@ -139,6 +139,19 @@ class RoleOnboardingStepRequest(StrictModel):
     answer: Any
 
 
+class EmployeeIdentityAnswer(StrictModel):
+    name: str = Field(min_length=1, max_length=160)
+    city: str = Field(min_length=1, max_length=120)
+    country: str = Field(min_length=1, max_length=120)
+
+
+class EmployeeWorkplaceAnswer(StrictModel):
+    company: str = Field(min_length=1, max_length=200)
+    department: str | None = Field(default=None, max_length=200)
+    industry: str | None = Field(default=None, max_length=160)
+    currentRole: str = Field(min_length=1, max_length=160)
+
+
 class RoleOnboardingProfileResponse(BaseModel):
     uid: str
     user_type: str

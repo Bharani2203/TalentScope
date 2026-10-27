@@ -19,8 +19,78 @@ const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[c]);
 
+function renderEmployeeOnboardingHome(profile) {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const name = profile.shortName ? `, ${esc(profile.shortName)}` : '';
+  const currentSkills = profile.skills || [];
+  const targetSkills = profile.desiredSkills || [];
+  const listOrEmpty = values => Array.isArray(values) && values.length
+    ? values.map(value => `<li>${esc(value)}</li>`).join('')
+    : '<li>Not provided yet</li>';
+
+  return `
+    <div class="employee-page">
+      <section class="emp-hero">
+        <div class="emp-hero-content">
+          <span class="emp-eyebrow"><i data-lucide="user-round"></i> EMPLOYEE PROFILE</span>
+          <h1 class="emp-hero-title">${greeting}${name}</h1>
+          <p class="emp-hero-desc">Your portal reflects the answers you provided during onboarding. Company and skill details are self-reported unless separately verified.</p>
+        </div>
+        <div class="emp-hero-actions">
+          <a href="#/employee/skills" class="emp-btn-primary"><i data-lucide="layers-3"></i><span>Review My Skills</span></a>
+        </div>
+      </section>
+
+      <section class="emp-grid-4">
+        <article class="emp-card">
+          <span class="emp-badge emp-badge-primary">Workplace · self-reported</span>
+          <h2 class="emp-card-title">${esc(profile.company || 'Workplace not provided')}</h2>
+          <p class="emp-card-subtitle">${esc(profile.department || profile.role || 'Role details not provided')}</p>
+          <p>${esc([profile.city, profile.country].filter(Boolean).join(', '))}</p>
+        </article>
+        <article class="emp-card">
+          <span class="emp-badge emp-badge-primary">Field experience</span>
+          <h2 class="emp-card-title">${esc(profile.experience || 'Not provided yet')}</h2>
+          <p class="emp-card-subtitle">Based on your onboarding response</p>
+        </article>
+        <article class="emp-card">
+          <span class="emp-badge emp-badge-primary">Weekly learning time</span>
+          <h2 class="emp-card-title">${esc(profile.weeklyLearningTime || 'Not provided yet')}</h2>
+          <p class="emp-card-subtitle">Your stated availability</p>
+        </article>
+        <article class="emp-card">
+          <span class="emp-badge emp-badge-primary">Career direction</span>
+          <h2 class="emp-card-title">${esc(profile.targetRole || 'Not provided yet')}</h2>
+          <p class="emp-card-subtitle">Your stated direction, not a verified promotion path</p>
+        </article>
+      </section>
+
+      <section class="emp-grid-4">
+        <article class="emp-card">
+          <h2 class="emp-card-title">Skills you use</h2>
+          <ul>${listOrEmpty(currentSkills)}</ul>
+        </article>
+        <article class="emp-card">
+          <h2 class="emp-card-title">Skills you want to build</h2>
+          <ul>${listOrEmpty(targetSkills)}</ul>
+        </article>
+        <article class="emp-card">
+          <h2 class="emp-card-title">Areas to improve</h2>
+          <ul>${listOrEmpty(profile.growthPriorities)}</ul>
+        </article>
+        <article class="emp-card">
+          <h2 class="emp-card-title">Where you want help</h2>
+          <ul>${listOrEmpty(profile.preferredHelp)}</ul>
+        </article>
+      </section>
+    </div>
+  `;
+}
+
 export function renderEmployeeHome() {
   const p = getEmployeeProfile();
+  if (p.profileLoaded) return renderEmployeeOnboardingHome(p);
   const metrics = getEmployeeOverviewMetrics();
   const isCompany = isCompanyEmployee();
 

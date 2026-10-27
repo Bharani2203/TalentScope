@@ -10,13 +10,17 @@ import { renderEmployeeCommunity, bindEmployeeCommunityEvents } from '../../page
 import { renderEmployeeOpportunities, bindEmployeeOpportunitiesEvents } from '../../pages/employee/opportunities/Opportunities.js';
 import { renderEmployeeProfile, bindEmployeeProfileEvents } from '../../pages/employee/profile/Profile.js';
 import { renderEmployeeAIAssistant, bindEmployeeAIAssistantEvents } from '../../pages/employee/ai-assistant/AIAssistant.js';
-import { employeeRoutes } from './navigation.js';
+import { employeeRoutes, isEmployeeRouteCurrent, resolveEmployeeRoute } from './navigation.js';
 import { renderEmployeeCompanyConnection, bindEmployeeCompanyConnection } from '../../pages/employee/company/CompanyConnection.js';
 import {
+  clearEmployeeOnboardingProfile,
   getEmployeeProfile,
   isCompanyEmployee,
+  setEmployeeOnboardingProfile,
   toggleEmployeeType
 } from '../../data/employee/employee-data.js';
+import { getCurrentUser } from '../../auth/auth-state.js';
+import { loadRoleOnboardingProfile } from '../../onboarding/onboarding-api.js';
 import {
   getCompanyInvitations,
   acceptCompanyInvitation,
@@ -25,21 +29,77 @@ import {
 } from '../../data/platform-state.js';
 
 let employeeStateListenerBound = false;
-
+let authStateListenerBound = false;
+let profileLoadUid = null;
+let profileLoadState = 'idle';
+let profileLoadError = null;
+let profileLoadGeneration = 0;
 
 export function renderEmployeeRoute(route) {
   const main = document.querySelector('#mainContent');
   if (!main) return;
 
-  const resolvedRoute = route === '/employee/career'
-    ? '/employee/growth' 
-    : route;
+  if (!authStateListenerBound) {
+    window.addEventListener('talentscope-auth-state-changed', () => {
+      const uid = getCurrentUser()?.uid || null;
+      if (uid !== profileLoadUid) {
+        profileLoadGeneration += 1;
+        profileLoadUid = null;
+        profileLoadState = 'idle';
+        profileLoadError = null;
+        clearEmployeeOnboardingProfile();
+      }
+    });
+    authStateListenerBound = true;
+  }
+
+  const user = getCurrentUser();
+  if (!user?.uid || user.userType !== 'employee') {
+    profileLoadGeneration += 1;
+    profileLoadUid = null;
+    profileLoadState = 'idle';
+    clearEmployeeOnboardingProfile();
+    main.innerHTML = '<div role="alert" class="emp-card">Your employee session is unavailable. Sign in again to continue.</div>';
+    return;
+  }
+
+  if (profileLoadUid !== user.uid || profileLoadState === 'idle') {
+    profileLoadUid = user.uid;
+    profileLoadState = 'loading';
+    profileLoadError = null;
+    clearEmployeeOnboardingProfile();
+    main.innerHTML = '<div role="status" aria-live="polite" class="emp-card">Loading your employee profile…</div>';
+    loadEmployeeProfile(user.uid);
+    return;
+  }
+
+  if (profileLoadState === 'loading') {
+    main.innerHTML = '<div role="status" aria-live="polite" class="emp-card">Loading your employee profile…</div>';
+    return;
+  }
+
+  if (profileLoadState === 'error') {
+    main.innerHTML = `
+      <section class="emp-card" role="alert">
+        <h1>Profile unavailable</h1>
+        <p>${escapeHtml(profileLoadError || 'Your employee profile could not be loaded.')}</p>
+        <button type="button" class="emp-btn-primary" id="retryEmployeeProfile">Retry</button>
+      </section>
+    `;
+    main.querySelector('#retryEmployeeProfile')?.addEventListener('click', () => {
+      profileLoadState = 'idle';
+      renderEmployeeRoute(window.location.hash.slice(1).split('?')[0] || '/employee/home');
+    });
+    return;
+  }
+
+  const resolvedRoute = resolveEmployeeRoute(route);
 
   const page = employeeRoutes[resolvedRoute] || employeeRoutes['/employee/home'];
   document.title = `TalentScope.ai — ${page.title}`;
 
-  const isCompany = isCompanyEmployee();
   const p = getEmployeeProfile();
+  const isCompany = p.profileLoaded ? p.companyVerified === true : isCompanyEmployee();
 
   const topbarContext = document.querySelector('#topbarContext');
   if (topbarContext) {
@@ -50,13 +110,40 @@ export function renderEmployeeRoute(route) {
           <i data-lucide="shield"></i> Employee Portal
         </span>
         <span class="emp-badge ${isCompany ? 'emp-badge-success' : 'emp-badge-primary'}" style="font-size: 11px;">
-          Preview data
+          Employee-provided profile
         </span>
       </div>
     `;
   }
 
-  const rerender = () => renderEmployeeRoute(route);
+  function loadEmployeeProfile(uid) {
+    const generation = ++profileLoadGeneration;
+    loadRoleOnboardingProfile('employee').then(profile => {
+      if (generation !== profileLoadGeneration || profileLoadUid !== uid) return;
+      setEmployeeOnboardingProfile(uid, profile);
+      profileLoadState = 'loaded';
+      const currentUser = getCurrentUser();
+      if (currentUser?.uid === uid) {
+        renderEmployeeRoute(window.location.hash.slice(1).split('?')[0] || '/employee/home');
+      }
+    }).catch(error => {
+      if (generation !== profileLoadGeneration || profileLoadUid !== uid) return;
+      profileLoadError = error?.message || 'Your employee profile could not be loaded.';
+      profileLoadState = 'error';
+      renderEmployeeRoute(window.location.hash.slice(1).split('?')[0] || '/employee/home');
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+  }
+
+  const rerender = () => {
+    const activeRoute = window.location.hash.slice(1).split('?')[0] || '/employee/home';
+    if (isEmployeeRouteCurrent(resolvedRoute, activeRoute)) renderEmployeeRoute(activeRoute);
+  };
 
   // Dispatch appropriate page
   if (resolvedRoute === '/employee/home') {

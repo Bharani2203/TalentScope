@@ -24,6 +24,18 @@ export const employeeNavigation = [
   }
 ];
 
+export function resolveEmployeeRoute(route) {
+  return route === '/employee/career' ? '/employee/growth' : route;
+}
+
+export function isEmployeeRouteActive(currentRoute, itemRoute) {
+  return itemRoute === resolveEmployeeRoute(currentRoute);
+}
+
+export function isEmployeeRouteCurrent(renderedRoute, currentRoute) {
+  return resolveEmployeeRoute(renderedRoute) === resolveEmployeeRoute(currentRoute);
+}
+
 export const employeeRoutes = {
   '/employee/home': {
     eyebrow: 'GROWTH & WORKFORCE PLATFORM',

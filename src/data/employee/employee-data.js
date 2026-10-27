@@ -112,8 +112,67 @@ export const independentEmployeeProfile = {
 
 const EMPLOYEE_PROFILE_STORAGE_KEY = 'talentscope-employee-profile-v1';
 
+let savedEmployeeProfileUid = null;
+let savedEmployeeOnboardingProfile = null;
+
+export function setEmployeeOnboardingProfile(uid, roleProfile) {
+  if (!uid || roleProfile?.user_type !== 'employee' || !roleProfile.profile) {
+    throw new Error('A verified employee profile is required.');
+  }
+  savedEmployeeProfileUid = uid;
+  savedEmployeeOnboardingProfile = roleProfile.profile;
+}
+
+export function clearEmployeeOnboardingProfile() {
+  savedEmployeeProfileUid = null;
+  savedEmployeeOnboardingProfile = null;
+}
+
+export function getEmployeeOnboardingProfile() {
+  return savedEmployeeOnboardingProfile
+    ? { uid: savedEmployeeProfileUid, ...savedEmployeeOnboardingProfile }
+    : null;
+}
+
+export function getEmployeeCurrentSkills() {
+  const profile = savedEmployeeOnboardingProfile;
+  if (!profile) return [];
+  const skills = Array.isArray(profile.current_skill_domains) ? profile.current_skill_domains : [];
+  const confidence = profile.self_reported_skill_confidence || {};
+  return skills.map(name => ({ name, confidence: confidence[name] || '' }));
+}
+
 export function getEmployeeProfile() {
   const base = isCompanyEmployee() ? companyEmployeeProfile : independentEmployeeProfile;
+  if (savedEmployeeOnboardingProfile) {
+    const profile = savedEmployeeOnboardingProfile;
+    const name = typeof profile.display_name === 'string' ? profile.display_name : '';
+    return {
+      ...base,
+      id: savedEmployeeProfileUid,
+      name,
+      shortName: name.trim().split(/\s+/)[0] || '',
+      initials: name.trim().split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase(),
+      role: profile.current_role_id || '',
+      department: profile.team_name_claim || '',
+      company: profile.employer_name_claim || '',
+      companyVerified: false,
+      targetRole: profile.target_role_name || '',
+      careerGoal: profile.mobility_interest_type || '',
+      experience: profile.field_experience_band || '',
+      city: profile.city || '',
+      country: profile.country || '',
+      location: [profile.city, profile.country].filter(Boolean).join(', '),
+      hub: [profile.city, profile.country].filter(Boolean).join(', '),
+      skills: Array.isArray(profile.current_skill_domains) ? [...profile.current_skill_domains] : [],
+      skillLevels: profile.self_reported_skill_confidence || {},
+      growthPriorities: profile.growth_interests || [],
+      desiredSkills: profile.desired_skill_domains || [],
+      weeklyLearningTime: profile.weekly_learning_time || '',
+      preferredHelp: profile.primary_goal || [],
+      profileLoaded: true
+    };
+  }
   try {
     const raw = localStorage.getItem(EMPLOYEE_PROFILE_STORAGE_KEY);
     if (!raw) return { ...base };

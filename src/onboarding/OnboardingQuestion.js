@@ -399,7 +399,7 @@ function renderInputByType(question, val = {}, userType, previousAnswers) {
         ${isConnected ? `
           <div class="ts-auth-field full-width">
             <label for="qf_company">Current Company</label>
-            <input type="text" id="qf_company" class="ts-auth-input" placeholder="e.g. TechCorp Global" value="${esc(val.company || previousAnswers['companyName'] || 'TechCorp Global')}" required />
+            <input type="text" id="qf_company" class="ts-auth-input" placeholder="Enter your current company" value="${esc(val.company || '')}" required />
           </div>
           <div class="ts-auth-field">
             <label for="qf_department">Department / Team</label>

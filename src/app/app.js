@@ -522,19 +522,9 @@ const navigation = [
   ] }
 ];
 
-const employeeNavigation = [
-  { label: 'Growth & Work', items: [
-    { label: 'Home', icon: 'house', route: '/employee/home' },
-    { label: 'My Skills', icon: 'layers-3', route: '/employee/skills' },
-    { label: 'My Growth', icon: 'trending-up', route: '/employee/growth' },
-    { label: 'Community', icon: 'users-round', route: '/employee/community' },
-    { label: 'Opportunities', icon: 'compass', route: '/employee/opportunities' }
-  ] },
-  { label: 'Intelligence', items: [
-    { label: 'AI Assistant', icon: 'sparkles', route: '/employee/ai-assistant' },
-    { label: 'Notifications', icon: 'bell', route: '/employee/notifications' }
-  ] }
-];
+let employeeNavigation = [];
+let resolveEmployeeRoute = route => route;
+let isEmployeeRouteActive = (currentRoute, itemRoute) => itemRoute === currentRoute;
 
 const companyNavigation = [
   {
@@ -10624,6 +10614,16 @@ async function renderPage() {
     appShell.classList.toggle('employee-portal', isEmployee);
   }
 
+  if (isEmployee) {
+    try {
+      ({ employeeNavigation, resolveEmployeeRoute, isEmployeeRouteActive } = await import('../portals/employee/navigation.js'));
+    } catch (error) {
+      console.error('Employee navigation failed to load:', error);
+      mainContent.innerHTML = '<div role="alert">Employee navigation could not be loaded. Refresh the page to retry.</div>';
+      return;
+    }
+  }
+
   // Update user identity and render navigation for active portal
   updateUserDetails();
   renderNavigation();
@@ -10645,12 +10645,10 @@ async function renderPage() {
 
   // Handle Employee Portal routes
   if (isEmployee) {
-    if (route === '/employee/career' || route === '/employee/company') {
-      route = '/employee/growth';
-    }
+    route = resolveEmployeeRoute(route);
 
     document.querySelectorAll('[data-route]').forEach(item => {
-      const isTarget = item.dataset.route === route || item.dataset.route === routePath;
+      const isTarget = isEmployeeRouteActive(route, item.dataset.route);
       item.classList.toggle('is-active', isTarget);
     });
 

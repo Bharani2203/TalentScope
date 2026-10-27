@@ -12,6 +12,8 @@ from app.models.onboarding import (
     BasicProfileAnswer,
     CareerGoal,
     CurrentStage,
+    EmployeeIdentityAnswer,
+    EmployeeWorkplaceAnswer,
     ExperienceAnswer,
     ExperienceLevel,
     IndividualProfileResponse,
@@ -350,7 +352,17 @@ def save_role_onboarding_step(uid: str, user_type: str, step: int, request: Role
             raise HTTPException(status_code=409, detail="Complete earlier onboarding steps before continuing.")
         answers = (stored.get("profile") or {}).get(f"{user_type}_onboarding_answers", {})
         answers = dict(answers) if isinstance(answers, dict) else {}
-        answers[request.question_id] = request.answer
+        answer = request.answer
+        if user_type == "employee":
+            answer = _validate_employee_answer(step, answer, answers)
+        answers[request.question_id] = answer
+        if user_type == "employee" and step == 4:
+            confidence = answers.get("emp_skill_confidence")
+            if isinstance(confidence, dict):
+                selected = set(answer)
+                answers["emp_skill_confidence"] = {
+                    skill: level for skill, level in confidence.items() if skill in selected
+                }
         canonical = normalize_onboarding_answers(
             user_type,
             answers,
@@ -402,3 +414,81 @@ def save_role_onboarding_step(uid: str, user_type: str, step: int, request: Role
     except Exception:
         raise HTTPException(status_code=503, detail="Onboarding answer could not be saved.") from None
     return get_role_onboarding_profile(uid, user_type)
+
+
+def _validate_employee_answer(step: int, answer: Any, existing_answers: dict[str, Any]) -> Any:
+    """Validate the employee form's typed values before persisting either representation."""
+    try:
+        if step == 1:
+            return EmployeeIdentityAnswer.model_validate(answer).model_dump(exclude_none=True)
+        if step == 2:
+            return EmployeeWorkplaceAnswer.model_validate(answer).model_dump(exclude_none=True)
+        if step == 3:
+            allowed = {
+                "New to the field", "Less than 1 year", "1–2 years",
+                "3–5 years", "5–10 years", "10+ years",
+            }
+            if answer not in allowed:
+                raise ValueError("Invalid experience band.")
+            return answer
+        if step in (4, 8):
+            if not isinstance(answer, list) or len(answer) > 100:
+                raise ValueError("Skills must be a list with at most 100 entries.")
+            skills = [item.strip() for item in answer if isinstance(item, str)]
+            if len(skills) != len(answer) or any(not item or len(item) > 120 for item in skills):
+                raise ValueError("Each skill must be a non-empty string of at most 120 characters.")
+            return list(dict.fromkeys(skills))
+        if step == 5:
+            if not isinstance(answer, dict) or len(answer) > 100:
+                raise ValueError("Skill confidence must be an object.")
+            selected = existing_answers.get("emp_skills", [])
+            if not isinstance(selected, list) or not set(answer).issubset(selected):
+                raise ValueError("Confidence values must refer to skills selected in step 4.")
+            levels = {"Beginner", "Comfortable", "Advanced", "Expert"}
+            if any(not isinstance(skill, str) or level not in levels for skill, level in answer.items()):
+                raise ValueError("Invalid skill confidence value.")
+            return dict(answer)
+        if step == 6:
+            allowed = {
+                "My technical skills", "My ability to work with AI", "My role performance",
+                "My leadership", "My communication", "My career growth",
+            }
+            return _validate_employee_choices(answer, allowed, max_items=6)
+        if step == 7:
+            allowed = {
+                "Grow in my current role", "Move to a senior role", "Move to another team",
+                "Move into a new role", "Become a specialist", "Move into management",
+                "Explore another company",
+            }
+            if answer not in allowed:
+                raise ValueError("Invalid career direction.")
+            return answer
+        if step == 9:
+            allowed = {"Less than 2 hours", "2–5 hours", "5–10 hours", "10+ hours"}
+            if answer not in allowed:
+                raise ValueError("Invalid weekly learning time.")
+            return answer
+        if step == 10:
+            allowed = {
+                "Improve my current role performance", "Prepare for promotion milestone",
+                "Find another role internally", "Build verified skill evidence",
+                "Understand where my role is going with AI", "Prepare for future industry changes",
+            }
+            return _validate_employee_choices(answer, allowed, max_items=6)
+    except (TypeError, ValueError, ValidationError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid answer for employee onboarding step {step}.",
+        ) from error
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail="Employee onboarding step must be between 1 and 10.",
+    )
+
+
+def _validate_employee_choices(answer: Any, allowed: set[str], *, max_items: int) -> list[str]:
+    if not isinstance(answer, list) or len(answer) > max_items:
+        raise ValueError("Selections must be a list.")
+    if any(not isinstance(item, str) or item not in allowed for item in answer):
+        raise ValueError("Selection is not supported.")
+    return list(dict.fromkeys(answer))

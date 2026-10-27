@@ -94,7 +94,12 @@ async function initializeSession() {
   if (user?.userType === 'employee' || user?.userType === 'company') {
     const type = user.userType;
     let remote = null;
-    try { remote = await loadRoleOnboardingProfile(type); } catch {}
+    let loadError = null;
+    try {
+      remote = await loadRoleOnboardingProfile(type);
+    } catch (error) {
+      loadError = error?.message || 'Could not load your saved onboarding profile.';
+    }
     const answers = { ...(remote?.answers || {}), ...(draft?.answers || {}) };
     onboardingSession = {
       userType: type,
@@ -107,7 +112,7 @@ async function initializeSession() {
       pendingSteps: draft?.pendingSteps || []
     };
     saveOnboardingDraft(onboardingSession);
-    return;
+    return { error: loadError };
   }
 
   if (draft) {
@@ -191,7 +196,7 @@ function renderCurrentQuestionView(root) {
             <span>Back</span>
           </button>
 
-          <a class="ts-ob-brand" href="#/individual/home" aria-label="TalentScope.ai">
+          <a class="ts-ob-brand" href="${onboardingSession.userType === 'employee' ? '#/employee/home' : onboardingSession.userType === 'company' ? '#/company/home' : '#/individual/home'}" aria-label="TalentScope.ai">
             <span class="ts-ob-brand-mark">
               <img src="assets/logo.png" alt="TalentScope">
             </span>
@@ -289,11 +294,18 @@ function bindOnboardingEvents(root, currentQ, currentIdx, maxSteps) {
   });
 
   // B. Skip Button
-  root.querySelector('#obSkipBtn')?.addEventListener('click', async () => {
+  root.querySelector('#obSkipBtn')?.addEventListener('click', async event => {
+    const button = event.currentTarget;
+    if (button.disabled) return;
+    button.disabled = true;
     currentVal = harvestCurrentInput(container, currentQ, currentVal);
     onboardingSession.answers[currentQ.id] = currentVal;
-    const saved = await persistCurrentStep(root, currentQ, currentVal);
-    if (saved) advanceToNext(root, currentIdx, maxSteps);
+    try {
+      const saved = await persistCurrentStep(root, currentQ, currentVal);
+      if (saved) advanceToNext(root, currentIdx, maxSteps);
+    } finally {
+      if (button.isConnected) button.disabled = false;
+    }
   });
 
   // C. Continue Button

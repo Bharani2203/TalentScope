@@ -1,0 +1,110 @@
+{
+  "planHash": "f9a6b146853d3f34d01f3c63045965d468248d9effdaece3c25d32ed70366fa2",
+  "phase": "standalone",
+  "recordedAtUtc": "2026-10-26T13:56:42.5524640Z",
+  "retryCount": 1,
+  "resetBaseline": false,
+  "complete": true,
+  "result": {
+    "setupSucceeded": true,
+    "setupDurationMs": 41383,
+    "setupFailureOutput": null,
+    "assertions": [
+      {
+        "name": "tests-pass",
+        "kind": "process",
+        "verificationMethod": "test-results",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "\r\n\u003E talentscope-individual-portal@1.0.0 test\r\n\u003E node tests/core-intelligence-client.test.mjs \u0026\u0026 node tests/intelligence-evidence-panel.test.mjs \u0026\u0026 node tests/intelligence-result-details.test.mjs \u0026\u0026 node tests/career-intelligence.test.mjs \u0026\u0026 node tests/answer-engine-frontend.test.mjs \u0026\u0026 node tests/g27-end-to-end-integration.test.mjs \u0026\u0026 node tests/auth-api.test.mjs \u0026\u0026 node tests/g26-remediation.test.mjs \u0026\u0026 node tests/assistant-filters.test.mjs \u0026\u0026 node tests/assistant-user-identity.test.mjs \u0026\u0026 node tests/company-feature-safety.test.mjs \u0026\u0026 node tests/firebase-emulator-config.test.mjs \u0026\u0026 node tests/api-config.test.mjs \u0026\u0026 node tests/test-v2-frontend-integration.test.mjs \u0026\u0026 node tests/phase3b-frontend-auth.test.mjs \u0026\u0026 node tests/employee-profile.test.mjs\r\n\r\nPASS normalizeTimeRange maps raw frontend ranges to standard keys\r\nPASS 12-month aliases retain a 12-month range in dashboard and answer requests\r\nPASS Node callers without an explicit token do not import the browser Firebase SDK\r\nPASS MOCKED empty conversation storage returns no invented ID and clears legacy client IDs\r\nPASS observation periods display as friendly month labels without changing canonical semantics\r\nPASS buildCoreIntelligenceRequest normalizes parameters and filters Global location\r\nPASS adaptTrendItem enforces honest trend and readiness boundaries\r\nPASS adaptCoreIntelligenceResponse guarantees is_forecast_ready is false and preserves answer\r\nPASS sendCoreIntelligenceRequest attaches Bearer token and parses response\r\nPASS catalog clients use authenticated shared intelligence catalog endpoints\r\nPASS sendCoreIntelligenceRequest properly raises auth and network errors\r\nPASS buildCoreIntelligenceRequest normalizes roles, companies, and skills lists\r\nPASS stale request protection discards out-of-order resolved responses\r\nPASS adaptActionRecommendation and adaptActionRecommendationResponse normalize action structure\r\nPASS adaptCoreIntelligenceResponse properly adapts action_recommendations\r\nPASS buildAnswerRequest normalizes message, portal_type, skills, and time_range\r\nPASS buildAnswerRequest preserves Home snake_case selections and normalizes the supported 12-month window\r\nPASS answer client surfaces FastAPI validation locations and messages for 422 responses\r\nPASS adaptFactItem and adaptEvidenceItem preserve verifiable provenance and quality\r\nPASS adaptCoreIntelligenceAnswerResponse adapts all 6 execution statuses correctly\r\nPASS queryCoreIntelligenceAnswer sends POST /api/v1/intelligence/answer with Bearer token\r\nPASS queryCoreIntelligenceAnswer handles 401/403 auth errors and network errors\r\nPASS queryCoreIntelligencePlan uses authenticated planner endpoint and preserves domain context\r\nPASS queryCoreIntelligencePlan matches the frontend plan request fixture\r\nPASS buildAnswerRequest preserves conversationId and clearContext flags\r\nPASS adaptCoreIntelligenceAnswerResponse preserves conversation_id\r\nPASS resolveEntity sends POST /api/v1/intelligence/entities/resolve\r\nPASS getCapabilityCatalog sends GET /api/v1/intelligence/capabilities\r\nPASS evaluateCapabilities sends POST /api/v1/intelligence/capabilities/evaluate\r\nCORE INTELLIGENCE CLIENT TESTS: 29/29 PASSED\r\nINTELLIGENCE EVIDENCE PANEL TESTS: 14 passed\r\nINTELLIGENCE RESULT DETAILS TESTS: passed\r\nCAREER INTELLIGENCE TESTS: 1 passed\r\nANSWER ENGINE FRONTEND TESTS: 8/8 PASSED\r\nPASS: Portal requests enforce correct portal_type and context fields\r\nPASS: Multi-turn conversation flow tracks conversation_id and maintains continuity\r\nPASS: Explicit session reset sends clear_context=true and resets conversation flow\r\nPASS: Execution status disclosures correctly propagate across all 6 runtime statuses\r\nPASS: Portal error handling classifies 401/403 as blocked and network as failed\r\nPASS: Capability catalog and entity resolution endpoints integrate properly\r\nPASS: Shared IntelligenceComponents render all 6 statuses and structures faithfully\r\nPASS: Core Intelligence Review demonstration responses adapt without loss or mutation\r\nPASS: Intelligence UI components safely escape malicious HTML inputs\r\n\r\nG2.7 END-TO-END INTEGRAT\n\u2026[truncated]",
+        "durationMs": 3576,
+        "testResults": {
+          "testFramework": "unknown",
+          "runnerDetectedFrom": "none",
+          "testsTotal": 0,
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "testsSkipped": 0,
+          "parseFailed": true
+        }
+      },
+      {
+        "name": "employee-onboarding-backend-tests-pass",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "...............                                                          [100%]\r\n============================== warnings summary ===============================\r\nC:\\Users\\LOGANATHAN\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\fastapi\\testclient.py:1\r\n  C:\\Users\\LOGANATHAN\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using \u0060httpx\u0060 with \u0060starlette.testclient\u0060 is deprecated; install \u0060httpx2\u0060 instead.\r\n    from starlette.testclient import TestClient as TestClient  # noqa\r\n\r\napp\\main.py:37\r\n  D:\\project\\New folder\\New folder\\S7_PROJECT_SKILL_1-main\\S7_PROJECT_SKILL_1-main\\backend\\app\\main.py:37: DeprecationWarning: \r\n          on_event is deprecated, use lifespan event handlers instead.\r\n  \r\n          Read more about it in the\r\n          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\r\n          \r\n    @app.on_event(\u0022startup\u0022)\r\n\r\nC:\\Users\\LOGANATHAN\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\fastapi\\applications.py:4723\r\n  C:\\Users\\LOGANATHAN\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\fastapi\\applications.py:4723: DeprecationWarning: \r\n          on_event is deprecated, use lifespan event handlers instead.\r\n  \r\n          Read more about it in the\r\n          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\r\n          \r\n    return self.router.on_event(event_type)  # ty: ignore[deprecated]\r\n\r\ntests/test_onboarding.py::test_employee_onboarding_rejects_invalid_answers_and_unauthenticated_requests\r\n  D:\\project\\New folder\\New folder\\S7_PROJECT_SKILL_1-main\\S7_PROJECT_SKILL_1-main\\backend\\app\\services\\onboarding_service.py:357: StarletteDeprecationWarning: \u0027HTTP_422_UNPROCESSABLE_ENTITY\u0027 is deprecated. Use \u0027HTTP_422_UNPROCESSABLE_CONTENT\u0027 instead.\r\n    answer = _validate_employee_answer(step, answer, answers)\r\n\r\ntests/test_onboarding.py::test_step_five_requires_selected_skills_and_valid_levels\r\n  D:\\project\\New folder\\New folder\\S7_PROJECT_SKILL_1-main\\S7_PROJECT_SKILL_1-main\\backend\\app\\services\\onboarding_service.py:205: StarletteDeprecationWarning: \u0027HTTP_422_UNPROCESSABLE_ENTITY\u0027 is deprecated. Use \u0027HTTP_422_UNPROCESSABLE_CONTENT\u0027 instead.\r\n    answer = _validate_answer(step, request.answer, profile)\r\n\r\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\r\n15 passed, 5 warnings in 5.18s\r\n",
+        "durationMs": 6848
+      },
+      {
+        "name": "frontend-serves-home",
+        "kind": "http-probe",
+        "verificationMethod": "http-status",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": null,
+        "outputSample": "HTTP 200\n\u003C!doctype html\u003E\n\u003Chtml lang=\u0022en\u0022\u003E\n\u003Chead\u003E\n  \u003Cmeta charset=\u0022UTF-8\u0022\u003E\n  \u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1.0\u0022\u003E\n  \u003Cmeta name=\u0022description\u0022 content=\u0022TalentScope.ai individual workforce intelligence portal\u0022\u003E\n  \u003Clink rel=\u0022icon\u0022 type=\u0022image/png\u0022 href=\u0022assets/logo.png\u0022\u003E\n  \u003Ctitle\u003ETalentScope.ai \u2014 Individual Portal\u003C/title\u003E\n  \u003Clink rel=\u0022preconnect\u0022 href=\u0022https://fonts.googleapis.com\u0022\u003E\n  \u003Clink rel=\u0022preconnect\u0022 href=\u0022https://fonts.gstatic.com\u0022 crossorigin\u003E\n  \u003Clink href=\u0022https://fonts.googleapis.com/css2?family=DM Sans:wght@400;500;600;700\u0026display=swap\u0022 rel=\u0022stylesheet\u0022\u003E\n  \u003Cscript src=\u0022https://unpkg.com/lucide@latest\u0022\u003E\u003C/script\u003E\n  \u003Clink rel=\u0022stylesheet\u0022 href=\u0022styles.css?v=ts-final-stabilized\u0022\u003E\n  \u003Clink rel=\u0022stylesheet\u0022 href=\u0022src/pages/individual/ai-help/ai-help.css\u0022\u003E\n\u003C/head\u003E\n\u003Cbody\u003E\n  \u003Cdiv class=\u0022app-shell\u0022 id=\u0022appShell\u0022\u003E\n    \u003Cdiv class=\u0022mobile-scrim\u0022 id=\u0022mobileScrim\u0022 aria-hidden=\u0022true\u0022\u003E\u003C/div\u003E\n    \u003Caside class=\u0022sidebar\u0022 id=\u0022sidebar\u0022 aria-label=\u0022Individual portal navigation\u0022\u003E\n      \u003Cdiv class=\u0022sidebar__inner\u0022\u003E\n        \u003Cdiv class=\u0022sidebar__top\u0022\u003E\n          \u003Ca class=\u0022brand\u0022 href=\u0022#/individual/home\u0022 aria-label=\u0022TalentScope.ai home\u0022\u003E\n            \u003Cspan class=\u0022brand__mark\u0022 aria-hidden=\u0022true\u0022\u003E\u003Cimg src=\u0022assets/logo.png\u0022 alt=\u0022\u0022\u003E\u003C/span\u003E\n            \u003Cspan class=\u0022brand__name\u0022\u003ETalentScope\u003Cspan\u003E.ai\u003C/span\u003E\u003C/span\u003E\n          \u003C/a\u003E\n          \u003Cbutton class=\u0022icon-button sidebar__toggle\u0022 id=\u0022sidebarToggle\u0022 type=\u0022button\u0022 aria-label=\u0022Expand sidebar\u0022 aria-expanded=\u0022false\u0022 title=\u0022Expand sidebar\u0022\u003E\n            \u003Ci data-lucide=\u0022panel-left\u0022\u003E\u003C/i\u003E\n          \u003C/button\u003E\n        \u003C/div\u003E\n        \u003Cnav class=\u0022sidebar__nav\u0022 id=\u0022primaryNav\u0022\u003E\u003C/nav\u003E\n        \u003Cdiv class=\u0022sidebar__bottom\u0022\u003E\n          \u003Ca class=\u0022nav-item\u0022 href=\u0022#/individual/profile\u0022 data-route=\u0022/individual/profile\u0022 data-tooltip=\u0022Profile\u0022\u003E\n            \u003Cspan class=\u0022avatar avatar--small\u0022 data-user-initials\u003E\u003C/span\u003E\u003Cspan class=\u0022nav-item__label\u0022\u003EProfile\u003C/span\u003E\n          \u003C/a\u003E\n          \u003Ca class=\u0022nav-item\u0022 href=\u0022#/individual/settings\u0022 data-route=\u0022/individual/settings\u0022 data-tooltip=\u0022Settings\u0022\u003E\n            \u003Ci data-lucide=\u0022settings-2\u0022\u003E\u003C/i\u003E\u003Cspan class=\u0022nav-item__label\u0022\u003ESettings\u003C/span\u003E\n          \u003C/a\u003E\n          \u003Ca class=\u0022sidebar__profile\u0022 href=\u0022#/individual/profile\u0022 aria-label=\u0022Open Profile\u0022 style=\u0022text-decoration: none;\u0022\u003E\n            \u003Cspan class=\u0022avatar\u0022 data-user-initials\u003E\u003C/span\u003E\n            \u003Cspan class=\u0022sidebar__profile-copy\u0022\u003E\u003Cstrong data-user-name\u003E\u003C/strong\u003E\u003Csmall data-user-meta\u003E\u003C/small\u003E\u003C/span\u003E\n            \u003Ci data-lucide=\u0022more-horizontal\u0022\u003E\u003C/i\u003E\n          \u003C/a\u003E\n        \u003C/div\u003E\n      \u003C/div\u003E\n    \u003C/aside\u003E\n\n    \u003Cdiv class=\u0022app-main\u0022\u003E\n      \u003Cheader class=\u0022topbar\u0022\u003E\n        \u003Cdiv class=\u0022topbar__mobile-start\u0022\u003E\n          \u003Cbutton class=\u0022icon-button topbar__menu\u0022 id=\u0022mobileMenu\u0022 type=\u0022button\u0022 aria-label=\u0022Open navigation\u0022 title=\u0022Open navigation\u0022\u003E\n            \u003Ci data-lucide=\u0022menu\u0022\u003E\u003C/i\u003E\n          \u003C/button\u003E\n          \u003Cspan class=\u0022mobile-brand\u0022\u003ETalentScope.ai\u003C/span\u003E\n        \u003C/div\u003E\n        \u003Cdiv class=\u0022topbar__context\u0022 id=\u0022topbarContext\u0022 aria-live=\u0022polite\u0022\u003E\u003C/div\u003E\n        \u003Cform class=\u0022search\u0022 role=\u0022search\u0022 id=\u0022searchForm\u0022\u003E\n          \u003Ci data-lucide=\u0022search\u0022 aria-hidden=\u0022true\u0022\u003E\u003C/i\u003E\n          \u003Cinput id=\u0022searchInput\u0022 type=\u0022search\u0022 placeholder=\u0022Search skills, roles, companies...\u0022 aria-label=\u0022Search skills, roles, companies\u0022\u003E\n          \u003Ckbd\u003E\u2318 K\u003C/kbd\u003E\n        \u003C/form\u003E\n        \u003Cdiv class=\u0022topbar__actions\u0022\u003E\n          \u003Ca class=\u0022button button--assistant\u0022 href=\u0022#/individual/ai-assistant\u0022\u003E\u003Ci data-lucide=\u0022sparkles\u0022\u003E\u003C/i\u003E\u003Cspan\u003EAI Assistant\u003C/span\u003E\u003C/a\u003E\n          \u003Cbutton class=\u0022icon-button notification-button\u0022 id=\u0022notificationButton\u0022 type=\u0022button\u0022 aria-label=\u0022Notifications\u0022 aria-expanded=\u0022false\u0022 title=\u0022Notifications\u0022\u003E\n            \u003Ci data-lucide=\u0022bell\u0022\u003E\u003C/i\u003E\u003Cspan class=\u0022notification-dot\u0022 aria-hidden=\u0022true\u0022\u003E\u003C/span\u003E\n          \u003C/button\u003E\n          \u003Cdiv class=\u0022profile-menu\u0022\u003E\n            \u003Cbutton class=\u0022profile-trigger\u0022 id=\u0022profileTrigger\u0022 type=\u0022button\u0022 aria-expanded=\u0022false\u0022 aria-haspopup=\u0022true\u0022\u003E\n              \u003Cspan class=\u0022avatar\u0022 data-user-initials\u003E\u003C/span\u003E\u003Cspan class=\u0022profile-trigger__copy\u0022\u003E\u003Cstrong data-user-short-name\u003E\u003C/strong\u003E\u003Csmall data-user-me\n\u2026[truncated]",
+        "durationMs": 44
+      }
+    ],
+    "executions": [
+      {
+        "source": "setup[0]",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "ci"
+        ],
+        "cwd": "D:\\project\\New folder\\New folder\\S7_PROJECT_SKILL_1-main\\S7_PROJECT_SKILL_1-main",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "tests-pass",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "test"
+        ],
+        "cwd": "D:\\project\\New folder\\New folder\\S7_PROJECT_SKILL_1-main\\S7_PROJECT_SKILL_1-main",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "employee-onboarding-backend-tests-pass",
+        "resolvedExecutable": "C:\\WINDOWS\\py.EXE",
+        "args": [
+          "-3.13",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_onboarding.py"
+        ],
+        "cwd": "D:\\project\\New folder\\New folder\\S7_PROJECT_SKILL_1-main\\S7_PROJECT_SKILL_1-main\\backend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "frontend-serves-home",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "start"
+        ],
+        "cwd": "D:\\project\\New folder\\New folder\\S7_PROJECT_SKILL_1-main\\S7_PROJECT_SKILL_1-main",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      }
+    ]
+  }
+}

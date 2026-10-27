@@ -111,6 +111,125 @@ def test_unauthenticated_step_save_returns_401():
     assert response.status_code == 401
 
 
+def test_employee_onboarding_persists_and_updates_authenticated_profile(monkeypatch):
+    employee = AuthenticatedUser(
+        uid="employee-user-1",
+        email="employee@example.com",
+        email_verified=True,
+        display_name="Employee",
+        auth_provider="password",
+    )
+    database = FakeFirestore({"users/employee-user-1": {
+        "uid": "employee-user-1",
+        "user_type": "employee",
+        "profile": {"unrelated": {"keep": True}},
+    }})
+    use_database(monkeypatch, database)
+    app.dependency_overrides[get_current_user] = lambda: employee
+    answers = [
+        ("emp_name_and_location", {"name": "Arun", "city": "Chennai", "country": "India"}),
+        ("emp_workplace", {"company": "Example Ltd", "department": "Engineering", "currentRole": "Engineer"}),
+        ("emp_experience_field", "3–5 years"),
+        ("emp_skills", ["Python", "React"]),
+        ("emp_skill_confidence", {"Python": "Advanced", "React": "Comfortable"}),
+        ("emp_improvements", ["My technical skills"]),
+        ("emp_trajectory", "Move to a senior role"),
+        ("emp_next_skills", ["SQL"]),
+        ("emp_time", "2–5 hours"),
+        ("emp_internal_goals", ["Prepare for promotion milestone"]),
+    ]
+
+    with TestClient(app) as client:
+        for step, (question_id, answer) in enumerate(answers, start=1):
+            response = client.put(
+                f"/api/v1/onboarding/employee/step/{step}",
+                json={"question_id": question_id, "answer": answer},
+            )
+            assert response.status_code == 200, response.text
+        profile_response = client.get("/api/v1/onboarding/employee/profile")
+
+        updated = client.put(
+            "/api/v1/onboarding/employee/step/1",
+            json={"question_id": "emp_name_and_location", "answer": {
+                "name": "Arun Kumar", "city": "Chennai", "country": "India",
+            }},
+        )
+
+    assert profile_response.status_code == 200
+    profile = profile_response.json()
+    assert profile["answers"]["emp_name_and_location"]["name"] == "Arun"
+    assert profile["profile"]["display_name"] == "Arun"
+    assert profile["profile"]["current_skill_domains"] == ["Python", "React"]
+    assert profile["profile"]["self_reported_skill_confidence"] == {
+        "Python": "Advanced", "React": "Comfortable",
+    }
+    assert profile["profile"]["weekly_learning_time"] == "2–5 hours"
+    assert profile["onboarding"]["completed"] is True
+    assert updated.status_code == 200
+    assert database.documents["users/employee-user-1"]["profile"]["unrelated"] == {"keep": True}
+    assert database.documents["users/employee-user-1"]["profile"]["employee_onboarding_answers"]["emp_name_and_location"]["name"] == "Arun Kumar"
+    assert len(database.documents) == 1
+
+
+def test_employee_profile_access_is_scoped_to_verified_uid(monkeypatch):
+    database = FakeFirestore({"users/employee-user-1": {
+        "uid": "employee-user-1",
+        "user_type": "employee",
+    }})
+    use_database(monkeypatch, database)
+    app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
+        uid="employee-user-2",
+        email="other@example.com",
+        email_verified=True,
+        auth_provider="password",
+    )
+
+    with TestClient(app) as client:
+        read_response = client.get("/api/v1/onboarding/employee/profile")
+        update_response = client.put(
+            "/api/v1/onboarding/employee/step/1",
+            json={"question_id": "emp_name_and_location", "answer": {
+                "name": "Other", "city": "Chennai", "country": "India",
+            }},
+        )
+
+    assert read_response.status_code == 403
+    assert update_response.status_code == 403
+    assert "users/employee-user-2" not in database.documents
+    assert database.documents["users/employee-user-1"]["uid"] == "employee-user-1"
+
+
+def test_employee_onboarding_rejects_invalid_answers_and_unauthenticated_requests(monkeypatch):
+    database = FakeFirestore({"users/onboarding-user-1": {
+        "uid": "onboarding-user-1",
+        "user_type": "employee",
+    }})
+    use_database(monkeypatch, database)
+    set_authenticated_user()
+
+    with TestClient(app) as client:
+        client.put("/api/v1/onboarding/employee/step/1", json={
+            "question_id": "emp_name_and_location",
+            "answer": {"name": "Ada", "city": "Chennai", "country": "India"},
+        })
+        client.put("/api/v1/onboarding/employee/step/2", json={
+            "question_id": "emp_workplace",
+            "answer": {"company": "Example Ltd", "currentRole": "Engineer"},
+        })
+        client.put("/api/v1/onboarding/employee/step/3", json={
+            "question_id": "emp_experience_field", "answer": "3–5 years",
+        })
+        invalid = client.put("/api/v1/onboarding/employee/step/4", json={
+            "question_id": "emp_skills", "answer": ["Python", 42],
+        })
+        app.dependency_overrides.clear()
+        unauthenticated = client.get("/api/v1/onboarding/employee/profile")
+
+    assert invalid.status_code == 422
+    assert unauthenticated.status_code == 401
+    assert "emp_skills" not in database.documents["users/onboarding-user-1"].get("profile", {}).get("employee_onboarding_answers", {})
+
+
 def test_step_one_persists_basic_profile_and_progress(monkeypatch):
     database = FakeFirestore()
     use_database(monkeypatch, database)

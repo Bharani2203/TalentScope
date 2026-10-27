@@ -5,11 +5,14 @@
 
 import {
   getEmployeeProfile,
+  getEmployeeCurrentSkills,
+  setEmployeeOnboardingProfile,
   employeeSkillsData,
   isCompanyEmployee
 } from '../../../data/employee/employee-data.js';
 import { openEmployeeModal } from '../components/EmployeeModal.js';
 import { querySkillIntelligence } from '../../../api/core-intelligence-client.js';
+import { loadRoleOnboardingProfile, saveRoleOnboardingStep } from '../../../onboarding/onboarding-api.js';
 
 let selectedSkillId = 'sk-cuda';
 let activeCategory = 'All';
@@ -18,6 +21,11 @@ let liveIntelligence = null;
 let intelligenceLoading = false;
 let intelligenceError = null;
 let lastQueriedSkill = null;
+let skillDraftOwnerUid = null;
+let skillDraft = null;
+let skillSaving = false;
+let skillSaveMessage = '';
+let skillSaveFailed = false;
 
 const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -46,6 +54,7 @@ function sparklineSVG(trend = [40, 44, 48, 52, 55, 58, 62], isGap = false) {
 
 export function renderEmployeeMySkills() {
   const p = getEmployeeProfile();
+  if (p.profileLoaded) return renderSavedEmployeeSkills(p);
   const allSkills = employeeSkillsData;
   const isCompany = isCompanyEmployee();
 
@@ -361,6 +370,58 @@ export function renderEmployeeMySkills() {
   `;
 }
 
+function renderSavedEmployeeSkills(profile) {
+  if (skillDraftOwnerUid !== profile.id) {
+    skillDraftOwnerUid = profile.id;
+    skillDraft = null;
+    skillSaving = false;
+    skillSaveMessage = '';
+    skillSaveFailed = false;
+  }
+  const skills = skillDraft?.skills || getEmployeeCurrentSkills();
+  const confidence = skillDraft?.confidence || Object.fromEntries(
+    getEmployeeCurrentSkills().filter(skill => skill.confidence).map(skill => [skill.name, skill.confidence])
+  );
+  const levels = ['', 'Beginner', 'Comfortable', 'Advanced', 'Expert'];
+  return `
+    <div class="employee-page">
+      <section class="emp-hero">
+        <div class="emp-hero-content">
+          <span class="emp-eyebrow"><i data-lucide="layers-3"></i> EMPLOYEE-PROVIDED SKILLS</span>
+          <h1 class="emp-hero-title">My Skills</h1>
+          <p class="emp-hero-desc">These skills and confidence levels come from your saved onboarding profile. They are self-reported, not verified assessments.</p>
+        </div>
+      </section>
+      <section class="emp-card" aria-labelledby="employee-skills-heading">
+        <h2 class="emp-card-title" id="employee-skills-heading">Skills you use at work</h2>
+        ${skills.length ? `
+          <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
+            ${skills.map(skill => `
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(140px,220px) auto;align-items:center;gap:12px;padding:12px;border:1px solid var(--emp-border-subtle);border-radius:10px">
+                <strong>${esc(skill.name)}</strong>
+                <label>Self-reported confidence
+                  <select data-skill-confidence="${esc(skill.name)}" class="emp-input">
+                    ${levels.map(level => `<option value="${esc(level)}" ${confidence[skill.name] === level ? 'selected' : ''}>${esc(level || 'Not rated')}</option>`).join('')}
+                  </select>
+                </label>
+                <button type="button" class="emp-btn-ghost" data-remove-employee-skill="${esc(skill.name)}" aria-label="Remove ${esc(skill.name)}">Remove</button>
+              </div>
+            `).join('')}
+          </div>
+        ` : '<p role="status">No skills have been added yet. Add the skills you currently use at work.</p>'}
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <label for="employeeSkillInput">Add a skill</label>
+          <input id="employeeSkillInput" class="emp-input" type="text" maxlength="120" autocomplete="off">
+          <button type="button" class="emp-btn-secondary" id="addEmployeeSkill">Add skill</button>
+          <button type="button" class="emp-btn-primary" id="saveEmployeeSkills" ${skillSaving ? 'disabled' : ''}>${skillSaving ? 'Saving…' : 'Save skills'}</button>
+        </div>
+        <p id="employeeSkillsSaveStatus" role="${skillSaveFailed ? 'alert' : 'status'}" aria-live="polite">${esc(skillSaveMessage)}</p>
+      </section>
+      <a href="#/employee/profile" class="emp-btn-ghost">View my profile</a>
+    </div>
+  `;
+}
+
 let employeeSkillRequestVersion = 0;
 
 export async function loadEmployeeSkillIntelligence(rerender) {
@@ -404,6 +465,11 @@ export async function loadEmployeeSkillIntelligence(rerender) {
 }
 
 export function bindEmployeeSkillsEvents(rerender) {
+  const profile = getEmployeeProfile();
+  if (profile.profileLoaded) {
+    bindSavedEmployeeSkillsEvents(profile, rerender);
+    return;
+  }
   // Row selection
   document.querySelectorAll('[data-select-skill]').forEach(row => {
     row.addEventListener('click', () => {
@@ -417,6 +483,88 @@ export function bindEmployeeSkillsEvents(rerender) {
   // Initial intelligence fetch
   if (!liveIntelligence && !intelligenceLoading) {
     loadEmployeeSkillIntelligence(rerender);
+  }
+
+  function bindSavedEmployeeSkillsEvents(profile, rerender) {
+    const ensureDraft = () => {
+      if (!skillDraft) {
+        const current = getEmployeeCurrentSkills();
+        skillDraft = {
+          skills: current.map(skill => skill.name),
+          confidence: Object.fromEntries(current.filter(skill => skill.confidence).map(skill => [skill.name, skill.confidence]))
+        };
+      }
+      return skillDraft;
+    };
+
+    document.querySelector('#addEmployeeSkill')?.addEventListener('click', () => {
+      const input = document.querySelector('#employeeSkillInput');
+      const name = input?.value.trim();
+      if (!name) return;
+      const draft = ensureDraft();
+      if (!draft.skills.includes(name)) draft.skills.push(name);
+      if (input) input.value = '';
+      rerender();
+    });
+    document.querySelector('#employeeSkillInput')?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        document.querySelector('#addEmployeeSkill')?.click();
+      }
+    });
+    document.querySelectorAll('[data-remove-employee-skill]').forEach(button => {
+      button.addEventListener('click', () => {
+        const draft = ensureDraft();
+        const name = button.dataset.removeEmployeeSkill;
+        draft.skills = draft.skills.filter(skill => skill !== name);
+        delete draft.confidence[name];
+        rerender();
+      });
+    });
+    document.querySelectorAll('[data-skill-confidence]').forEach(select => {
+      select.addEventListener('change', () => {
+        const draft = ensureDraft();
+        const skill = select.dataset.skillConfidence;
+        if (select.value) draft.confidence[skill] = select.value;
+        else delete draft.confidence[skill];
+      });
+    });
+    document.querySelector('#saveEmployeeSkills')?.addEventListener('click', async event => {
+      if (skillSaving) return;
+      skillSaving = true;
+      const button = event.currentTarget;
+      button.disabled = true;
+      const status = document.querySelector('#employeeSkillsSaveStatus');
+      skillSaveMessage = 'Saving your skills…';
+      skillSaveFailed = false;
+      if (status) status.textContent = skillSaveMessage;
+      const draft = ensureDraft();
+      try {
+        await saveRoleOnboardingStep('employee', 4, 'emp_skills', draft.skills);
+        const confidence = Object.fromEntries(
+          Object.entries(draft.confidence).filter(([skill]) => draft.skills.includes(skill))
+        );
+        await saveRoleOnboardingStep('employee', 5, 'emp_skill_confidence', confidence);
+        const updatedProfile = await loadRoleOnboardingProfile('employee');
+        setEmployeeOnboardingProfile(profile.id, updatedProfile);
+        skillDraft = null;
+        skillSaveMessage = 'Your skills have been saved.';
+      } catch (error) {
+        try {
+          const latestProfile = await loadRoleOnboardingProfile('employee');
+          setEmployeeOnboardingProfile(profile.id, latestProfile);
+        } catch {
+          skillSaveMessage = 'Your skills could not be saved, and the latest server profile could not be reloaded.';
+        }
+        if (skillSaveMessage === 'Saving your skills…') {
+          skillSaveMessage = error?.message || 'Your skills could not be saved. Please retry.';
+        }
+        skillSaveFailed = true;
+      } finally {
+        skillSaving = false;
+        rerender();
+      }
+    });
   }
 
   // Category filters

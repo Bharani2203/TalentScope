@@ -27,7 +27,7 @@ export function renderReportPage(container) {
       <!-- TOP NAV -->
       <nav class="ts-ob-nav" style="background: #FFFFFF; border-bottom: 1px solid #ECE4F2;">
         <div class="ts-ob-nav-left">
-          <a class="ts-ob-brand" href="#/individual/home" aria-label="TalentScope.ai">
+          <a class="ts-ob-brand" href="${report.reportType.includes('employee') ? '#/employee/home' : report.reportType === 'company' ? '#/company/home' : '#/individual/home'}" aria-label="TalentScope.ai">
             <span class="ts-ob-brand-mark">
               <img src="assets/logo.png" alt="TalentScope">
             </span>
@@ -45,7 +45,9 @@ export function renderReportPage(container) {
 
       <!-- REPORT CONTAlNER -->
       <main style="max-width: 980px; width: 100%; margin: 36px auto 0; padding: 0 24px; box-sizing: border-box;">
-        <aside role="note" style="margin-bottom:16px;padding:12px 14px;border:1px solid #D6C79A;border-radius:8px;background:#FFF9E8;color:#574817;font-size:13px">Illustrative onboarding preview. Sample market figures and skill comparisons are not verified against stored provider observations.</aside>
+        <aside role="note" style="margin-bottom:16px;padding:12px 14px;border:1px solid #D6C79A;border-radius:8px;background:#FFF9E8;color:#574817;font-size:13px">${report.reportType.includes('employee')
+          ? 'This profile reflects employee-provided onboarding answers. Workplace details and skill confidence are self-reported; no company membership or skill assessment is implied.'
+          : 'Illustrative onboarding preview. Sample market figures and skill comparisons are not verified against stored provider observations.'}</aside>
         
         <!-- REPORT HERO HEADER -->
         <header style="background: linear-gradient(135deg, #1C112D 0%, #2E174E 100%); border-radius: 24px; padding: 40px; color: #FFFFFF; margin-bottom: 28px; box-shadow: 0 20px 48px -12px rgba(45, 20, 75, 0.2); position: relative; overflow: hidden;">
@@ -57,13 +59,17 @@ export function renderReportPage(container) {
             <h1 style="font-size: 32px; font-weight: 850; letter-spacing: -0.025em; line-height: 1.22; margin: 0 0 10px;">
               ${report.reportType === 'company'
                 ? `Workforce Baseline for ${esc(report.companyName)}`
-                : `lntelligence Profile for ${esc(report.userName)}`
+                : report.userName
+                  ? `lntelligence Profile for ${esc(report.userName)}`
+                  : 'Your Intelligence Profile'
               }
             </h1>
             <p style="font-size: 15px; line-height: 1.6; color: rgba(255, 255, 255, 0.82); margin: 0; max-width: 680px;">
               ${report.reportType === 'company'
                 ? 'Your strategic enterprise baseline is ready. Track capability drift, simulate workforce transitions, and guide upskilling priorities.'
-                : 'This prototype summary uses illustrative workforce context and is not verified against current role requisitions.'
+                : report.reportType.includes('employee')
+                  ? 'This profile uses your saved onboarding answers. External market evidence is not included unless separately shown as verified.'
+                  : 'This prototype summary uses illustrative workforce context and is not verified against current role requisitions.'
               }
             </p>
           </div>
@@ -257,7 +263,7 @@ function renderReportSections(report, accentColor) {
             <i data-lucide="briefcase" style="color: ${accentColor};"></i>
             <div>
               <strong>Workplace & Role Context</strong>
-              <small>${isConn ? 'Organization-connected profile' : 'lndependent career profile'}</small>
+              <small>${isConn ? 'Verified organization connection' : 'Employee-provided profile'}</small>
             </div>
           </header>
           <div class="ts-report-kv-list">
@@ -271,17 +277,23 @@ function renderReportSections(report, accentColor) {
                 <span class="val">${esc(report.department)}</span>
               </div>
             ` : ''}
+            ${!isConn && report.companyName ? `
+              <div class="ts-report-kv-item">
+                <span class="label">Employer (self-reported)</span>
+                <span class="val">${esc(report.companyName)}</span>
+              </div>
+            ` : ''}
             <div class="ts-report-kv-item">
               <span class="label">Current role</span>
-              <span class="val" style="color: ${accentColor}; font-weight: 750;">${esc(report.currentRole)}</span>
+              <span class="val" style="color: ${accentColor}; font-weight: 750;">${esc(report.currentRole || 'Not provided')}</span>
             </div>
             <div class="ts-report-kv-item">
               <span class="label">lndustry</span>
-              <span class="val">${esc(report.industry)}</span>
+              <span class="val">${esc(report.industry || 'Not provided')}</span>
             </div>
             <div class="ts-report-kv-item">
               <span class="label">Experience</span>
-              <span class="val">${esc(report.experience)}</span>
+              <span class="val">${esc(report.experience || 'Not provided')}</span>
             </div>
           </div>
         </article>
@@ -290,21 +302,25 @@ function renderReportSections(report, accentColor) {
           <header class="ts-report-card-header">
             <i data-lucide="activity" style="color: #10B981;"></i>
             <div>
-              <strong>Skill Health lndex</strong>
-              <small>Competency alignment scoring</small>
+              <strong>Skills and confidence</strong>
+              <small>Self-reported confidence; no assessment score available</small>
             </div>
           </header>
           <div style="display: flex; flex-direction: column; gap: 14px;">
             <div style="display: flex; align-items: baseline; gap: 10px;">
-              <span style="font-size: 38px; font-weight: 850; color: #10B981; line-height: 1;">${health.score || 84}%</span>
-              <span class="ts-auth-signal-badge is-positive">${esc(health.status || 'Healthy & Aligned')}</span>
+              <span style="font-size: 30px; font-weight: 850; color: #10B981; line-height: 1;">${health.score != null ? `${health.score}%` : 'Not assessed'}</span>
+              <span class="ts-auth-signal-badge">${esc(health.status || 'Not assessed')}</span>
             </div>
             <p style="font-size: 13px; color: #6C6078; margin: 0; line-height: 1.5;">
-              ${isConn
-                ? 'Your capabilities align strongly with team standards. 2 emerging bridge areas identified for next-level progression.'
-                : 'Your skill portfolio is calibrated against top enterprise benchmarks for senior role advancement.'
-              }
+              Your saved skill-confidence answers are self-reported and are not an external assessment or company benchmark.
             </p>
+            <ul style="margin:0;padding-left:20px">
+              ${(Array.isArray(report.currentSkills) && report.currentSkills.length
+                ? report.currentSkills.map(skill => `<li>${esc(skill)}${report.skillConfidence?.[skill] ? ` — ${esc(report.skillConfidence[skill])}` : ''}</li>`).join('')
+                : '<li>No current skills provided yet.</li>')}
+            </ul>
+            <p style="margin:0">Weekly learning time: ${esc(report.weeklyLearningTime || 'Not provided')}</p>
+            <p style="margin:0">Career direction: ${esc(report.roleDirection?.targetTrajectory || 'Not provided')}</p>
           </div>
         </article>
       </div>
@@ -331,11 +347,11 @@ function renderReportSections(report, accentColor) {
           <i data-lucide="award" style="color: ${accentColor};"></i>
           <div>
             <strong>Career Growth Focus Areas</strong>
-            <small>Actionable targets for upcoming milestone quarters</small>
+            <small>Your saved development priorities and desired skills</small>
           </div>
         </header>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
-          ${(report.careerGrowthAreas || []).map(area => `
+          ${(report.careerGrowthAreas?.length ? report.careerGrowthAreas : ['No development priorities provided yet.']).map(area => `
             <div style="background: #F8F5FD; border: 1px solid #ECE3F5; border-radius: 12px; padding: 14px;">
               <i data-lucide="check" style="width: 16px; height: 16px; color: ${accentColor}; margin-bottom: 6px;"></i>
               <strong style="display: block; font-size: 13px; color: #2A1F3D;">${esc(area)}</strong>

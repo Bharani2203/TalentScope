@@ -239,7 +239,10 @@ def approve_company_membership(injected_empty_firestore):
 
 @pytest.fixture
 def local_reference_database():
-    path = Path(__file__).resolve().parents[1] / "data" / "skill_intelligence.sqlite3"
+    path = Path(
+        os.getenv("SKILL_INTELLIGENCE_DB_PATH")
+        or Path(__file__).resolve().parents[1] / "data" / "skill_intelligence.sqlite3"
+    )
     if not path.is_file():
         pytest.skip(
             "requires the optional local reference database; excluded from clean clones"
