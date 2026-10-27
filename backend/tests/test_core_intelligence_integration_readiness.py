@@ -134,7 +134,19 @@ def test_integration_successful_occupation_software_skills(local_reference_datab
     assert first_fact["history_type"] == "reference_taxonomy"
     assert first_fact["evidence_reference"] is not None
 
-    assert data["answer"].startswith("Identified")
+    assert data["answer"].startswith(
+        "**Deterministic fallback (Gemini unavailable):**\n\nIdentified"
+    )
+    software_skill_facts = [
+        fact for fact in data["facts"]
+        if fact["fact_type"] == "software_skill"
+    ]
+    assert len(software_skill_facts) == 10
+    assert all(
+        fact["history_type"] == "reference_taxonomy"
+        and fact["details"]["soc_code"] == "15-1252.00"
+        for fact in software_skill_facts
+    )
     assert "**Observed details**" in data["answer"]
     assert "**Sources**" in data["answer"]
     assert "### 1. Direct Answer" not in data["answer"]
