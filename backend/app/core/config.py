@@ -15,10 +15,10 @@ class Settings(BaseSettings):
     firebase_project_id: str = "skill-demand-forecasting"
     google_application_credentials: str | None = None
     gemini_api_key: SecretStr | None = None
-    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_model: str = "gemini-3.5-flash"
     # Separate, opt-in provider for general guidance when a V2 result is unavailable.
     gemini_b_api_key: SecretStr | None = None
-    gemini_b_model: str = "gemini-3.8-flash"
+    gemini_b_model: str = "gemini-3.5-flash"
     gemini_b_backup_model: str | None = None
     gemini_b_request_timeout_seconds: float = Field(
         default=5,

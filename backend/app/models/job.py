@@ -26,6 +26,7 @@ class Job(BaseModel):
     fetch_run_id: str | None = None
     skills_raw: list[str] | None = None
     fetched_at: datetime
+    source_type: str | None = None
 
 
 class JobStorageStatus(BaseModel):

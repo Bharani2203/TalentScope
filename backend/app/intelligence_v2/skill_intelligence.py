@@ -872,7 +872,7 @@ class V2SkillIntelligenceEngine:
                 rows = conn.execute(
                     """
                     SELECT * FROM market_observations
-                    WHERE lower(canonical_name) = lower(?)
+                    WHERE lower(skill) = lower(?)
                     ORDER BY period ASC
                     """,
                     (canonical,),
