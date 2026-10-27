@@ -236,10 +236,20 @@ class V2JobIntelligenceEngine:
             scanned_count = stored.scanned_count
             matched_count = stored.matched_count
             city_label = location or "all"
+            city_posting_count = stored.city_posting_count
+            related_titles = stored.related_titles if matched_count == 0 else []
             search_summary = (
                 f"Scanned {scanned_count}, matched {matched_count}, city {city_label}. "
                 "Live search is off."
             )
+            if location and city_posting_count is not None:
+                search_summary += f" Stored postings in requested city: {city_posting_count}."
+            if related_titles:
+                search_summary += (
+                    " Related, not an exact match: "
+                    + "; ".join(related_titles)
+                    + "."
+                )
             fact_postings = [
                 {
                     "title": job.title,
@@ -267,6 +277,9 @@ class V2JobIntelligenceEngine:
                     "scanned_count": scanned_count,
                     "matched_count": matched_count,
                     "city": city_label,
+                    "requested_city": location,
+                    "city_posting_count": city_posting_count,
+                    "related_titles": related_titles,
                     "search_summary": search_summary,
                 },
             )
@@ -301,6 +314,8 @@ class V2JobIntelligenceEngine:
                     "scanned_count": scanned_count,
                     "matched_count": matched_count,
                     "city": city_label,
+                    "city_posting_count": city_posting_count,
+                    "related_titles": related_titles,
                     "listings_available": bool(matched_count),
                     "geography": geography,
                 },

@@ -109,11 +109,26 @@ def _query_skill(query_words: list[str]) -> tuple[str | None, bool]:
 
 
 def _title_matches_query(title: str, query: str, meaningful_words: list[str]) -> bool:
+    """Return True if the title matches the search query.
+
+    Match priority:
+    1. Full normalised query phrase (e.g. ``"data engineer jobs"``) — whole-phrase.
+    2. Multi-word meaningful phrase (e.g. ``"data engineer"``) — contiguous whole-phrase.
+    3. Single meaningful word — whole-word boundary match.
+
+    The multi-word contiguous-phrase requirement (step 2) prevents false positives such
+    as ``"Software Engineer, Stripe Data Pipeline"`` matching a ``"data engineer"`` query.
+    """
     if _contains_whole_phrase(query, title):
         return True
-    return bool(meaningful_words) and all(
-        _contains_whole_phrase(word, title) for word in meaningful_words
-    )
+    if not meaningful_words:
+        return False
+    # Multi-word role query: require contiguous phrase, not independent word hits.
+    if len(meaningful_words) > 1:
+        phrase = " ".join(meaningful_words)
+        return _contains_whole_phrase(phrase, title)
+    # Single-word query: whole-word boundary match is sufficient.
+    return _contains_whole_phrase(meaningful_words[0], title)
 
 
 def _related_title_matches(title: str, meaningful_words: list[str]) -> bool:

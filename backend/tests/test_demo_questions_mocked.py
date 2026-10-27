@@ -345,11 +345,12 @@ def test_demo_questions_use_real_routes_without_unsupported_or_fabricated_data(
 
     if message == "Find data engineer jobs in Bangalore":
         postings = answer["facts"][0]["details"]["postings"]
-        assert len(postings) == 3
+        # "Data Platform Engineer" no longer matches "data engineer" after the
+        # contiguous-phrase fix; only the two exact/prefixed titles match.
+        assert len(postings) == 2
         assert {posting["posting_id"] for posting in postings} == {
             "demo-data-engineer-1",
             "demo-data-engineer-2",
-            "demo-data-engineer-3",
         }
         assert answer["facts"][0]["data_origin"] == "real"
     elif message == "Find python developer jobs in Chennai":
@@ -451,3 +452,59 @@ def test_v2_job_search_filters_city_and_remote_with_truthful_counts(
     summary = posting_fact["details"]["search_summary"]
     assert f"scanned 22, matched {expected_matches}, city {expected_city}".casefold() in summary.casefold()
     assert "live search is off" in summary.casefold()
+
+
+def test_v2_insufficient_job_search_reports_city_count_and_related_titles_separately(
+    demo_api,
+):
+    client, firestore, guidance = demo_api
+    fetched_at = datetime(2026, 10, 24, tzinfo=timezone.utc)
+    titles = [
+        "Staff Data Analyst",
+        "Data Scientist",
+        "Data Architect",
+        "Data Product Manager",
+        "Data Operations Associate",
+        "Data Strategy Lead",
+        "Senior Data Specialist",
+    ]
+    store_jsearch_jobs(
+        [
+            Job(
+                job_id=f"related-{index}",
+                title=title,
+                company_name=f"Mock Company {index}",
+                location="Bengaluru-VTP, India",
+                country="India",
+                country_code="in",
+                description="Stored posting for route test",
+                source="greenhouse",
+                source_url=f"https://jobs.example/related-{index}",
+                city="Bengaluru-VTP",
+                fetched_at=fetched_at,
+            )
+            for index, title in enumerate(titles, start=1)
+        ],
+        firestore_client=firestore,
+    )
+
+    response = client.post(
+        "/api/v1/intelligence/answer",
+        json={
+            "message": "Find data engineer jobs in Bangalore",
+            "domain": "job",
+            "portal_type": "individual",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    answer = response.json()
+    assert answer["status"] == "insufficient_data"
+    assert "Stored postings in requested city: 7." in answer["answer"]
+    assert "Related, not an exact match:" in answer["answer"]
+    fact = next(item for item in answer["facts"] if item["fact_type"] == "stored_job_postings")
+    assert fact["details"]["matched_count"] == 0
+    assert fact["details"]["city_posting_count"] == 7
+    assert fact["details"]["related_titles"] == titles[:5]
+    assert fact["details"]["postings"] == []
+    assert guidance.calls == 0

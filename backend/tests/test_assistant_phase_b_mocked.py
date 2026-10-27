@@ -57,13 +57,48 @@ def _mock_conversation_store():
 def _job(
     job_id, *, title="Data Engineer", location="Bengaluru", url="https://jobs.example/apply/1",
     description="Python and SQL", country="India", country_code="in",
+    skills_raw=("Python", "SQL"),
 ):
     return Job(
         job_id=job_id, title=title, company_name="Example Co", location=location,
         country=country, country_code=country_code, description=description, posted_at=datetime.now(timezone.utc).isoformat(),
-        source="jsearch", source_url=url, skills_raw=["Python", "SQL"],
+        source="jsearch", source_url=url, skills_raw=list(skills_raw),
         fetched_at=datetime.now(timezone.utc),
     )
+
+
+class _SearchSnapshot:
+    def __init__(self, job):
+        self.id = job.job_id
+        self.record = job.model_dump(mode="json")
+
+    def to_dict(self):
+        return dict(self.record)
+
+
+class _SearchQuery:
+    def __init__(self, snapshots):
+        self.snapshots = snapshots
+        self.page_size = None
+
+    def order_by(self, *_args, **_kwargs):
+        return self
+
+    def limit(self, value):
+        self.page_size = value
+        return self
+
+    def stream(self):
+        return iter(self.snapshots[:self.page_size])
+
+
+class _SearchFirestore:
+    def __init__(self, jobs):
+        self.query = _SearchQuery([_SearchSnapshot(job) for job in jobs])
+
+    def collection(self, name):
+        assert name == "jobs"
+        return self.query
 
 
 def _service_with_saved_turn(saved=True):
@@ -300,6 +335,174 @@ def test_stored_search_defaults_to_india_only_for_an_india_only_collection():
     assert mixed.country_filter_applied is None
     assert india.scanned_count == 1 and india.matched_count == 1
     assert mixed.scanned_count == 2 and mixed.matched_count == 2
+
+
+def test_stored_search_requires_whole_query_words_in_title():
+    from app.services.job_storage_service import search_stored_jsearch_jobs_with_stats
+
+    firestore = _SearchFirestore([
+        _job("data-engineer", title="Data Engineer"),
+        _job("staff-data-engineer", title="Staff Data Engineer"),
+        _job("data-engineering-manager", title="Data Engineering Manager"),
+        _job("java-developer", title="Java Developer"),
+        _job("javascript-developer", title="JavaScript Developer"),
+        _job("description-only", title="Operations Analyst", description="Data engineer needed"),
+    ])
+
+    role_results = search_stored_jsearch_jobs_with_stats(
+        query="data engineer", firestore_client=firestore,
+    )
+    java_results = search_stored_jsearch_jobs_with_stats(
+        query="java", firestore_client=firestore,
+    )
+
+    assert {job.job_id for job in role_results} == {"data-engineer", "staff-data-engineer"}
+    assert {job.job_id for job in java_results} == {"java-developer"}
+
+
+# ---------------------------------------------------------------------------
+# _title_matches_query: contiguous phrase and whole-word unit tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "title,should_match",
+    [
+        # MUST match: contiguous "data engineer" phrase
+        ("Data Engineer", True),
+        ("Senior Data Engineer", True),
+        # MUST NOT match: words present but not contiguous / not in phrase order
+        ("Software Engineer, Stripe Data Pipeline", False),
+        ("Big Data Platform Engineer", False),
+    ],
+)
+def test_title_matches_query_data_engineer_phrase(title, should_match):
+    """Multi-word role query requires contiguous whole-phrase match."""
+    from app.services.job_storage_service import _title_matches_query
+    result = _title_matches_query(
+        title=title,
+        query="data engineer",
+        meaningful_words=["data", "engineer"],
+    )
+    assert result is should_match, (
+        f"_title_matches_query({title!r}) returned {result}, expected {should_match}"
+    )
+
+
+@pytest.mark.parametrize(
+    "title,query,meaningful_words,should_match",
+    [
+        # Single-word "Go" — must not match "Google"
+        ("Go Developer",           "go",     ["go"],     True),
+        ("Google Cloud Engineer",  "go",     ["go"],     False),
+        # Single-word "R" — must not match "Research"
+        ("R Developer",            "r",      ["r"],      True),
+        ("Research Analyst",       "r",      ["r"],      False),
+        # Single-word "Django" — must match "Django REST Framework"
+        ("Django REST Framework Developer", "django", ["django"], True),
+        ("React Developer",                "django", ["django"], False),
+    ],
+)
+def test_title_matches_query_single_word_whole_word(title, query, meaningful_words, should_match):
+    """Single-word queries use whole-word boundary matching (no partial hits)."""
+    from app.services.job_storage_service import _title_matches_query
+    result = _title_matches_query(
+        title=title,
+        query=query,
+        meaningful_words=meaningful_words,
+    )
+    assert result is should_match, (
+        f"_title_matches_query({title!r}, query={query!r}) returned {result}, "
+        f"expected {should_match}"
+    )
+
+
+def test_stored_skill_search_uses_registered_skill_and_whole_words():
+    from app.services.job_storage_service import search_stored_jsearch_jobs_with_stats
+
+    firestore = _SearchFirestore([
+        _job("python-structured", title="Operations Analyst", skills_raw=["Python"]),
+        _job("python-description", title="Operations Manager", description="Uses Python daily", skills_raw=[]),
+        _job("javascript-only", title="Frontend Developer", description="JavaScript experience", skills_raw=[]),
+    ])
+    python_results = search_stored_jsearch_jobs_with_stats(
+        query="Python jobs", firestore_client=firestore,
+    )
+    java_results = search_stored_jsearch_jobs_with_stats(
+        query="Java", firestore_client=firestore,
+    )
+
+    assert {job.job_id for job in python_results} == {"python-structured", "python-description"}
+    assert list(java_results) == []
+
+
+def test_ambiguous_skill_search_needs_title_or_structured_skill():
+    from app.services.job_storage_service import search_stored_jsearch_jobs_with_stats
+
+    firestore = _SearchFirestore([
+        _job("good-description", title="Backend Developer", description="Good engineering practices", skills_raw=[]),
+        _job("go-description", title="Backend Developer", description="Uses Go language", skills_raw=[]),
+        _job("go-structured", title="Backend Developer", description="Backend work", skills_raw=["Go"]),
+        _job("go-title", title="Go Developer", description="Backend work", skills_raw=[]),
+    ])
+    results = search_stored_jsearch_jobs_with_stats(
+        query="Go developer", firestore_client=firestore,
+    )
+
+    assert {job.job_id for job in results} == {"go-structured", "go-title"}
+
+
+def test_stored_search_counts_city_and_keeps_related_titles_out_of_matches():
+    from app.services.job_storage_service import search_stored_jsearch_jobs_with_stats
+
+    firestore = _SearchFirestore([
+        _job("related-analyst-1", title="Staff Data Analyst", location="Bengaluru-VTP, India"),
+        _job("related-analyst-2", title="Staff Data Analyst", location="Bengaluru-Whitefield"),
+        _job("related-scientist", title="Data Scientist", location="Bengaluru / Chennai"),
+        _job("related-architect", title="Data Architect", location="Bengaluru"),
+        _job("related-product", title="Data Product Manager", location="Bengaluru"),
+        _job("related-operations", title="Data Operations Associate", location="Bengaluru"),
+        _job("related-strategy", title="Data Strategy Lead", location="Bengaluru"),
+        _job("generic-only", title="Senior Engineer", location="Bengaluru"),
+        _job("outside-city", title="Data Analyst", location="Chennai"),
+    ])
+    result = search_stored_jsearch_jobs_with_stats(
+        query="data engineer", location="Bangalore", firestore_client=firestore,
+    )
+    no_chennai = search_stored_jsearch_jobs_with_stats(
+        query="data engineer", location="Chennai",
+        firestore_client=_SearchFirestore([
+            _job("chennai-no-related", title="Support Specialist", location="Chennai"),
+        ]),
+    )
+
+    assert result.scanned_count == 9
+    assert result.city_posting_count == 8
+    assert list(result) == []
+    assert result.matched_count == 0
+    assert result.related_titles == [
+        "Staff Data Analyst",
+        "Data Scientist",
+        "Data Architect",
+        "Data Product Manager",
+        "Data Operations Associate",
+    ]
+    assert no_chennai.city_posting_count == 1
+    assert no_chennai.matched_count == 0
+    assert no_chennai.related_titles == []
+
+
+def test_city_normalization_handles_alias_segments_and_multi_city_locations():
+    from app.services.job_storage_service import (
+        _location_matches_city,
+        _normalize_city,
+    )
+
+    assert _normalize_city("Bengaluru-VTP, India") == "bengaluru"
+    assert _normalize_city("Bengaluru-Whitefield") == "bengaluru"
+    assert _normalize_city("Mangalore, India") == "mangalore"
+    assert not _location_matches_city("Mangalore, India", "Bangalore")
+    assert _location_matches_city("Chennai / Bengaluru", "Bangalore")
+    assert _location_matches_city("Chennai / Bengaluru", "Chennai")
 
 
 def test_application_url_validation_requires_http_scheme_host_and_no_whitespace():

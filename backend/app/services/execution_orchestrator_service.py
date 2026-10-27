@@ -7761,6 +7761,9 @@ class ExecutionOrchestratorService:
         job_source = "configured_market_observation_store"
         scanned_count: int | None = None
         search_matched_count: int | None = None
+        stored_city_posting_count: int | None = None
+        stored_related_titles: list[str] = []
+        stored_requested_city: str | None = None
         missing_city_location_count = 0
         missing_remote_evidence_count = 0
         invalid_application_url_count = 0
@@ -7804,6 +7807,7 @@ class ExecutionOrchestratorService:
             requested_location = (request.filters or {}).get("location") or request.location or extract_location(request.message)
             if requested_location and requested_location.casefold() in country_codes:
                 requested_location = None
+            stored_requested_city = requested_location
             remote_requested = bool(
                 re.search(r"\bremote\b", request.message, re.IGNORECASE)
                 or str((request.filters or {}).get("remote_mode") or "").casefold() == "remote"
@@ -7825,6 +7829,9 @@ class ExecutionOrchestratorService:
                     jobs = list(search_result)
                     scanned_count = getattr(search_result, "scanned_count", len(jobs))
                     search_matched_count = getattr(search_result, "matched_count", len(jobs))
+                    stored_city_posting_count = getattr(search_result, "city_posting_count", None)
+                    if search_matched_count == 0:
+                        stored_related_titles = getattr(search_result, "related_titles", [])
             except Exception as exc:
                 logger.warning("Configured job source unavailable (%s)", type(exc).__name__)
                 raise DataSourceUnavailableError("Stored job posting source is unavailable.") from exc
@@ -8164,6 +8171,9 @@ class ExecutionOrchestratorService:
                 "stored_postings_scanned": scanned_count,
                 "stored_postings_query_matched": search_matched_count,
                 "stored_postings_matched": postings_found,
+                "requested_city": stored_requested_city,
+                "stored_postings_in_requested_city": stored_city_posting_count,
+                "related_titles_not_exact_matches": stored_related_titles,
                 "missing_city_location_excluded": missing_city_location_count,
                 "missing_remote_evidence_excluded": missing_remote_evidence_count,
                 "invalid_application_urls_dropped": invalid_application_url_count,
@@ -9333,6 +9343,24 @@ class ExecutionOrchestratorService:
                         "No matching job postings were found in the bounded recent stored search. "
                         "An empty posting sample does not establish hiring demand or the absence of hiring demand."
                     )
+                requested_city = job_fact.details.get("requested_city") if job_fact else None
+                city_posting_count = (
+                    job_fact.details.get("stored_postings_in_requested_city")
+                    if job_fact else None
+                )
+                if requested_city and city_posting_count is not None:
+                    direct_answer += (
+                        f" Stored postings in {requested_city}: {city_posting_count}."
+                    )
+                    related_titles = job_fact.details.get(
+                        "related_titles_not_exact_matches", []
+                    )
+                    if related_titles:
+                        direct_answer += (
+                            " Related, not an exact match: "
+                            + "; ".join(related_titles[:5])
+                            + "."
+                        )
             else:
                 direct_answer += f" Retrieved **{cnt}** matching job postings from the stored collection runs."
                 if observed_skills:
