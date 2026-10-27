@@ -23,6 +23,11 @@ from app.intelligence_v2.occupation_names import (
 from app.intelligence_v2.reference_intelligence import CareerMobilityEngine
 from app.intelligence_v2.role_actions import RolePreparationPlan, V2RoleActionEngine
 from app.intelligence_v2.skill_mapping import RoleSkillAlignment, V2SkillMapper
+from app.intelligence_v2.occupation_names import (
+    normalize_occupation_name,
+    occupation_label_matches,
+    resolve_role_alias,
+)
 from app.storage.reference_store import ReferenceDataStore
 
 logger = logging.getLogger(__name__)
@@ -80,11 +85,8 @@ class V2JobIntelligenceEngine:
         import uuid
         from app.services.verified_job_search_service import search_configured_job_providers
 
-        query_str = (role_or_skill or "Software Developer").strip()
-        if role_or_skill is None and question is None:
-            stored_query = "Software Developer"
-        else:
-            stored_query = (role_or_skill or question or "").strip()
+        query_str = (role_or_skill or "").strip()
+        stored_query = (role_or_skill or question or "").strip()
         search_res = search_configured_job_providers(
             query=query_str,
             country=country,
@@ -353,6 +355,10 @@ class V2JobIntelligenceEngine:
         source_name: str | None = None
         requested_role = role_name
         resolved_role_name = role_name
+        aliased_role, alias_notice = resolve_role_alias(role_name)
+        if aliased_role:
+            role_name = aliased_role
+            resolved_role_name = aliased_role
         normalized_role = normalize_occupation_name(role_name)
 
         try:
@@ -497,12 +503,13 @@ class V2JobIntelligenceEngine:
             )
         ]
 
+        prefix_notice = f"{alias_notice} " if alias_notice else (
+            f"No exact match for {requested_role}; showing {resolved_role_name}. "
+            if normalize_occupation_name(requested_role) != normalize_occupation_name(resolved_role_name)
+            else ""
+        )
         headline = (
-            (
-                f"No exact match for {requested_role}; showing {resolved_role_name}. "
-                if normalize_occupation_name(requested_role) != normalize_occupation_name(resolved_role_name)
-                else ""
-            )
+            prefix_notice
             + f"Skills associated with {resolved_role_name} in the {source_name}: "
             f"{len(requirements)} occupation-description skills cataloged. "
             "These skills describe the occupation; they are not hiring demand and are not platform-collected data."
@@ -530,6 +537,7 @@ class V2JobIntelligenceEngine:
                 "source": source_name,
                 "essential_skills_count": len(essential_skills),
                 "optional_skills_count": len(optional_skills),
+                **({"role_alias_notice": alias_notice} if alias_notice else {}),
             },
         )
 

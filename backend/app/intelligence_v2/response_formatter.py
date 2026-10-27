@@ -228,7 +228,11 @@ class V2ResponseFormatter:
             final_status = status_override
 
         # Build narrative answer
-        answer_parts = [result.headline]
+        alias_notice = (result.metadata or {}).get("role_alias_notice") if result and getattr(result, "metadata", None) else None
+        if alias_notice and alias_notice not in result.headline:
+            answer_parts = [f"{alias_notice} {result.headline}"]
+        else:
+            answer_parts = [result.headline]
 
         # Append compact comparison table if this is a comparison query
         is_comp = (

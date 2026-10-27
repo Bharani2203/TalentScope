@@ -197,7 +197,7 @@ class V2IntentPlanner:
         if any(k in q for k in ["historical skill signals", "historical signals", "show my historical", "history"]):
             return PlannedIntent(
                 capability_id="skill_historical_signals",
-                target_skill=target_skill or "Python",
+                target_skill=target_skill,
                 target_role=target_role,
                 geography=geography,
                 portal_type=portal_type,
@@ -248,7 +248,7 @@ class V2IntentPlanner:
         if any(k in q for k in ["related skills", "related to", "skills related", "skill adjacency", "co-occurring", "adjacent skills", "associated skills"]):
             return PlannedIntent(
                 capability_id="related_skills",
-                target_skill=target_skill or "Python",
+                target_skill=target_skill,
                 target_role=target_role,
                 geography=geography,
                 portal_type=portal_type,
@@ -260,7 +260,7 @@ class V2IntentPlanner:
         if any(k in q for k in ["health", "healthy", "momentum score", "health score", "strengthening", "weakening"]):
             return PlannedIntent(
                 capability_id="skill_health_analysis",
-                target_skill=target_skill or "Python",
+                target_skill=target_skill,
                 target_role=target_role,
                 geography=geography,
                 portal_type=portal_type,
@@ -277,7 +277,7 @@ class V2IntentPlanner:
         if is_concept_query:
             return PlannedIntent(
                 capability_id="skill_reference_profile",
-                target_skill=target_skill or "Python",
+                target_skill=target_skill,
                 target_role=target_role,
                 geography=geography,
                 portal_type=portal_type,
@@ -289,7 +289,7 @@ class V2IntentPlanner:
         if any(k in q for k in ["forecast", "forecasting", "predict", "prediction", "projected demand", "project demand", "future demand"]):
             return PlannedIntent(
                 capability_id="skill_demand_forecast",
-                target_skill=target_skill or "Python",
+                target_skill=target_skill,
                 target_role=target_role,
                 geography=geography,
                 portal_type=portal_type,
@@ -309,7 +309,7 @@ class V2IntentPlanner:
                 return PlannedIntent(
                     capability_id="job_preparation_actions",
                     target_skill=target_skill,
-                    target_role=target_role or "Software Developer",
+                    target_role=target_role,
                     geography=geography,
                     portal_type=portal_type,
                     reason="Query requests preparation steps and actions for a target job role.",
@@ -317,7 +317,7 @@ class V2IntentPlanner:
                 )
             return PlannedIntent(
                 capability_id="skill_action_recommendations",
-                target_skill=target_skill or "Python",
+                target_skill=target_skill,
                 target_role=target_role,
                 geography=geography,
                 portal_type=portal_type,
@@ -330,7 +330,7 @@ class V2IntentPlanner:
             return PlannedIntent(
                 capability_id="job_mobility_pathways",
                 target_skill=target_skill,
-                target_role=target_role or "Software Developers",
+                target_role=target_role,
                 geography=geography,
                 portal_type=portal_type,
                 reason="Query requests career transition or mobility pathways between roles.",
@@ -342,7 +342,7 @@ class V2IntentPlanner:
             return PlannedIntent(
                 capability_id="job_role_requirements",
                 target_skill=target_skill,
-                target_role=target_role or "Software Developers",
+                target_role=target_role,
                 geography=geography,
                 portal_type=portal_type,
                 reason="Query requests skills relevant to a role or mentioned in a job description.",
@@ -389,7 +389,7 @@ class V2IntentPlanner:
         if any(k in q for k in ["hiring demand", "job demand", "employer demand", "hiring trends", "hiring trend"]):
             return PlannedIntent(
                 capability_id="hiring_demand_trends",
-                target_skill=target_skill or "Python",
+                target_skill=target_skill,
                 target_role=target_role,
                 geography=geography,
                 portal_type=portal_type,
@@ -469,7 +469,7 @@ class V2IntentPlanner:
         if any(k in q for k in ["history", "historical", "quarterly", "pushers", "github"]):
             return PlannedIntent(
                 capability_id="skill_historical_signals",
-                target_skill=target_skill or "Python",
+                target_skill=target_skill,
                 target_role=target_role,
                 geography=geography,
                 portal_type=portal_type,

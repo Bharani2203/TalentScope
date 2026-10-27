@@ -5,6 +5,35 @@ from __future__ import annotations
 import json
 
 
+ROLE_ALIASES: dict[str, str] = {
+    "backend developer": "Software Developer",
+    "backend engineer": "Software Developer",
+    "python developer": "Software Developer",
+    "python engineer": "Software Developer",
+    "full stack developer": "Software Developer",
+    "full-stack developer": "Software Developer",
+    "full stack engineer": "Software Developer",
+    "fullstack developer": "Software Developer",
+    "frontend developer": "Software Developer",
+    "frontend engineer": "Software Developer",
+}
+
+
+def resolve_role_alias(role_name: str | None) -> tuple[str | None, str | None]:
+    """Resolve common non-standard role names to closest O*NET standard.
+
+    Returns (resolved_standard_role, alias_notice_or_none).
+    """
+    if not role_name:
+        return None, None
+    cleaned = " ".join(role_name.split()).casefold()
+    target = ROLE_ALIASES.get(cleaned)
+    if target:
+        notice = f"No exact O*NET/ESCO occupation match for '{role_name}'; showing verified reference data for '{target}'."
+        return target, notice
+    return role_name, None
+
+
 def normalize_occupation_name(value: str) -> str:
     """Normalize casing, whitespace, and a simple plural on the final word."""
     words = " ".join(value.split()).casefold().split()

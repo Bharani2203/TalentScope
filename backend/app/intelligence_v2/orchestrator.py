@@ -21,6 +21,7 @@ from app.intelligence_v2.response_formatter import V2ResponseFormatter
 from app.intelligence_v2.role_actions import V2RoleActionEngine
 from app.intelligence_v2.skill_intelligence import V2SkillIntelligenceEngine, get_concept_explanation_with_example
 from app.intelligence_v2.skill_mapping import V2SkillMapper
+from app.intelligence_v2.occupation_names import resolve_role_alias
 from app.models.auth import AuthenticatedUser
 from app.models.execution_orchestrator import (
     CoreIntelligenceAnswerRequest,
@@ -183,10 +184,11 @@ class V2Orchestrator:
             cap = canonical_capability_id(public_capability_id, request.domain)
             planned_intent.capability_id = cap
             cap_def = self.capability_registry.get_capability(cap)
+            clean_domain = request.domain if request.domain in {"skill", "market", "job"} else None
             if not cap_def:
                 return CoreIntelligenceAnswerResponse(
                     request_id=f"ans_{uuid.uuid4().hex[:12]}", user_message=request.message,
-                    portal_type=portal, domain=request.domain or "skill", intent=public_capability_id,
+                    portal_type=portal, domain=clean_domain or "skill", intent=public_capability_id,
                     plan_status="blocked", execution_status="unsupported", status="error",
                     answer=f"Unsupported capability '{public_capability_id}'. Select an enabled feature from the capability catalog.",
                     answer_origin="deterministic", limitations=["The requested capability is not registered or enabled."],
@@ -396,9 +398,61 @@ class V2Orchestrator:
                 error_message="Personalized alignment requires explicitly selected profile skills and a resolvable target role.",
                 domain_override=request.domain,
             )
-        target_s = planned_intent.target_skill or (request.selected_skills[0] if request.selected_skills else "Python")
-        target_r = planned_intent.target_role or request.target_role or "Software Developer"
+        target_s = planned_intent.target_skill or (request.selected_skills[0] if request.selected_skills else None)
+        target_r = planned_intent.target_role or request.target_role or None
+        raw_target_r = target_r
         geo = planned_intent.geography or request.location or "all"
+        req_loc = (request.filters or {}).get("location") or request.location
+        if not req_loc:
+            from app.services.question_classification_service import extract_location
+            req_loc = extract_location(request.message)
+
+        # Apply role aliasing if target_r is present
+        alias_notice = None
+        if target_r:
+            aliased_r, alias_notice = resolve_role_alias(target_r)
+            if aliased_r:
+                target_r = aliased_r
+
+        # Require clarification if cap requires role or skill that was not provided
+        if cap in {"job_role_requirements", "job_preparation_actions", "job_mobility_pathways"} and not target_r:
+            return CoreIntelligenceAnswerResponse(
+                request_id=f"ans_{uuid.uuid4().hex[:12]}",
+                user_message=request.message,
+                portal_type=portal,
+                domain=request.domain if request.domain in {"skill", "market", "job"} else None,
+                intent=cap,
+                plan_status="requires_clarification",
+                execution_status="requires_clarification",
+                status="not_applicable",
+                answer="Please clarify what role you want to explore.",
+                answer_origin="deterministic",
+                planned_capabilities=[cap],
+                capabilities_used=[],
+                limitations=["No target role was specified in the request."],
+                reason_codes=["INTENT_CLARIFICATION_REQUIRED"],
+                conversation_id=request.conversation_id,
+                client_message_id=request.client_message_id,
+            )
+        if cap in {"skill_demand_trends", "skill_health_analysis", "skill_demand_forecast", "hiring_demand_trends", "skill_historical_signals"} and not target_s:
+            return CoreIntelligenceAnswerResponse(
+                request_id=f"ans_{uuid.uuid4().hex[:12]}",
+                user_message=request.message,
+                portal_type=portal,
+                domain=request.domain if request.domain in {"skill", "market", "job"} else None,
+                intent=cap,
+                plan_status="requires_clarification",
+                execution_status="requires_clarification",
+                status="not_applicable",
+                answer="Please clarify what skill you want to explore.",
+                answer_origin="deterministic",
+                planned_capabilities=[cap],
+                capabilities_used=[],
+                limitations=["No target skill was specified in the request."],
+                reason_codes=["INTENT_CLARIFICATION_REQUIRED"],
+                conversation_id=request.conversation_id,
+                client_message_id=request.client_message_id,
+            )
 
         result = None
 
@@ -448,12 +502,8 @@ class V2Orchestrator:
 
             # Job Intelligence features
             elif cap == "job_verified_postings":
-                if planned_intent.target_role is None and planned_intent.target_skill is None:
-                    role_or_skill = None
-                    question = request.message
-                else:
-                    role_or_skill = target_r if target_r and target_r != "Software Developer" else (target_s or target_r or "Software Developer")
-                    question = None
+                role_or_skill = raw_target_r or target_s or None
+                question = None if role_or_skill else request.message
                 filters = request.filters or {}
                 country = filters.get("country") or (geo if geo and geo not in {"all", "global"} else None)
                 location = filters.get("location") or request.location

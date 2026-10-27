@@ -9843,6 +9843,11 @@ class ExecutionOrchestratorService:
         allowed_numbers.add(str(len(facts)))
         allowed_numbers.add(str(len(evidence)))
 
+        if plan and plan.context_summary:
+            for ctx_key in ("_demand_sample_sizes", "_demand_exclusions"):
+                for num_str in re.findall(r'\b\d+(?:\.\d+)?\b', str(plan.context_summary.get(ctx_key) or "")):
+                    allowed_numbers.add(num_str)
+
         # Check for ungrounded numbers in narrative text
         found_numbers = re.findall(r'\b\d+(?:\.\d+)?\b', answer_text)
         for num in found_numbers:

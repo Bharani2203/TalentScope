@@ -267,7 +267,10 @@ def plan_intelligence(
             understood = f"You want a preparation plan for {role or 'the selected role'}."
         return plan.model_copy(update={
             "primary_capability": canonical_capability,
-            "selected_capabilities": [canonical_capability],
+            "selected_capabilities": [
+                canonical_capability,
+                *(c for c in plan.selected_capabilities if c != canonical_capability),
+            ],
             "dependency_capabilities": [],
             "understood": understood,
         })
