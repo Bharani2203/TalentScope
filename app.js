@@ -8617,7 +8617,7 @@ refreshRoadmapSection = function() {
   lucide.createIcons();
   bindRoadmapEvents();
 };
-renderJobIntelligenceSection = function() {
+function renderJobIntelligenceSection() {
   const view = getJobTrendView();
   const metrics = [
     { key: 'jobDemand', label: 'Job Demand', description: 'More relevant openings', color: '#B22DEF' },
@@ -8637,7 +8637,7 @@ renderJobIntelligenceSection = function() {
   ];
   return `<section class="home-section job-intelligence-section" id="job-intelligence" aria-labelledby="job-intelligence-title"><div class="home-section__heading"><div><span class="section-kicker">Workforce signals</span><h2 id="job-intelligence-title">Job Intelligence</h2><p>Hiring demand, skill demand and role growth in your selected scope.</p></div><span class="job-intelligence-context"><i></i>${view.roleLabel}  —  ${jobTrendState.market}</span></div><div class="job-intelligence-grid"><article class="job-intelligence-card" aria-labelledby="job-market-intelligence-title"><header class="job-intelligence-card__header"><div><span class="skill-intel-card__eyebrow">Live workforce signals</span><h3 id="job-market-intelligence-title">Job Market Intelligence</h3><p>Understand hiring demand, skill demand and role growth.</p></div><div class="job-intelligence-filters"><button type="button" id="jobTrendFilterButton" aria-expanded="false" aria-controls="jobTrendFilterPanel"><i data-lucide="sliders-horizontal"></i>Filters<span>${jobTrendState.market} ? ${jobTrendState.role === 'All Roles' ? 'All Roles' : jobTrendState.role}</span><i data-lucide="chevron-down"></i></button><div class="job-trend-filter__panel" id="jobTrendFilterPanel" role="dialog" aria-label="Job trend filters" hidden><header><div><strong>Job trend filters</strong><small>Refine hiring signals</small></div><button type="button" id="closeJobTrendFilter" aria-label="Close filters"><i data-lucide="x"></i></button></header><label>Time period<select id="jobPeriodFilter">${optionMarkup(['7 Days', '30 Days', '6 Months', '1 Year'], jobTrendState.period)}</select></label><label>Market<select id="jobMarketFilter">${optionMarkup(marketOptions, jobTrendState.market)}</select></label><label>Role<select id="jobRoleFilter">${optionMarkup(['All Roles', ...jobRoleOptions], jobTrendState.role)}</select></label><button class="job-trend-filter__apply" id="applyJobTrendFilter" type="button">Apply filters</button></div></div></header><div class="job-intelligence-visual-grid"><div class="job-intelligence-radial"><div class="job-radial-chart"><svg viewBox="0 0 300 300" role="group" aria-label="Four independent job market signals">${rings}</svg><div class="job-radial-tooltip" id="jobRadialTooltip" hidden></div></div></div><div class="job-intelligence-legend-grid">${legend}</div></div><p class="job-intelligence-note">Illustrative workforce signals  —  hover a ring or legend for exact value and change.</p></article><article class="job-action-card" aria-labelledby="job-action-title"><header><span class="skill-intel-card__eyebrow">Profile-based actions</span><h3 id="job-action-title">What You Can Do Next</h3><p>Actions generated from your current skills, role direction and live job signals.</p></header><div class="job-action-list">${recommendations.map((recommendation, index) => `<article class="job-action-item" style="--action-delay:${index * 65}ms"><span class="job-action-item__icon"><i data-lucide="${recommendation.icon}"></i></span><div><strong>${recommendation.title}</strong><p>${recommendation.why}</p><small>${recommendation.relevance}</small><a href="${recommendation.href}" ${recommendation.icon === 'map' && !['active', 'paused'].includes(roadmapState.status) ? 'data-roadmap-accept' : ''}>${recommendation.cta} <i data-lucide="arrow-right"></i></a></div></article>`).join('')}</div><small class="job-action-disclaimer">Illustrative recommendations based on prototype workforce data.</small></article></div></section>`;
 };
-bindJobIntelligenceEvents = function() {
+function bindJobIntelligenceEvents() {
   const filterButton = document.querySelector('#jobTrendFilterButton');
   const filterPanel = document.querySelector('#jobTrendFilterPanel');
   const closeFilter = () => { if (filterPanel) filterPanel.hidden = true; filterButton?.setAttribute('aria-expanded', 'false'); };
@@ -8828,3 +8828,11 @@ notificationButton.addEventListener('click', event => { event.stopPropagation();
 document.addEventListener('click', event => { if (!event.target.closest('.profile-menu') && !event.target.closest('.notification-button')) closePopovers(); });
 document.querySelector('#searchForm').addEventListener('submit', event => event.preventDefault());
 document.addEventListener('keydown', event => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#searchInput').focus(); } if (event.key === 'Escape') { closePopovers(); closeMobileNav(); } });
+
+
+// Explicit window attachment and ES module exports for global/component access
+if (typeof window !== 'undefined') {
+  window.renderJobIntelligenceSection = renderJobIntelligenceSection;
+  window.bindJobIntelligenceEvents = bindJobIntelligenceEvents;
+}
+export { renderJobIntelligenceSection, bindJobIntelligenceEvents };
