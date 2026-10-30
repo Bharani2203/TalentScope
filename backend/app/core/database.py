@@ -9,8 +9,21 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
+
+try:
+    from dotenv import load_dotenv
+    for env_path in [
+        Path.cwd() / "backend" / ".env",
+        Path.cwd() / ".env",
+        Path(__file__).resolve().parent.parent.parent / ".env",
+    ]:
+        if env_path.is_file():
+            load_dotenv(env_path, override=False)
+except ImportError:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +58,17 @@ def get_pg_config() -> dict[str, Any]:
     raw_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or os.getenv("SQLALCHEMY_DATABASE_URI")
     if raw_url and raw_url.strip():
         parsed = urlparse(raw_url.strip())
-        return {
+        config = {
             "dbname": parsed.path.lstrip("/"),
             "host": parsed.hostname or "127.0.0.1",
             "port": parsed.port or 5432,
-            "user": parsed.username or "postgres",
-            "password": parsed.password or "",
-            "connect_timeout": int(os.getenv("PGCONNECT_TIMEOUT", "5")),
+            "user": unquote(parsed.username) if parsed.username else "postgres",
+            "password": unquote(parsed.password) if parsed.password else "",
+            "connect_timeout": int(os.getenv("PGCONNECT_TIMEOUT", "10")),
         }
+        if parsed.hostname and parsed.hostname not in ("127.0.0.1", "localhost"):
+            config["sslmode"] = os.getenv("PGSSLMODE", "require")
+        return config
 
     return {
         "dbname": os.getenv("PGDATABASE", "talentscope_intelligence"),
