@@ -20,4 +20,5 @@ backend/tests/real_data/
 backend/.env
 /data/
 backend/.venv-old/
+dist/
 *-debug.log
