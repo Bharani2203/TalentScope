@@ -22,20 +22,52 @@ class MarketDataStore:
                 database_path = settings.database_path
         self.database_path = Path(database_path)
         self.read_only = read_only
-        if self.read_only:
-            if not self.database_path.is_file():
-                raise FileNotFoundError(f"Market database not found: {self.database_path}")
+        self._in_memory = False
+
+        if not self.database_path.is_file():
+            try:
+                self.database_path.parent.mkdir(parents=True, exist_ok=True)
+                self._initialize()
+            except Exception as exc:
+                logger.warning(
+                    "Could not initialize SQLite market file at %s (%s). Falling back to shared in-memory SQLite store.",
+                    self.database_path,
+                    exc,
+                )
+                self._in_memory = True
+                self._initialize()
         else:
-            self.database_path.parent.mkdir(parents=True, exist_ok=True)
-            self._initialize()
+            try:
+                self._initialize()
+            except Exception:
+                pass
+
+    def _write_connect(self) -> sqlite3.Connection:
+        if self._in_memory:
+            connection = sqlite3.connect("file:talentscope_mkt_mem?mode=memory&cache=shared", uri=True, timeout=15)
+        else:
+            connection = sqlite3.connect(self.database_path, timeout=15)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout = 15000")
+        if not self._in_memory:
+            try:
+                connection.execute("PRAGMA journal_mode = WAL")
+            except Exception:
+                pass
+        return connection
 
     def _connect(self) -> sqlite3.Connection:
-        if self.read_only:
-            connection = sqlite3.connect(
-                self.database_path.resolve().as_uri() + "?mode=ro",
-                timeout=15,
-                uri=True,
-            )
+        if self._in_memory:
+            connection = sqlite3.connect("file:talentscope_mkt_mem?mode=memory&cache=shared", uri=True, timeout=15)
+        elif self.read_only and self.database_path.is_file():
+            try:
+                connection = sqlite3.connect(
+                    self.database_path.resolve().as_uri() + "?mode=ro",
+                    timeout=15,
+                    uri=True,
+                )
+            except Exception:
+                connection = sqlite3.connect(self.database_path, timeout=15)
         else:
             connection = sqlite3.connect(self.database_path, timeout=15)
         connection.row_factory = sqlite3.Row
@@ -43,7 +75,7 @@ class MarketDataStore:
         return connection
 
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with self._write_connect() as connection:
             connection.executescript("""
                 CREATE TABLE IF NOT EXISTS market_observations (
                     id TEXT PRIMARY KEY,

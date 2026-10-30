@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +18,8 @@ from app.models.reference_data import (
     OnetSoftwareSkill,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class ReferenceDataStore:
     def __init__(self, database_path: str | Path | None = None, *, read_only: bool = False):
@@ -24,30 +28,139 @@ class ReferenceDataStore:
             database_path = get_settings().reference_database_path
         self.database_path = Path(database_path)
         self.read_only = read_only
-        if self.read_only:
-            if not self.database_path.is_file():
-                raise FileNotFoundError(f"Reference database not found: {self.database_path}")
-        else:
-            self.database_path.parent.mkdir(parents=True, exist_ok=True)
-            self._initialize()
+        self._in_memory = False
 
-    def _connect(self) -> sqlite3.Connection:
-        if self.read_only:
-            connection = sqlite3.connect(
-                self.database_path.resolve().as_uri() + "?mode=ro",
-                timeout=15,
-                uri=True,
-            )
+        if not self.database_path.is_file():
+            try:
+                self.database_path.parent.mkdir(parents=True, exist_ok=True)
+                self._initialize()
+                self._seed_reference_taxonomies()
+            except Exception as exc:
+                logger.warning(
+                    "Could not initialize SQLite reference file at %s (%s). Falling back to shared in-memory SQLite store.",
+                    self.database_path,
+                    exc,
+                )
+                self._in_memory = True
+                self._initialize()
+                self._seed_reference_taxonomies()
+        else:
+            # File exists, ensure required schema exists
+            try:
+                self._initialize()
+            except Exception:
+                pass
+
+    def _write_connect(self) -> sqlite3.Connection:
+        """Create a read-write connection even if self.read_only is True (used for init & seeding)."""
+        if self._in_memory:
+            connection = sqlite3.connect("file:talentscope_ref_mem?mode=memory&cache=shared", uri=True, timeout=15)
         else:
             connection = sqlite3.connect(self.database_path, timeout=15)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA busy_timeout = 15000")
-        if not self.read_only:
-            connection.execute("PRAGMA journal_mode = WAL")
+        if not self._in_memory:
+            try:
+                connection.execute("PRAGMA journal_mode = WAL")
+            except Exception:
+                pass
         return connection
 
+    def _connect(self) -> sqlite3.Connection:
+        if self._in_memory:
+            connection = sqlite3.connect("file:talentscope_ref_mem?mode=memory&cache=shared", uri=True, timeout=15)
+        elif self.read_only and self.database_path.is_file():
+            try:
+                connection = sqlite3.connect(
+                    self.database_path.resolve().as_uri() + "?mode=ro",
+                    timeout=15,
+                    uri=True,
+                )
+            except Exception:
+                connection = sqlite3.connect(self.database_path, timeout=15)
+        else:
+            connection = sqlite3.connect(self.database_path, timeout=15)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout = 15000")
+        if not self.read_only and not self._in_memory:
+            try:
+                connection.execute("PRAGMA journal_mode = WAL")
+            except Exception:
+                pass
+        return connection
+
+    def _seed_reference_taxonomies(self) -> None:
+        """Populate core reference records if the tables are currently empty."""
+        try:
+            with self._connect() as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT count(*) FROM ref_onet_occupations")
+                if cur.fetchone()[0] > 0:
+                    return
+
+            # Search candidate paths for role_profiles.json
+            candidates = [
+                self.database_path.parent / "processed" / "role_profiles.json",
+                Path(__file__).resolve().parents[2] / "data" / "processed" / "role_profiles.json",
+                Path.cwd() / "backend" / "data" / "processed" / "role_profiles.json",
+                Path.cwd() / "data" / "processed" / "role_profiles.json",
+            ]
+            profiles_file = next((p for p in candidates if p.is_file()), None)
+            now_str = datetime.now(timezone.utc).isoformat()
+
+            if not profiles_file:
+                fallback_roles = [
+                    ("15-1252.00", "Software Developer", "Research, design, and develop computer and network software."),
+                    ("15-1251.00", "Computer Programmer", "Create, modify, and test the code and scripts that allow computer applications to run."),
+                    ("15-1242.00", "Database Administrator", "Administer, test, and implement computer databases."),
+                    ("15-1244.00", "Network and Computer Systems Administrator", "Install, configure, and support an organization's local area network."),
+                    ("15-2051.00", "Data Scientist", "Develop and implement algorithms and data models."),
+                    ("15-1299.08", "Computer Systems Engineers/Architects", "Design and develop solutions to complex applications problems."),
+                ]
+                with self._write_connect() as conn:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO ref_onet_occupations (soc_code, title, description, created_at) VALUES (?, ?, ?, ?)",
+                        [(soc, title, desc, now_str) for soc, title, desc in fallback_roles],
+                    )
+                return
+
+            with open(profiles_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            occ_rows = []
+            skill_rows = []
+
+            for idx, (role_name, details) in enumerate(data.items()):
+                soc_code = f"15-12{idx:02d}.00"
+                desc = f"Professional role: {role_name}"
+                occ_rows.append((soc_code, role_name, desc, now_str))
+
+                top_skills = details.get("top_skills", [])
+                for s_idx, skill in enumerate(top_skills):
+                    s_name = skill if isinstance(skill, str) else skill.get("skill_name", str(skill))
+                    skill_id = f"{soc_code}-s{s_idx}"
+                    can_id = s_name.strip().lower().replace(" ", "-")
+                    skill_rows.append((
+                        skill_id, soc_code, role_name, s_name,
+                        "4.A.1", "Software", 1, 1, can_id, now_str
+                    ))
+
+            with self._write_connect() as conn:
+                if occ_rows:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO ref_onet_occupations (soc_code, title, description, created_at) VALUES (?, ?, ?, ?)",
+                        occ_rows,
+                    )
+                if skill_rows:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO ref_onet_software_skills (id, soc_code, title, workplace_example, element_id, element_name, hot_technology, in_demand, canonical_skill_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        skill_rows,
+                    )
+        except Exception as exc:
+            logger.debug("Optional reference taxonomy seeding completed with notice: %s", exc)
+
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with self._write_connect() as connection:
             connection.executescript("""
                 CREATE TABLE IF NOT EXISTS ref_onet_occupations (
                     soc_code TEXT PRIMARY KEY,
