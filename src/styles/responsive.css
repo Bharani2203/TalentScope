@@ -2,7 +2,7 @@
 
 /* Global App Shell Horizontal Overflow Prevention */
 #appShell {
-  overflow-x: hidden !important;
+  overflow-x: clip !important;
   max-width: 100vw !important;
   box-sizing: border-box !important;
 }

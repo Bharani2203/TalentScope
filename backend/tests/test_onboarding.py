@@ -450,3 +450,45 @@ def test_company_onboarding_completion_creates_owner_bound_company(monkeypatch):
         })
     assert retry.status_code == 200
     assert len([path for path in database.documents if path.startswith("companies/")]) == 1
+
+def test_new_company_admin_starts_at_step_one_with_no_completed_steps(monkeypatch):
+    """Ensure brand new company admins start at Question 1, even if legacy individual onboarding progress is present."""
+    existing = {
+        "uid": "onboarding-user-1",
+        "user_type": "company",
+        "profile": {"company_onboarding_answers": {}},
+        "onboarding": {"current_step": 12, "completed_steps": list(range(1, 13)), "completed": True},
+    }
+    database = FakeFirestore({"users/onboarding-user-1": existing})
+    use_database(monkeypatch, database)
+    set_authenticated_user()
+    with TestClient(app) as client:
+        response = client.get("/api/v1/onboarding/company/profile")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["onboarding"]["current_step"] == 1
+        assert data["onboarding"]["completed_steps"] == []
+        assert data["onboarding"]["completed"] is False
+
+        # Attempting to jump directly to Step 11 without prior answers should fail with 409
+        jump_response = client.put("/api/v1/onboarding/company/step/11", json={
+            "question_id": "cmp_platform_usage",
+            "answer": "External talent intelligence focus",
+        })
+        assert jump_response.status_code == 409
+
+        # Answering Step 1 works and moves to step 2
+        step1_response = client.put("/api/v1/onboarding/company/step/1", json={
+            "question_id": "cmp_organization",
+            "answer": {
+                "companyName": "Acme Innovations",
+                "industry": "Software & Internet",
+                "city": "Austin",
+                "country": "United States",
+            },
+        })
+        assert step1_response.status_code == 200
+        step1_data = step1_response.json()
+        assert step1_data["onboarding"]["current_step"] == 2
+        assert step1_data["onboarding"]["completed_steps"] == [1]
+

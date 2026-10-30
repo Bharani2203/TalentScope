@@ -1,0 +1,1766 @@
+[
+  {
+    "question_id": "ts-python-positive-sum-001",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-functions",
+      "lists",
+      "iteration"
+    ],
+    "question_type": "coding",
+    "difficulty": "beginner",
+    "question_text": "Implement `sum_positive(values)`. Return the sum of the values greater than zero. Return 0 when the input is empty or contains no positive values.",
+    "starter_code": "def sum_positive(values):\n    # Return the sum of positive values.\n    pass",
+    "provenance": "Original question authored for TalentScope.ai; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-javascript-filter-001",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-arrays",
+      "array-filter"
+    ],
+    "question_type": "mcq",
+    "difficulty": "beginner",
+    "question_text": "Which expression creates a new array containing only the numbers greater than 10 from `values`?",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "values.forEach(value => value > 10)"
+      },
+      {
+        "option_id": "b",
+        "text": "values.filter(value => value > 10)"
+      },
+      {
+        "option_id": "c",
+        "text": "values.map(value => value > 10)"
+      },
+      {
+        "option_id": "d",
+        "text": "values.find(value => value > 10)"
+      }
+    ],
+    "provenance": "Original question authored for TalentScope.ai; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-html-semantic-001",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "semantic-html",
+      "accessibility"
+    ],
+    "question_type": "scenario",
+    "difficulty": "beginner",
+    "question_text": "A page has a site-wide navigation area and a central article that can be understood independently. Which semantic elements should identify those regions, and what accessibility benefit do they provide?",
+    "provenance": "Original question authored for TalentScope.ai; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-responsive-layout-001",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "responsive-web-design",
+      "css-layout",
+      "mobile-first"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "beginner",
+    "question_text": "Given a page with a fixed-width two-column card layout, describe or sketch a responsive revision that remains readable on a 360 px wide screen and uses both columns on a wide screen. Include the layout rule and one check you would perform.",
+    "provenance": "Original practical task authored for TalentScope.ai; no external layout prompt copied.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-sql-active-users-001",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-select",
+      "filtering",
+      "sorting"
+    ],
+    "question_type": "coding",
+    "difficulty": "beginner",
+    "question_text": "For a table `users(id, email, active)`, write a SQL query that returns the email of every active user, sorted alphabetically by email.",
+    "provenance": "Original question authored for TalentScope.ai; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-git-recover-commit-001",
+    "skill_ids": [
+      "git"
+    ],
+    "topic_ids": [
+      "git-commits",
+      "git-recovery"
+    ],
+    "question_type": "scenario",
+    "difficulty": "intermediate",
+    "question_text": "You created a local commit on the correct branch, but it includes one unrelated file that should remain out of the commit. The commit has not been pushed. Describe a safe way to revise the commit while preserving the unrelated file's working-tree changes.",
+    "provenance": "Original scenario authored for TalentScope.ai; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-github-review-001",
+    "skill_ids": [
+      "github"
+    ],
+    "topic_ids": [
+      "pull-requests",
+      "code-review",
+      "collaboration"
+    ],
+    "question_type": "scenario",
+    "difficulty": "beginner",
+    "question_text": "A pull request changes a shared API response and includes no test update. What review steps would you take before approving it? Name at least two concrete checks and how you would communicate a blocking issue.",
+    "provenance": "Original scenario authored for TalentScope.ai; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-fastapi-validation-001",
+    "skill_ids": [
+      "fastapi",
+      "python"
+    ],
+    "topic_ids": [
+      "request-validation",
+      "api-design"
+    ],
+    "question_type": "scenario",
+    "difficulty": "intermediate",
+    "question_text": "An authenticated FastAPI endpoint accepts a `limit` query parameter used to bound a database read. Explain how you would validate its type and range, and why the endpoint must derive the user's identity from verified authentication rather than a request-supplied UID.",
+    "provenance": "Original scenario authored for TalentScope.ai; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-uiux-error-recovery-001",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "error-prevention",
+      "accessibility",
+      "user-recovery"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "intermediate",
+    "question_text": "Review a form that reports only “Something went wrong” after submission and clears all entered values. Propose a revised error state, including message placement, recovery action, preservation of user input, and one accessibility consideration. A written response or annotated wireframe is acceptable; no code is required.",
+    "provenance": "Original UI/UX practical task authored for TalentScope.ai; no external assessment content copied.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-python-mcq-001",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-list-comprehensions"
+    ],
+    "question_type": "mcq",
+    "difficulty": "intermediate",
+    "question_text": "Which Python expression creates a new list containing only even values from nums?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "[n for n in nums if n % 2 == 0]"
+      },
+      {
+        "option_id": "b",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "c",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "d",
+        "text": "Convert the requirement into a visual-only convention"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-python-mcq-002",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-functions"
+    ],
+    "question_type": "mcq",
+    "difficulty": "advanced",
+    "question_text": "A Python function should accept any number of positional values. Which parameter form supports that?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "b",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "c",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "d",
+        "text": "def f(*values):"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-javascript-mcq-003",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-comparison"
+    ],
+    "question_type": "mcq",
+    "difficulty": "beginner",
+    "question_text": "Which JavaScript operator compares both value and type without coercion?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "b",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "c",
+        "text": "==="
+      },
+      {
+        "option_id": "d",
+        "text": "Use an unrelated global setting"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-javascript-mcq-004",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-arrays"
+    ],
+    "question_type": "mcq",
+    "difficulty": "intermediate",
+    "question_text": "Which JavaScript array method transforms each item into a corresponding result?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "b",
+        "text": "map"
+      },
+      {
+        "option_id": "c",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "d",
+        "text": "Return the unfiltered input unchanged"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-html-mcq-005",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "html-forms"
+    ],
+    "question_type": "mcq",
+    "difficulty": "advanced",
+    "question_text": "Which HTML element associates a caption with a form input?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "<label for=\"email\">"
+      },
+      {
+        "option_id": "b",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "c",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "d",
+        "text": "Convert the requirement into a visual-only convention"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-html-mcq-006",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "semantic-html"
+    ],
+    "question_type": "mcq",
+    "difficulty": "beginner",
+    "question_text": "Which HTML element is intended for the dominant page content?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "b",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "c",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "d",
+        "text": "<main>"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-html-mcq-007",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "css-box-model"
+    ],
+    "question_type": "mcq",
+    "difficulty": "intermediate",
+    "question_text": "Which CSS sizing rule includes padding and border inside a declared width?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "b",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "c",
+        "text": "box-sizing: border-box"
+      },
+      {
+        "option_id": "d",
+        "text": "Use an unrelated global setting"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-html-mcq-008",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "css-flexbox"
+    ],
+    "question_type": "mcq",
+    "difficulty": "advanced",
+    "question_text": "Which layout primitive is designed for a one-dimensional row or column?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "b",
+        "text": "CSS Flexbox"
+      },
+      {
+        "option_id": "c",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "d",
+        "text": "Return the unfiltered input unchanged"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-sql-mcq-009",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-filtering"
+    ],
+    "question_type": "mcq",
+    "difficulty": "beginner",
+    "question_text": "Which SQL clause filters rows before grouping?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "WHERE"
+      },
+      {
+        "option_id": "b",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "c",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "d",
+        "text": "Convert the requirement into a visual-only convention"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-sql-mcq-010",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-aggregation"
+    ],
+    "question_type": "mcq",
+    "difficulty": "intermediate",
+    "question_text": "Which SQL clause filters groups after aggregation?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "b",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "c",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "d",
+        "text": "HAVING"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-git-mcq-011",
+    "skill_ids": [
+      "git"
+    ],
+    "topic_ids": [
+      "git-commits"
+    ],
+    "question_type": "mcq",
+    "difficulty": "advanced",
+    "question_text": "Which Git command records staged changes in the local repository history?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "b",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "c",
+        "text": "git commit"
+      },
+      {
+        "option_id": "d",
+        "text": "Use an unrelated global setting"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-git-mcq-012",
+    "skill_ids": [
+      "git"
+    ],
+    "topic_ids": [
+      "git-remotes"
+    ],
+    "question_type": "mcq",
+    "difficulty": "beginner",
+    "question_text": "Which Git command downloads remote references and commits without merging them into the current branch?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "b",
+        "text": "git fetch"
+      },
+      {
+        "option_id": "c",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "d",
+        "text": "Return the unfiltered input unchanged"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-github-mcq-013",
+    "skill_ids": [
+      "github"
+    ],
+    "topic_ids": [
+      "github-code-review"
+    ],
+    "question_type": "mcq",
+    "difficulty": "intermediate",
+    "question_text": "In a pull request, where should a reviewer put a blocking code-specific concern?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "A review comment attached to the affected diff"
+      },
+      {
+        "option_id": "b",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "c",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "d",
+        "text": "Convert the requirement into a visual-only convention"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-github-mcq-014",
+    "skill_ids": [
+      "github"
+    ],
+    "topic_ids": [
+      "github-project-hygiene"
+    ],
+    "question_type": "mcq",
+    "difficulty": "advanced",
+    "question_text": "Which repository practice helps a team reproduce project setup?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "b",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "c",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "d",
+        "text": "Commit a clear README and dependency/lock metadata"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-fastapi-mcq-015",
+    "skill_ids": [
+      "fastapi"
+    ],
+    "topic_ids": [
+      "fastapi-validation"
+    ],
+    "question_type": "mcq",
+    "difficulty": "beginner",
+    "question_text": "Which FastAPI declaration validates that a page-size query parameter is within a range?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "b",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "c",
+        "text": "A typed parameter with minimum and maximum constraints"
+      },
+      {
+        "option_id": "d",
+        "text": "Use an unrelated global setting"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-fastapi-mcq-016",
+    "skill_ids": [
+      "fastapi"
+    ],
+    "topic_ids": [
+      "fastapi-authentication"
+    ],
+    "question_type": "mcq",
+    "difficulty": "intermediate",
+    "question_text": "Where should a FastAPI endpoint obtain the authenticated user identity?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "b",
+        "text": "From a server-verified authentication dependency"
+      },
+      {
+        "option_id": "c",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "d",
+        "text": "Return the unfiltered input unchanged"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-fastapi-mcq-017",
+    "skill_ids": [
+      "fastapi"
+    ],
+    "topic_ids": [
+      "http-methods"
+    ],
+    "question_type": "mcq",
+    "difficulty": "advanced",
+    "question_text": "Which HTTP method is conventionally used to retrieve a resource without changing it?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "GET"
+      },
+      {
+        "option_id": "b",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "c",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "d",
+        "text": "Convert the requirement into a visual-only convention"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-ui-ux-mcq-018",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "usability-testing"
+    ],
+    "question_type": "mcq",
+    "difficulty": "beginner",
+    "question_text": "Which UI/UX technique reveals whether a task flow is understandable to target users?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "b",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "c",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "d",
+        "text": "Observe representative users completing the task"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-ui-ux-mcq-019",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "keyboard-accessibility"
+    ],
+    "question_type": "mcq",
+    "difficulty": "intermediate",
+    "question_text": "Which design choice improves keyboard discoverability of an interactive control?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "b",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "c",
+        "text": "A visible focus indicator"
+      },
+      {
+        "option_id": "d",
+        "text": "Use an unrelated global setting"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-html-mcq-020",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "responsive-web-design"
+    ],
+    "question_type": "mcq",
+    "difficulty": "advanced",
+    "question_text": "For a narrow screen, what is a sound first step when a two-column layout overflows?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "b",
+        "text": "Allow columns to stack and test the content at narrow widths"
+      },
+      {
+        "option_id": "c",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "d",
+        "text": "Return the unfiltered input unchanged"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-html-mcq-021",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "html-images"
+    ],
+    "question_type": "mcq",
+    "difficulty": "beginner",
+    "question_text": "Which attribute provides alternative text for a meaningful image?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "alt"
+      },
+      {
+        "option_id": "b",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "c",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "d",
+        "text": "Convert the requirement into a visual-only convention"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-sql-mcq-022",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-select"
+    ],
+    "question_type": "mcq",
+    "difficulty": "intermediate",
+    "question_text": "Which SQL construct prevents duplicate rows in a result set?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "b",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "c",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "d",
+        "text": "DISTINCT"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-sql-mcq-023",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "relational-databases"
+    ],
+    "question_type": "mcq",
+    "difficulty": "advanced",
+    "question_text": "Which database constraint prevents two rows from sharing an identifier?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "b",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "c",
+        "text": "PRIMARY KEY"
+      },
+      {
+        "option_id": "d",
+        "text": "Use an unrelated global setting"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-git-mcq-024",
+    "skill_ids": [
+      "git"
+    ],
+    "topic_ids": [
+      "git-branching"
+    ],
+    "question_type": "mcq",
+    "difficulty": "beginner",
+    "question_text": "Which Git operation is appropriate to integrate reviewed commits from a feature branch?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "b",
+        "text": "Merge the feature branch after review"
+      },
+      {
+        "option_id": "c",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "d",
+        "text": "Return the unfiltered input unchanged"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-github-mcq-025",
+    "skill_ids": [
+      "github"
+    ],
+    "topic_ids": [
+      "continuous-integration"
+    ],
+    "question_type": "mcq",
+    "difficulty": "intermediate",
+    "question_text": "What should a GitHub Actions workflow generally do before publishing a build?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Run the project checks and stop on failure"
+      },
+      {
+        "option_id": "b",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "c",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "d",
+        "text": "Convert the requirement into a visual-only convention"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-fastapi-mcq-026",
+    "skill_ids": [
+      "fastapi"
+    ],
+    "topic_ids": [
+      "http-status-codes"
+    ],
+    "question_type": "mcq",
+    "difficulty": "advanced",
+    "question_text": "Which response status usually signals that a request lacks valid authentication?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "b",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "c",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "d",
+        "text": "401 Unauthorized"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-sql-mcq-027",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "database-transactions"
+    ],
+    "question_type": "mcq",
+    "difficulty": "beginner",
+    "question_text": "What does a database transaction provide when several related changes must succeed together?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "b",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "c",
+        "text": "Atomic commit or rollback"
+      },
+      {
+        "option_id": "d",
+        "text": "Use an unrelated global setting"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-html-mcq-028",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "css-units"
+    ],
+    "question_type": "mcq",
+    "difficulty": "intermediate",
+    "question_text": "Which CSS unit scales relative to the root element font size?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Convert the requirement into a visual-only convention"
+      },
+      {
+        "option_id": "b",
+        "text": "rem"
+      },
+      {
+        "option_id": "c",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "d",
+        "text": "Return the unfiltered input unchanged"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-ui-ux-mcq-029",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "accessible-names"
+    ],
+    "question_type": "mcq",
+    "difficulty": "advanced",
+    "question_text": "Which accessible name technique should be preferred when a visible label is possible?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "options": [
+      {
+        "option_id": "a",
+        "text": "Use a visible, programmatically associated label"
+      },
+      {
+        "option_id": "b",
+        "text": "Use an unrelated global setting"
+      },
+      {
+        "option_id": "c",
+        "text": "Return the unfiltered input unchanged"
+      },
+      {
+        "option_id": "d",
+        "text": "Convert the requirement into a visual-only convention"
+      }
+    ]
+  },
+  {
+    "question_id": "ts-python-scenario-030",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-edge-cases"
+    ],
+    "question_type": "scenario",
+    "difficulty": "beginner",
+    "question_text": "A Python helper receives an empty list and later divides by its length. Describe a safe contract and the test you would add.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-javascript-scenario-031",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-events"
+    ],
+    "question_type": "scenario",
+    "difficulty": "intermediate",
+    "question_text": "A JavaScript click handler runs twice after a component remount. How would you investigate and prevent duplicate listeners?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-html-scenario-032",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "accessible-forms"
+    ],
+    "question_type": "scenario",
+    "difficulty": "advanced",
+    "question_text": "A form?s placeholder is the only visible description of an email field. What failure can result and how would you correct it?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-html-scenario-033",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "responsive-layout"
+    ],
+    "question_type": "scenario",
+    "difficulty": "beginner",
+    "question_text": "A product card grid fits desktop but causes horizontal scrolling on a phone. What would you inspect and change?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-sql-scenario-034",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-joins"
+    ],
+    "question_type": "scenario",
+    "difficulty": "intermediate",
+    "question_text": "A SQL report duplicates each customer after joining orders. How would you diagnose the result?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-git-scenario-035",
+    "skill_ids": [
+      "git"
+    ],
+    "topic_ids": [
+      "git-secrets"
+    ],
+    "question_type": "scenario",
+    "difficulty": "advanced",
+    "question_text": "A developer committed an environment file with credentials. What immediate repository response is needed?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-github-scenario-036",
+    "skill_ids": [
+      "github"
+    ],
+    "topic_ids": [
+      "api-review"
+    ],
+    "question_type": "scenario",
+    "difficulty": "beginner",
+    "question_text": "A pull request changes a response field used by clients. What evidence should a reviewer request?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-fastapi-scenario-037",
+    "skill_ids": [
+      "fastapi"
+    ],
+    "topic_ids": [
+      "authorization"
+    ],
+    "question_type": "scenario",
+    "difficulty": "intermediate",
+    "question_text": "A FastAPI endpoint receives a claimed uid in JSON and uses it to read another profile. What authorization flaw exists?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-ui-ux-scenario-038",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "focus-visibility"
+    ],
+    "question_type": "scenario",
+    "difficulty": "advanced",
+    "question_text": "A user with low vision cannot tell which menu item has keyboard focus. What should the team examine?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-ui-ux-scenario-039",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "accessible-names"
+    ],
+    "question_type": "scenario",
+    "difficulty": "beginner",
+    "question_text": "A screen-reader user hears ?button? with no purpose on a save control. What should change?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-sql-scenario-040",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "query-performance"
+    ],
+    "question_type": "scenario",
+    "difficulty": "intermediate",
+    "question_text": "A SQL query is fast on small test data but slow in production. What should be examined before adding indexes?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-git-scenario-041",
+    "skill_ids": [
+      "git"
+    ],
+    "topic_ids": [
+      "merge-conflicts"
+    ],
+    "question_type": "scenario",
+    "difficulty": "advanced",
+    "question_text": "A Git merge reports conflicts in a shared configuration file. How should the developer resolve it safely?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-github-scenario-042",
+    "skill_ids": [
+      "github"
+    ],
+    "topic_ids": [
+      "reproducible-builds"
+    ],
+    "question_type": "scenario",
+    "difficulty": "beginner",
+    "question_text": "A CI job passes locally but fails on a clean runner due to an undeclared file. What is the likely issue?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-fastapi-scenario-043",
+    "skill_ids": [
+      "fastapi"
+    ],
+    "topic_ids": [
+      "request-validation"
+    ],
+    "question_type": "scenario",
+    "difficulty": "intermediate",
+    "question_text": "An API returns different validation errors for equivalent invalid inputs. How can this be improved?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-html-scenario-044",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "responsive-navigation"
+    ],
+    "question_type": "scenario",
+    "difficulty": "advanced",
+    "question_text": "A desktop navigation is squeezed at tablet width. How should a responsive breakpoint be selected?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-ui-ux-scenario-045",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "color-accessibility"
+    ],
+    "question_type": "scenario",
+    "difficulty": "beginner",
+    "question_text": "A chart uses red and green alone to communicate status. What accessibility issue should be addressed?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-fastapi-scenario-046",
+    "skill_ids": [
+      "fastapi"
+    ],
+    "topic_ids": [
+      "http-idempotency"
+    ],
+    "question_type": "scenario",
+    "difficulty": "intermediate",
+    "question_text": "A DELETE endpoint succeeds twice but the second request causes an error. What API property should be considered?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-sql-scenario-047",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "schema-migrations"
+    ],
+    "question_type": "scenario",
+    "difficulty": "advanced",
+    "question_text": "A database migration adds a required column while older application instances still run. What rollout concern matters?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-git-scenario-048",
+    "skill_ids": [
+      "git"
+    ],
+    "topic_ids": [
+      "history-recovery"
+    ],
+    "question_type": "scenario",
+    "difficulty": "beginner",
+    "question_text": "A teammate force-pushed a shared branch and local work diverged. What information should be checked before recovery?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-ui-ux-scenario-049",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "usability-research"
+    ],
+    "question_type": "scenario",
+    "difficulty": "intermediate",
+    "question_text": "Users repeatedly abandon a multi-step registration flow. What research step can identify the cause?",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-python-practical_task-050",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-testing"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "advanced",
+    "question_text": "Write a Python test matrix for a function that returns the first matching item, including boundary cases.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-javascript-practical_task-051",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "input-parsing"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "beginner",
+    "question_text": "Draft a JavaScript function contract for safely parsing an optional numeric form field.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-html-practical_task-052",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "semantic-structure"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "intermediate",
+    "question_text": "Sketch semantic HTML for a page with a header, primary navigation, main article, and related links.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-html-practical_task-053",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "responsive-tables"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "advanced",
+    "question_text": "Prepare a responsive test plan for a data table used at narrow and wide viewports.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-sql-practical_task-054",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-aggregation"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "beginner",
+    "question_text": "Given orders(order_id, customer_id, total), write SQL to return each customer and their summed total.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-git-practical_task-055",
+    "skill_ids": [
+      "git"
+    ],
+    "topic_ids": [
+      "branch-workflow"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "intermediate",
+    "question_text": "Create a safe Git workflow for a one-file bug fix that must be reviewed.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-github-practical_task-056",
+    "skill_ids": [
+      "github"
+    ],
+    "topic_ids": [
+      "pull-request-quality"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "advanced",
+    "question_text": "Write a pull-request checklist for a small API change.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-fastapi-practical_task-057",
+    "skill_ids": [
+      "fastapi"
+    ],
+    "topic_ids": [
+      "fastapi-validation"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "beginner",
+    "question_text": "Outline a FastAPI route input-validation checklist for a bounded list endpoint.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-ui-ux-practical_task-058",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "keyboard-audit"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "intermediate",
+    "question_text": "Audit a screen mockup for keyboard-only operation.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-ui-ux-practical_task-059",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "visual-accessibility"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "advanced",
+    "question_text": "Create a contrast and non-color communication review for a status badge.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-sql-practical_task-060",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-review"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "beginner",
+    "question_text": "Write a SQL review checklist for a user-facing search query.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-git-practical_task-061",
+    "skill_ids": [
+      "git"
+    ],
+    "topic_ids": [
+      "staging-safety"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "intermediate",
+    "question_text": "Plan how to undo an accidental staged file before committing.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-github-practical_task-062",
+    "skill_ids": [
+      "github"
+    ],
+    "topic_ids": [
+      "github-actions"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "advanced",
+    "question_text": "Design a CI smoke-check sequence for a documentation-only GitHub pull request.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-ui-ux-practical_task-063",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "form-errors"
+    ],
+    "question_type": "practical_task",
+    "difficulty": "beginner",
+    "question_text": "Specify an accessible error summary for an invalid multi-field form.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed"
+  },
+  {
+    "question_id": "ts-python-coding-064",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-dictionaries"
+    ],
+    "question_type": "coding",
+    "difficulty": "intermediate",
+    "question_text": "Implement `count_words(text)` returning a mapping from lowercase whitespace-delimited word to occurrence count. Ignore empty tokens.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "starter_code": "def count_words(text):\n    # Return lowercase token counts.\n    pass"
+  },
+  {
+    "question_id": "ts-javascript-coding-065",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-arrays"
+    ],
+    "question_type": "coding",
+    "difficulty": "advanced",
+    "question_text": "Implement `uniqueInOrder(values)` returning the first occurrence of each value while preserving order.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "starter_code": "function uniqueInOrder(values) {\n  // Return unique values in first-seen order.\n}"
+  },
+  {
+    "question_id": "ts-javascript-coding-066",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-functions"
+    ],
+    "question_type": "coding",
+    "difficulty": "beginner",
+    "question_text": "Implement `clamp(value, low, high)` that returns value bounded inclusively by low and high.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "starter_code": "function clamp(value, low, high) {\n  // Return a value within the inclusive bounds.\n}"
+  },
+  {
+    "question_id": "ts-sql-coding-067",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-aggregation"
+    ],
+    "question_type": "coding",
+    "difficulty": "intermediate",
+    "question_text": "Write a SQL query returning each category and its average score for categories with at least two rows.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "starter_code": "-- Return category and average_score, highest average first."
+  },
+  {
+    "question_id": "ts-javascript-coding-068",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-arrays"
+    ],
+    "question_type": "coding",
+    "difficulty": "advanced",
+    "question_text": "Implement `first_longer_than(words, limit)` returning the first word whose length exceeds limit, or null if none exists.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "starter_code": "function firstLongerThan(words, limit) {\n  // Return the first matching word or null.\n}"
+  },
+  {
+    "question_id": "ts-sql-coding-069",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-filtering"
+    ],
+    "question_type": "coding",
+    "difficulty": "beginner",
+    "question_text": "Write a SQL query returning email for active accounts in ascending email order.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "starter_code": "-- Table accounts(email TEXT, active INTEGER). Return email only."
+  },
+  {
+    "question_id": "ts-python-coding-070",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-functions"
+    ],
+    "question_type": "coding",
+    "difficulty": "intermediate",
+    "question_text": "Implement `safe_average(values)` returning null for an empty list and the arithmetic mean otherwise.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "starter_code": "def safe_average(values):\n    # Return None for empty input.\n    pass"
+  },
+  {
+    "question_id": "ts-python-coding-071",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-strings"
+    ],
+    "question_type": "coding",
+    "difficulty": "advanced",
+    "question_text": "Implement `slugify(text)` using lowercase letters/numbers and single hyphens between nonempty words.",
+    "provenance": "Original question authored for TalentScope.ai for this data-preparation task; not derived from an external question bank.",
+    "license": "TalentScope.ai original assessment content; no third-party question text included.",
+    "verification_status": "draft_unreviewed",
+    "starter_code": "import re\ndef slugify(text):\n    # Normalize text to a lowercase hyphen-separated slug.\n    pass"
+  }
+]

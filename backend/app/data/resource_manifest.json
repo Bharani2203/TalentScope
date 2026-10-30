@@ -1,0 +1,489 @@
+{
+  "manifest_version": "1.0.0",
+  "created_date": "2026-10-25",
+  "inventory_scope": "Learning resources, reference taxonomies/adoption data, and existing SQLite reference stores; source files and databases inspected read-only.",
+  "datasets": [
+    {
+      "dataset_id": "onet-reference",
+      "source": "U.S. Department of Labor, Employment and Training Administration, O*NET Database",
+      "version": "Unresolved locally: reference manifest/README indicate 29.x / 30.0; backend source registry says 28.0; CSVs have no definitive release field.",
+      "format": "CSV",
+      "license_attribution": "Creative Commons Attribution 4.0 International (CC BY 4.0); attribute O*NET, U.S. Department of Labor, Employment and Training Administration. O*NET is a USDOL/ETA trademark.",
+      "skills_topics": [
+        "occupations",
+        "software/technology skills",
+        "essential competencies",
+        "related occupations"
+      ],
+      "import_status": "existing_local_and_imported_into_configured_reference_store",
+      "intended_use": "Existing read-only occupational context for taxonomy lookup and Phase 9 recommendations; not a market-demand measure.",
+      "files": [
+        {
+          "path": "backend/data/reference/occupation_data.csv",
+          "format": "CSV",
+          "size_bytes": 268030,
+          "records": 1016,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend/data/reference/software_skills.csv",
+          "format": "CSV",
+          "size_bytes": 3557545,
+          "records": 31821,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend/data/reference/essential_skills.csv",
+          "format": "CSV",
+          "size_bytes": 2328135,
+          "records": 18200,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend/data/reference/related_occupations.csv",
+          "format": "CSV",
+          "size_bytes": 2051148,
+          "records": 18460,
+          "import_status": "existing_local"
+        }
+      ],
+      "observed_findings": {
+        "software_skills_rows": 31821,
+        "software_skills_distinct_title_values": 923,
+        "essential_skills_rows": 18200,
+        "essential_skills_distinct_element_names": 10,
+        "essential_skills_distinct_occupation_codes": 910,
+        "manifest_claims_software_tools": 8753,
+        "manifest_readme_version_conflict": true
+      }
+    },
+    {
+      "dataset_id": "github-innovation-graph",
+      "source": "GitHub Innovation Graph",
+      "version": "Quarterly data; local reference metadata says 2020 Q1 through 2026 Q1.",
+      "format": "CSV",
+      "license_attribution": "Creative Commons Attribution 4.0 International (CC BY 4.0); attribute GitHub Innovation Graph / GitHub, Inc.",
+      "skills_topics": [
+        "programming languages",
+        "repository topic tags",
+        "developer activity by quarter and country"
+      ],
+      "import_status": "existing_local_and_imported_into_configured_reference_store",
+      "intended_use": "Developer adoption/activity context only; not job demand, proficiency, or learning outcomes.",
+      "files": [
+        {
+          "path": "backend/data/reference/languages.csv",
+          "format": "CSV",
+          "size_bytes": 5832978,
+          "records": 180338,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend/data/reference/topics.csv",
+          "format": "CSV",
+          "size_bytes": 1892445,
+          "records": 82591,
+          "import_status": "existing_local"
+        }
+      ]
+    },
+    {
+      "dataset_id": "esco-classification-en",
+      "source": "European Commission ESCO classification, English release",
+      "version": "v1.2.1 (folder name, project manifest, and backend source registry agree).",
+      "format": "19 extracted CSV tables",
+      "license_attribution": "European Union reuse/open-data terms as recorded in the source manifest; attribution to European Union. Confirm exact applicable notice before republishing source tables.",
+      "skills_topics": [
+        "skills and competences",
+        "occupations",
+        "occupation-skill relations",
+        "digital/green skills collections"
+      ],
+      "import_status": "existing_extracted_and_imported_into_configured_reference_store",
+      "intended_use": "Existing occupational and skill taxonomy/crosswalk context; do not duplicate into learning catalog or describe associations as employer requirements.",
+      "files": [
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\broaderRelationsOccPillar_en.csv",
+          "format": "CSV",
+          "size_bytes": 730008,
+          "records": 3648,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\broaderRelationsSkillPillar_en.csv",
+          "format": "CSV",
+          "size_bytes": 4944592,
+          "records": 20819,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\conceptSchemes_en.csv",
+          "format": "CSV",
+          "size_bytes": 941042,
+          "records": 20,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\dictionary_en.csv",
+          "format": "CSV",
+          "size_bytes": 19719,
+          "records": 160,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\digCompSkillsCollection_en.csv",
+          "format": "CSV",
+          "size_bytes": 18759,
+          "records": 25,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\digitalSkillsCollection_en.csv",
+          "format": "CSV",
+          "size_bytes": 811101,
+          "records": 1284,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\greenShareOcc_en.csv",
+          "format": "CSV",
+          "size_bytes": 452849,
+          "records": 3590,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\greenSkillsCollection_en.csv",
+          "format": "CSV",
+          "size_bytes": 455125,
+          "records": 629,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\ISCOGroups_en.csv",
+          "format": "CSV",
+          "size_bytes": 966601,
+          "records": 619,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\languageSkillsCollection_en.csv",
+          "format": "CSV",
+          "size_bytes": 144359,
+          "records": 359,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\occupations_en.csv",
+          "format": "CSV",
+          "size_bytes": 3047703,
+          "records": 3043,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\occupationSkillRelations_en.csv",
+          "format": "CSV",
+          "size_bytes": 27986628,
+          "records": 126051,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\researchOccupationsCollection_en.csv",
+          "format": "CSV",
+          "size_bytes": 126900,
+          "records": 122,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\researchSkillsCollection_en.csv",
+          "format": "CSV",
+          "size_bytes": 27033,
+          "records": 40,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\skillGroups_en.csv",
+          "format": "CSV",
+          "size_bytes": 340935,
+          "records": 640,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\skills_en.csv",
+          "format": "CSV",
+          "size_bytes": 9302000,
+          "records": 13960,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\skillsHierarchy_en.csv",
+          "format": "CSV",
+          "size_bytes": 381733,
+          "records": 640,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\skillSkillRelations_en.csv",
+          "format": "CSV",
+          "size_bytes": 1031275,
+          "records": 5818,
+          "import_status": "existing_local"
+        },
+        {
+          "path": "backend\\data\\reference\\ESCO dataset - v1.2.1 - classification - en - csv\\transversalSkillsCollection_en.csv",
+          "format": "CSV",
+          "size_bytes": 57293,
+          "records": 95,
+          "import_status": "existing_local"
+        }
+      ],
+      "observed_findings": {
+        "csv_file_count": 19,
+        "skills_rows": 13960,
+        "skills_unique_concept_uri": 13939,
+        "skills_duplicate_rows_skipped_by_ingestion": 21,
+        "occupations_rows": 3043,
+        "occupations_unique_concept_uri": 3039,
+        "occupation_duplicate_rows_skipped_by_ingestion": 4,
+        "occupation_skill_relations_rows": 126051,
+        "manifest_zip_filename_present": false,
+        "extracted_directory_present": true,
+        "extracted_csv_total_bytes": 51785655
+      }
+    },
+    {
+      "dataset_id": "configured-reference-sqlite",
+      "source": "Existing TalentScope.ai reference store, populated from O*NET, ESCO, and GitHub CSVs.",
+      "version": "Schema/data version follows source ingestion log; O*NET source release remains unresolved.",
+      "format": "SQLite",
+      "license_attribution": "Derived data inherits source attribution and license obligations recorded for O*NET, ESCO, and GitHub.",
+      "skills_topics": [
+        "existing O*NET/ESCO reference tables",
+        "GitHub language/topic adoption tables"
+      ],
+      "import_status": "existing_configured_database_read_only_inspected",
+      "intended_use": "Continue using current ReferenceStore; no new DB or duplicate taxonomy records.",
+      "files": [
+        {
+          "path": "backend/data/skill_intelligence.sqlite3",
+          "format": "SQLite",
+          "size_bytes": 318824448,
+          "records": 475455,
+          "import_status": "existing_configured_reference_store",
+          "tables": {
+            "ref_onet_occupations": 1016,
+            "ref_onet_software_skills": 31821,
+            "ref_onet_essential_skills": 18200,
+            "ref_onet_related_occupations": 18460,
+            "ref_github_language_adoption": 180338,
+            "ref_github_topic_adoption": 82591,
+            "ref_esco_skills": 13939,
+            "ref_esco_occupation_skill_relations": 126051,
+            "ref_esco_occupations": 3039
+          },
+          "table_count": 17
+        }
+      ],
+      "configured_path": "backend/data/skill_intelligence.sqlite3"
+    },
+    {
+      "dataset_id": "additional-local-sqlite-file",
+      "source": "Existing project-root SQLite file; provenance not established.",
+      "version": "Unknown.",
+      "format": "SQLite",
+      "license_attribution": "Unknown; do not republish until provenance is established.",
+      "skills_topics": [
+        "none verified"
+      ],
+      "import_status": "existing_unconfigured_file_not_modified",
+      "intended_use": "No integration recommended until provenance and purpose are established.",
+      "files": [
+        {
+          "path": "data/skill_intelligence.sqlite3",
+          "format": "SQLite",
+          "size_bytes": 233472,
+          "records": 0,
+          "import_status": "existing_unconfigured_local_file_not_modified",
+          "tables": {
+            "ref_onet_occupations": 0,
+            "ref_onet_software_skills": 0,
+            "ref_onet_essential_skills": 0,
+            "ref_onet_related_occupations": 0,
+            "ref_github_language_adoption": 0,
+            "ref_github_topic_adoption": 0,
+            "ref_esco_skills": 0,
+            "ref_esco_occupations": 0,
+            "ref_esco_occupation_skill_relations": 0
+          },
+          "table_count": 17
+        }
+      ]
+    },
+    {
+      "dataset_id": "learning-resource-catalog",
+      "source": "Official Python, freeCodeCamp, MDN, PostgreSQL, Git, GitHub, FastAPI, and W3C WAI links; metadata curated from downloaded source metadata and official provider pages.",
+      "version": "Catalog metadata version 1; links may change and should be periodically re-verified.",
+      "format": "JSON",
+      "license_attribution": "Metadata curated by TalentScope.ai. No freeCodeCamp or MDN lesson text/code copied. freeCodeCamp curriculum is copyright ? freeCodeCamp.org; MDN prose generally CC BY-SA 2.5 or later, examples separately licensed.",
+      "skills_topics": [
+        "accessibility",
+        "algorithms",
+        "api-development",
+        "collaboration",
+        "css-fundamentals",
+        "data-structures",
+        "fastapi",
+        "git",
+        "git-fundamentals",
+        "github",
+        "github-workflows",
+        "html",
+        "html-fundamentals",
+        "inclusive-design",
+        "javascript",
+        "javascript-fundamentals",
+        "python",
+        "python-fundamentals",
+        "python-web-development",
+        "relational-databases",
+        "responsive-web-design",
+        "scientific-computing",
+        "sql",
+        "sql-fundamentals",
+        "ui_ux",
+        "usability",
+        "version-control",
+        "web-development"
+      ],
+      "import_status": "metadata_only_and_externally_linked",
+      "intended_use": "Serve verified official resource links and topic mappings; curated video metadata is held separately; generated search results are unverified.",
+      "files": [
+        {
+          "path": "backend/app/data/learning_resources.json",
+          "format": "JSON",
+          "size_bytes": 10909,
+          "records": 14,
+          "import_status": "curated_metadata_external_links"
+        }
+      ],
+      "entry_count": 14
+    },
+    {
+      "dataset_id": "talentscope-original-question-bank",
+      "source": "Original prompts authored for TalentScope.ai. No external questions copied.",
+      "version": "Draft 2; all questions remain unreviewed.",
+      "format": "JSON",
+      "license_attribution": "TalentScope.ai original assessment content; no third-party question text included.",
+      "skills_topics": [
+        "python",
+        "javascript",
+        "html",
+        "responsive web/CSS",
+        "sql",
+        "git",
+        "github",
+        "fastapi",
+        "ui_ux"
+      ],
+      "import_status": "original_local_draft; answers_and_coding_fixtures_backend_only",
+      "intended_use": "Question-bank source data for a future assessment feature; not loaded by an API or UI in this phase.",
+      "files": [
+        {
+          "path": "backend/app/data/question_bank/questions_public.json",
+          "format": "JSON",
+          "size_bytes": 65001,
+          "records": 80,
+          "import_status": "original_authored_local"
+        },
+        {
+          "path": "backend/app/data/question_bank/private/answer_keys.json",
+          "format": "JSON",
+          "size_bytes": 59419,
+          "records": 80,
+          "import_status": "original_authored_private_backend_only"
+        },
+        {
+          "path": "backend/app/data/question_bank/private/coding_test_cases.json",
+          "format": "JSON",
+          "size_bytes": 7743,
+          "records": 26,
+          "import_status": "original_authored_private_backend_only"
+        }
+      ],
+      "question_count": 80,
+      "question_type_counts": {
+        "coding": 10,
+        "mcq": 30,
+        "practical_task": 16,
+        "scenario": 24
+      },
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "dataset_id": "curated-youtube-video-metadata",
+      "source": "YouTube video listings; metadata manually checked against listing title, video ID, channel, and topic description on 2026-10-25.",
+      "version": "Point-in-time metadata verification; listings and availability may change.",
+      "format": "JSON",
+      "license_attribution": "Link and factual metadata only; video content remains hosted by its uploader. Reuse license not independently verified.",
+      "skills_topics": [
+        "api-development",
+        "css-fundamentals",
+        "fastapi",
+        "fastapi-fundamentals",
+        "git",
+        "git-fundamentals",
+        "github",
+        "html",
+        "html-fundamentals",
+        "javascript",
+        "javascript-fundamentals",
+        "mysql",
+        "programming-basics",
+        "pull-requests",
+        "python",
+        "python-api",
+        "relational-databases",
+        "responsive-web-design",
+        "sql",
+        "sql-fundamentals",
+        "version-control"
+      ],
+      "import_status": "curated_metadata_external_links",
+      "intended_use": "Offer a small curated video list; fallback YouTube search results must be labeled unverified.",
+      "files": [
+        {
+          "path": "backend/app/data/youtube_videos.json",
+          "format": "JSON",
+          "size_bytes": 26066,
+          "records": 47,
+          "import_status": "metadata_only_external_links"
+        }
+      ],
+      "entry_count": 47
+    }
+  ],
+  "source_transformations": [
+    {
+      "source": "C:/Users/akash/Downloads/freeCodeCamp-main/freeCodeCamp-main/curriculum/challenges/english/certifications/{python-v9,javascript-v9,relational-databases-v9,responsive-web-design-v9}.yml",
+      "transformation": "Factual title and certification slug metadata used to curate catalog titles, mappings, provenance and official links. YAML, lessons, challenge/test content, solutions and exam data were not copied.",
+      "license_attribution": "Repository software is BSD-3-Clause; README separately marks curriculum content copyright ? 2014 freeCodeCamp.org. Curriculum treated as non-redistributable.",
+      "target": "backend/app/data/learning_resources.json"
+    },
+    {
+      "source": "C:/Users/akash/Downloads/content-main/content-main",
+      "transformation": "MDN source inspected; no documentation, examples, generated data or assets copied. Only official-link metadata retained.",
+      "license_attribution": "MDN prose CC BY-SA 2.5 or later; code examples have distinct CC0/MIT history. No content redistributed.",
+      "target": "backend/app/data/learning_resources.json"
+    }
+  ],
+  "unresolved_source_metadata": [
+    {
+      "path": "backend/data/reference/manifest.json",
+      "finding": "O*NET release labels conflict across local artifacts; software tool count description conflicts with observed rows/distinct titles; ESCO ZIP path and staged/unextracted status are stale."
+    },
+    {
+      "path": "backend/data/reference/README.md",
+      "finding": "Describes ESCO ZIP as staged and unextracted while extracted folder is present; reports 873 O*NET essential-skill occupations versus 910 unique codes in supplied CSV."
+    }
+  ],
+  "generated_at": "2026-10-25"
+}

@@ -152,6 +152,9 @@ class TrendingSkill(SkillModel):
     trend: str | None = None
     confidence: float | None = None
     source: str | None = None
+    is_baseline_only: bool = False
+    volume: float | int | None = None
+    total_observations: int | None = None
 
 
 class SkillTrend(SkillModel):
@@ -178,6 +181,8 @@ class SkillTrend(SkillModel):
     series_id: str | None = None
     data_origin: Literal["real", "demo", "synthetic", "test"] | None = None
     series_provenance: dict[str, Any] | None = None
+    is_baseline_only: bool = False
+    total_observations: int | None = None
 
 
 class SelectedSkillIntelligence(SkillModel):
@@ -201,6 +206,7 @@ class SelectedSkillIntelligence(SkillModel):
     readiness_state: str | None = None
     blocking_reasons: list[str] = Field(default_factory=list)
     series_provenance: dict[str, Any] | None = None
+    is_baseline_only: bool = False
 
 
 class MarketCollectionRequest(SkillModel):
@@ -323,6 +329,7 @@ class SkillIntelligenceResponse(SkillModel):
     metric_results: list[IntelligenceMetricResult] = Field(default_factory=list)
     history_complete: bool = True
     history_completeness_reason: str | None = None
+    is_baseline_only: bool = False
     top_skills: list[TrendingSkill]
     skill_trends: list[SkillTrend]
     current_demand: list[dict[str, Any]] = Field(default_factory=list)

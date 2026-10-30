@@ -1,7 +1,10 @@
 // ============================================================================
-// TALENTSCOPE.AI — EMPLOYEE MY GROWTH
-// Unified role evolution, promotion readiness & career pathway platform
-// Dynamically adapts to Company-Invited Employee vs Independent Employee
+// TALENTSCOPE.AI — EMPLOYEE MY GROWTH  (Learning & Progression Hub)
+// Redesigned as an action-oriented dashboard with:
+//   • Compact Career Context banner (replaces giant standalone cards)
+//   • Skill-to-build pill badges with "Generate Roadmap" deep-links
+//   • Active Learning Plans section wired to /api/v1/learning/roadmap/progress
+//   • Development priorities styled with modern icon tags
 // ============================================================================
 
 import {
@@ -9,7 +12,6 @@ import {
   isCompanyEmployee,
   roleEvolutionData,
   careerPathsData,
-  companySignals,
   employeeLearningTrack
 } from '../../../data/employee/employee-data.js';
 import { openEmployeeModal } from '../components/EmployeeModal.js';
@@ -18,38 +20,253 @@ const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[c]);
 
-export function renderEmployeeMyGrowth() {
-  const p = getEmployeeProfile();
-  if (p.profileLoaded) {
-    const list = values => Array.isArray(values) && values.length
-      ? values.map(value => `<li>${esc(value)}</li>`).join('')
-      : '<li>Not provided yet</li>';
-    return `
-      <div class="employee-page">
-        <section class="emp-hero">
-          <div class="emp-hero-content">
-            <span class="emp-eyebrow"><i data-lucide="trending-up"></i> YOUR CAREER AND LEARNING CONTEXT</span>
-            <h1 class="emp-hero-title">My Growth</h1>
-            <p class="emp-hero-desc">This view uses your stated goals and available learning time. It does not imply verified promotion criteria or company-specific recommendations.</p>
-          </div>
-          <div class="emp-hero-actions"><a href="#/employee/skills" class="emp-btn-secondary">Review current skills</a></div>
-        </section>
-        <section class="emp-grid-4">
-          <article class="emp-card"><span class="emp-badge emp-badge-primary">Career direction · self-reported</span><h2 class="emp-card-title">${esc(p.targetRole || 'Not provided yet')}</h2><p>Current role: ${esc(p.role || 'Not provided')}</p></article>
-          <article class="emp-card"><span class="emp-badge emp-badge-primary">Weekly availability</span><h2 class="emp-card-title">${esc(p.weeklyLearningTime || 'Not provided yet')}</h2><p>Based on your onboarding response</p></article>
-        </section>
-        <section class="emp-grid-4">
-          <article class="emp-card"><h2 class="emp-card-title">Development priorities</h2><ul>${list(p.growthPriorities)}</ul></article>
-          <article class="emp-card"><h2 class="emp-card-title">Skills you want to build</h2><ul>${list(p.desiredSkills)}</ul></article>
-          <article class="emp-card"><h2 class="emp-card-title">Preferred support</h2><ul>${list(p.preferredHelp)}</ul></article>
-        </section>
-      </div>
-    `;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function renderSkillBadges(skills, learningRoute) {
+  if (!Array.isArray(skills) || !skills.length) {
+    return `<span style="font-size:13px;color:var(--emp-text-muted);">No target skills recorded yet. Add skills in <a href="#/employee/skills" style="color:var(--emp-primary);">My Skills</a>.</span>`;
   }
+  return skills.map(skill => {
+    const encoded = encodeURIComponent(esc(skill));
+    const href = `${learningRoute}?skill=${encoded}`;
+    return `
+      <span class="emp-growth-skill-badge" title="Generate a roadmap for ${esc(skill)}">
+        <span class="emp-growth-skill-name">${esc(skill)}</span>
+        <a class="emp-growth-roadmap-btn" href="${href}" aria-label="Generate roadmap for ${esc(skill)}">
+          <i data-lucide="map" style="width:11px;height:11px;"></i>
+          <span>Roadmap</span>
+        </a>
+      </span>`;
+  }).join('');
+}
+
+function renderPriorityTags(priorities) {
+  if (!Array.isArray(priorities) || !priorities.length) {
+    return `<span style="font-size:13px;color:var(--emp-text-muted);">None recorded yet.</span>`;
+  }
+  const icons = ['target', 'trophy', 'zap', 'star', 'flag'];
+  return priorities.map((p, i) => `
+    <span class="emp-growth-priority-tag">
+      <i data-lucide="${icons[i % icons.length]}" style="width:13px;height:13px;flex-shrink:0;"></i>
+      ${esc(p)}
+    </span>`).join('');
+}
+
+function renderPreferredHelp(items) {
+  if (!Array.isArray(items) || !items.length) return '';
+  return items.map(h => `<span class="emp-growth-support-tag">${esc(h)}</span>`).join('');
+}
+
+function renderActivePlanCard(plan, learningRoute = '#/employee/learning') {
+  const pct = plan.progress_percent ?? 0;
+  const total = plan.total_milestones ?? 0;
+  const done = plan.completed_milestones ?? 0;
+  const current = plan.current_milestone ?? 'Getting started…';
+  const next = plan.next_milestone;
+  const title = plan.title ?? 'Active Learning Plan';
+  return `
+    <div class="emp-growth-plan-card">
+      <div class="emp-growth-plan-header">
+        <div class="emp-icon-box emp-icon-box--primary" style="width:40px;height:40px;border-radius:12px;flex-shrink:0;">
+          <i data-lucide="route"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div class="emp-growth-plan-title">${esc(title)}</div>
+          ${plan.plan_goal ? `<div class="emp-growth-plan-goal">${esc(plan.plan_goal)}</div>` : ''}
+        </div>
+        <a href="${learningRoute}" class="emp-btn-primary emp-btn-sm" style="white-space:nowrap;">
+          <i data-lucide="play" style="width:13px;height:13px;"></i>
+          <span>Continue</span>
+        </a>
+      </div>
+
+      <div class="emp-progress-bar" style="height:8px;margin:14px 0 10px;">
+        <div class="emp-progress-fill" style="width:${pct}%;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span style="font-size:12px;color:var(--emp-text-muted);">${done} of ${total} milestones complete</span>
+        <span class="emp-badge emp-badge-primary" style="font-size:11px;">${pct}% done</span>
+      </div>
+
+      <div class="emp-growth-plan-milestones">
+        <div class="emp-growth-ms-row emp-growth-ms-current">
+          <div class="emp-growth-ms-dot emp-growth-ms-dot--active"></div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--emp-primary);text-transform:uppercase;letter-spacing:.04em;">Current</div>
+            <div style="font-size:13.5px;font-weight:650;color:var(--emp-text-primary);">${esc(current)}</div>
+          </div>
+        </div>
+        ${next ? `
+        <div class="emp-growth-ms-row" style="opacity:0.65;">
+          <div class="emp-growth-ms-dot"></div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--emp-text-muted);text-transform:uppercase;letter-spacing:.04em;">Up Next</div>
+            <div style="font-size:13px;color:var(--emp-text-secondary);">${esc(next)}</div>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>`;
+}
+
+function renderLoadingPlanCard() {
+  return `
+    <div class="emp-growth-plan-card" id="growthActivePlanContainer">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 0;">
+        <div class="emp-skeleton-shimmer" style="width:40px;height:40px;border-radius:12px;flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div class="emp-skeleton-shimmer" style="width:60%;height:16px;border-radius:6px;margin-bottom:8px;"></div>
+          <div class="emp-skeleton-shimmer" style="width:40%;height:12px;border-radius:5px;"></div>
+        </div>
+      </div>
+      <div class="emp-skeleton-shimmer" style="width:100%;height:8px;border-radius:4px;margin:14px 0 10px;"></div>
+      <div class="emp-skeleton-shimmer" style="width:50%;height:12px;border-radius:4px;"></div>
+    </div>`;
+}
+
+function renderEmptyPlanCard(learningRoute) {
+  return `
+    <div class="emp-growth-plan-card emp-growth-plan-card--empty" id="growthActivePlanContainer">
+      <div class="emp-icon-box emp-icon-box--primary" style="width:44px;height:44px;border-radius:14px;margin:0 auto 14px;">
+        <i data-lucide="map" style="width:22px;height:22px;"></i>
+      </div>
+      <h3 style="font-size:16px;font-weight:800;color:var(--emp-text-primary);text-align:center;margin:0 0 8px;">No Active Learning Plan</h3>
+      <p style="font-size:13px;color:var(--emp-text-secondary);text-align:center;margin:0 0 18px;line-height:1.55;">
+        Build a personalised roadmap from your target skills below — or explore the full Learning workspace.
+      </p>
+      <a href="${learningRoute}" class="emp-btn-primary" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;">
+        <i data-lucide="sparkles" style="width:14px;height:14px;"></i>
+        <span>Create Your First Plan</span>
+      </a>
+    </div>`;
+}
+
+// ─── Main render: profile loaded ──────────────────────────────────────────────
+
+function renderProfileGrowthHub(p) {
+  const learningRoute = '#/employee/learning';
+  const desiredSkills = Array.isArray(p.desiredSkills) ? p.desiredSkills : [];
+  const growthPriorities = Array.isArray(p.growthPriorities) ? p.growthPriorities : [];
+  const preferredHelp = Array.isArray(p.preferredHelp) ? p.preferredHelp : [];
+  const targetRole = esc(p.targetRole || 'Not set yet');
+  const currentRole = esc(p.role || 'Not provided');
+  const weeklyTime = esc(p.weeklyLearningTime || 'Not set yet');
+
+  return `
+    <div class="employee-page">
+      <!-- HERO -->
+      <section class="emp-hero">
+        <div class="emp-hero-content">
+          <span class="emp-eyebrow"><i data-lucide="trending-up"></i> LEARNING &amp; PROGRESSION HUB</span>
+          <h1 class="emp-hero-title">My Growth</h1>
+          <p class="emp-hero-desc">Your personalised learning roadmaps, development priorities, and career progression tracker.</p>
+        </div>
+        <div class="emp-hero-actions">
+          <a href="${learningRoute}" class="emp-btn-primary">
+            <i data-lucide="sparkles"></i>
+            <span>Open Learning Workspace</span>
+          </a>
+          <a href="#/employee/skills" class="emp-btn-secondary">
+            <i data-lucide="layers-3"></i>
+            <span>My Skills</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- CAREER CONTEXT BANNER -->
+      <section class="emp-growth-context-banner">
+        <div class="emp-growth-context-item">
+          <span class="emp-growth-context-label"><i data-lucide="compass" style="width:13px;height:13px;"></i> Career Direction</span>
+          <span class="emp-growth-context-value">${targetRole}</span>
+          <span class="emp-growth-context-sub">from <strong>${currentRole}</strong></span>
+        </div>
+        <div class="emp-growth-context-divider"></div>
+        <div class="emp-growth-context-item">
+          <span class="emp-growth-context-label"><i data-lucide="clock" style="width:13px;height:13px;"></i> Weekly Availability</span>
+          <span class="emp-growth-context-value">${weeklyTime}</span>
+          <span class="emp-growth-context-sub">self-reported learning time</span>
+        </div>
+        ${preferredHelp.length ? `
+        <div class="emp-growth-context-divider"></div>
+        <div class="emp-growth-context-item" style="flex:2;min-width:0;">
+          <span class="emp-growth-context-label"><i data-lucide="life-buoy" style="width:13px;height:13px;"></i> Preferred Support</span>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">${renderPreferredHelp(preferredHelp)}</div>
+        </div>` : ''}
+      </section>
+
+      <!-- 2-COLUMN HUB LAYOUT -->
+      <div class="emp-growth-hub-layout">
+
+        <!-- LEFT: Active Learning Plans -->
+        <section class="emp-growth-panel">
+          <div class="emp-growth-panel-header">
+            <div>
+              <span class="emp-eyebrow" style="font-size:11px;"><i data-lucide="route"></i> ACTIVE LEARNING PLANS</span>
+              <h2 style="font-size:17px;font-weight:850;color:var(--emp-text-primary);margin:4px 0 0;">Current Curriculum</h2>
+            </div>
+            <a href="${learningRoute}" class="emp-btn-secondary emp-btn-sm">
+              <i data-lucide="external-link" style="width:13px;height:13px;"></i>
+              <span>Full Workspace</span>
+            </a>
+          </div>
+          <!-- Plan card injected async -->
+          <div id="growthActivePlanContainer">
+            ${renderLoadingPlanCard()}
+          </div>
+        </section>
+
+        <!-- RIGHT: Goals & Skills -->
+        <div class="emp-growth-sidebar">
+
+          <!-- Development Priorities -->
+          <section class="emp-card emp-growth-card-section">
+            <div class="emp-growth-section-head">
+              <span class="emp-growth-section-icon emp-icon-box" style="background:#EEF1FF;width:32px;height:32px;border-radius:10px;">
+                <i data-lucide="target" style="width:15px;height:15px;color:var(--emp-primary);"></i>
+              </span>
+              <div>
+                <span style="font-size:11px;font-weight:700;color:var(--emp-text-muted);text-transform:uppercase;letter-spacing:.06em;">Focus Areas</span>
+                <h3 style="font-size:15px;font-weight:800;color:var(--emp-text-primary);margin:2px 0 0;">Development Priorities</h3>
+              </div>
+            </div>
+            <div class="emp-growth-priority-tags">
+              ${renderPriorityTags(growthPriorities)}
+            </div>
+          </section>
+
+          <!-- Skills to Build -->
+          <section class="emp-card emp-growth-card-section">
+            <div class="emp-growth-section-head">
+              <span class="emp-growth-section-icon emp-icon-box" style="background:#E7F9F2;width:32px;height:32px;border-radius:10px;">
+                <i data-lucide="book-open-check" style="width:15px;height:15px;color:var(--emp-success);"></i>
+              </span>
+              <div>
+                <span style="font-size:11px;font-weight:700;color:var(--emp-text-muted);text-transform:uppercase;letter-spacing:.06em;">Actionable</span>
+                <h3 style="font-size:15px;font-weight:800;color:var(--emp-text-primary);margin:2px 0 0;">Skills to Build</h3>
+              </div>
+            </div>
+            <p style="font-size:12.5px;color:var(--emp-text-muted);margin:0 0 12px;line-height:1.5;">
+              Click <strong>Roadmap</strong> on any skill to open the Learning Workspace with that skill pre-loaded.
+            </p>
+            <div class="emp-growth-skill-badges">
+              ${renderSkillBadges(desiredSkills, learningRoute)}
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ─── Main render: fallback (no profile loaded) ────────────────────────────────
+
+function renderFallbackGrowthPage() {
   const isCompany = isCompanyEmployee();
   const evo = roleEvolutionData;
   const path = careerPathsData[0];
   const learning = employeeLearningTrack;
+  const p = getEmployeeProfile();
+  const learningRoute = '#/employee/learning';
 
   return `
     <div class="employee-page">
@@ -58,15 +275,17 @@ export function renderEmployeeMyGrowth() {
         <div class="emp-hero-content">
           <span class="emp-eyebrow">
             <i data-lucide="${isCompany ? 'trending-up' : 'compass'}"></i>
-            ${isCompany ? 'PROMOTION READINESS & COMPANY ALIGNMENT' : 'CAREER ADVANCEMENT & MARKET POSITIONING'}
+            ${isCompany ? 'PROMOTION READINESS &amp; COMPANY ALIGNMENT' : 'CAREER ADVANCEMENT &amp; MARKET POSITIONING'}
           </span>
           <h1 class="emp-hero-title">
-            ${isCompany ? `Growth Pathway to ${esc(p.targetRole)} (${esc(p.targetLevel)})` : `Career Pathway: ${esc(p.targetRole)}`}
+            ${isCompany
+              ? `Growth Pathway to ${esc(p.targetRole)} (${esc(p.targetLevel)})`
+              : `Career Pathway: ${esc(p.targetRole)}`}
           </h1>
           <p class="emp-hero-desc">
-            ${isCompany 
-              ? `Tracking internal promotion milestones, role evolution, and Blackwell architecture alignment at <strong>${esc(p.company)}</strong>.`
-              : `Benchmarking your capabilities against global standards for <strong>${esc(p.targetRole)}</strong> in high-throughput distributed systems.`}
+            ${isCompany
+              ? `Tracking internal promotion milestones and role evolution at <strong>${esc(p.company)}</strong>.`
+              : `Benchmarking your capabilities against global standards for <strong>${esc(p.targetRole)}</strong>.`}
           </p>
         </div>
         <div class="emp-hero-actions">
@@ -123,7 +342,7 @@ export function renderEmployeeMyGrowth() {
           </div>
           <div class="emp-card-metric" style="color: var(--emp-attention);">2 Focus Areas</div>
           <p style="font-size: 13px; color: var(--emp-text-secondary); margin: 0;">
-            CUDA Kernel optimization & NCCL cluster interconnect tuning.
+            CUDA Kernel optimization &amp; NCCL cluster interconnect tuning.
           </p>
         </div>
 
@@ -160,7 +379,6 @@ export function renderEmployeeMyGrowth() {
           </button>
         </div>
 
-        <!-- Milestones list -->
         <div style="display: flex; flex-direction: column; gap: 12px;">
           ${path.keyMilestones.map((m, idx) => `
             <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: var(--emp-soft); border: 1px solid var(--emp-border-subtle); border-radius: 14px; gap: 16px; flex-wrap: wrap;">
@@ -197,7 +415,7 @@ export function renderEmployeeMyGrowth() {
             <div>
               <span class="emp-badge emp-badge-neutral">Current Level (${esc(p.level)})</span>
               <h3 class="emp-card-title" style="margin-top: 6px;">Current Role Scope</h3>
-              <p class="emp-card-subtitle">Autonomous Systems & Inference Pipeline Delivery</p>
+              <p class="emp-card-subtitle">Autonomous Systems &amp; Inference Pipeline Delivery</p>
             </div>
             <div class="emp-icon-box"><i data-lucide="check"></i></div>
           </div>
@@ -211,7 +429,7 @@ export function renderEmployeeMyGrowth() {
             <div>
               <span class="emp-badge emp-badge-primary">Target Level (${esc(p.targetLevel || 'L5')})</span>
               <h3 class="emp-card-title" style="margin-top: 6px;">Emerging Senior Scope</h3>
-              <p class="emp-card-subtitle">Distributed GPU Architecture & Resilient Serving</p>
+              <p class="emp-card-subtitle">Distributed GPU Architecture &amp; Resilient Serving</p>
             </div>
             <div class="emp-icon-box"><i data-lucide="sparkles"></i></div>
           </div>
@@ -221,7 +439,7 @@ export function renderEmployeeMyGrowth() {
         </div>
       </section>
 
-      <!-- ACTIVE LEARNING LAB (DLI TRACK) -->
+      <!-- ACTIVE LEARNING LAB -->
       <section class="emp-card" style="padding: 24px;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
           <div>
@@ -263,7 +481,54 @@ export function renderEmployeeMyGrowth() {
   `;
 }
 
+// ─── Public API ────────────────────────────────────────────────────────────────
+
+export function renderEmployeeMyGrowth() {
+  const p = getEmployeeProfile();
+  if (p.profileLoaded) {
+    return renderProfileGrowthHub(p);
+  }
+  return renderFallbackGrowthPage();
+}
+
 export function bindEmployeeGrowthEvents(rerender) {
+  // ── Profile-loaded path: async-fetch active learning plan ──
+  const planContainer = document.getElementById('growthActivePlanContainer');
+  if (planContainer) {
+    const p = getEmployeeProfile();
+    const learningRoute = '#/employee/learning';
+    // Fetch progress from backend
+    import('../../../api/roadmap-client.js').then(({ loadRoadmapProgress }) => {
+      return loadRoadmapProgress();
+    }).then(plan => {
+      if (!document.getElementById('growthActivePlanContainer')) return;
+      if (plan && plan.has_roadmap) {
+        document.getElementById('growthActivePlanContainer').outerHTML = renderActivePlanCard(plan, learningRoute);
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      } else {
+        document.getElementById('growthActivePlanContainer').outerHTML = renderEmptyPlanCard(learningRoute);
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      }
+    }).catch(() => {
+      const el = document.getElementById('growthActivePlanContainer');
+      if (el) {
+        el.outerHTML = renderEmptyPlanCard(learningRoute);
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      }
+    });
+
+    // Skill Roadmap deep-link clicks handled natively via href — no JS binding needed.
+    return; // profile-loaded path exits here
+  }
+
+  // ── Fallback (mock) path ──
+
   // Submit milestone modal
   const submitBtn = document.querySelector('#btnSubmitMilestone');
   if (submitBtn) {
@@ -287,14 +552,14 @@ export function bindEmployeeGrowthEvents(rerender) {
               <input type="text" placeholder="https://internal-git.nvidia.com/pull/48291" style="padding: 10px; border: 1px solid var(--emp-border); border-radius: 10px;" />
             </label>
             <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 650;">
-              Architectural Summary & Latency Reduction Metrics
+              Architectural Summary &amp; Latency Reduction Metrics
               <textarea rows="3" placeholder="Explain the warp optimization, speedup achieved, and interconnect impact..." style="padding: 10px; border: 1px solid var(--emp-border); border-radius: 10px; resize: vertical;"></textarea>
             </label>
           </div>
         `,
         footerHtml: `
           <button type="button" class="emp-btn-ghost" onclick="document.getElementById('empModalCloseBtn').click()">Cancel</button>
-          <button type="button" class="emp-btn-primary" onclick="alert('Milestone submitted for Director & Architecture Guild signoff!'); document.getElementById('empModalCloseBtn').click();">
+          <button type="button" class="emp-btn-primary" onclick="alert('Milestone submitted for Director &amp; Architecture Guild signoff!'); document.getElementById('empModalCloseBtn').click();">
             <span>Submit for Review</span>
           </button>
         `
@@ -313,7 +578,7 @@ export function bindEmployeeGrowthEvents(rerender) {
         contentHtml: `
           <div style="display: flex; flex-direction: column; gap: 14px; font-size: 13.5px; color: var(--emp-text-secondary);">
             <div style="background: var(--emp-soft); padding: 14px; border-radius: 12px; border: 1px solid var(--emp-border-subtle);">
-              <strong style="color: var(--emp-text-primary); font-size: 14px;">1. System Impact & Scale</strong>
+              <strong style="color: var(--emp-text-primary); font-size: 14px;">1. System Impact &amp; Scale</strong>
               <p style="margin: 4px 0 0;">Demonstrated ownership of high-throughput inference serving across 64+ node GPU clusters with 99.99% latency SLA adherence.</p>
             </div>
             <div style="background: var(--emp-soft); padding: 14px; border-radius: 12px; border: 1px solid var(--emp-border-subtle);">
@@ -321,7 +586,7 @@ export function bindEmployeeGrowthEvents(rerender) {
               <p style="margin: 4px 0 0;">Ability to profile and optimize custom CUDA kernels, memory coalescing, and quantized FP4/FP8 compute pipelines.</p>
             </div>
             <div style="background: var(--emp-soft); padding: 14px; border-radius: 12px; border: 1px solid var(--emp-border-subtle);">
-              <strong style="color: var(--emp-text-primary); font-size: 14px;">3. Guild Leadership & Mentorship</strong>
+              <strong style="color: var(--emp-text-primary); font-size: 14px;">3. Guild Leadership &amp; Mentorship</strong>
               <p style="margin: 4px 0 0;">Active contribution to internal question banks, mock technical interview evaluations, and direct mentorship of at least 3 junior engineers.</p>
             </div>
           </div>

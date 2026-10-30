@@ -3065,3 +3065,33 @@
   .si-page-filters { width: 100%; }
   .si-page-filters label:first-child { flex: 1 1 150px; }
 }
+
+/* FULL-WIDTH ANALYTICS & SUPPORTED DATA CATALOG */
+.si-fullwidth-analytics {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 28px;
+  width: 100%;
+}
+
+.si-fullwidth-card {
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  background: #FFFFFF;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.si-dataset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+@media (max-width: 768px) {
+  .si-fullwidth-card {
+    padding: 16px;
+  }
+}

@@ -1,0 +1,849 @@
+[
+  {
+    "video_id": "KJgsSFOSQv0",
+    "title": "C Programming Tutorial for Beginners - Full Course",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=KJgsSFOSQv0",
+    "skill_ids": [
+      "c"
+    ],
+    "topic_ids": [
+      "c-overview",
+      "c-fundamentals"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "8PopR3x-VMY",
+    "title": "Introduction to C Programming & History",
+    "channel_name": "Neso Academy",
+    "url": "https://www.youtube.com/watch?v=8PopR3x-VMY",
+    "skill_ids": [
+      "c"
+    ],
+    "topic_ids": [
+      "c-intro",
+      "c-history"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Neso Academy.",
+    "provenance": "Neso Academy official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "U3aXWizDbQ4",
+    "title": "How C Works & Compilation Pipeline",
+    "channel_name": "Neso Academy",
+    "url": "https://www.youtube.com/watch?v=U3aXWizDbQ4",
+    "skill_ids": [
+      "c"
+    ],
+    "topic_ids": [
+      "c-pipeline",
+      "c-architecture"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Neso Academy.",
+    "provenance": "Neso Academy official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "irqbmMNs2Bo",
+    "title": "Installing GCC Compiler & VS Code Setup for C",
+    "channel_name": "ProgrammingKnowledge",
+    "url": "https://www.youtube.com/watch?v=irqbmMNs2Bo",
+    "skill_ids": [
+      "c"
+    ],
+    "topic_ids": [
+      "c-toolchain",
+      "gcc-setup"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by ProgrammingKnowledge.",
+    "provenance": "ProgrammingKnowledge official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "ZSPZob_1TOk",
+    "title": "C Variables, Data Types & Standard I/O",
+    "channel_name": "Neso Academy",
+    "url": "https://www.youtube.com/watch?v=ZSPZob_1TOk",
+    "skill_ids": [
+      "c"
+    ],
+    "topic_ids": [
+      "c-variables",
+      "c-io"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Neso Academy.",
+    "provenance": "Neso Academy official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "EjavYOFoJJ0",
+    "title": "C Operators, Control Flow & Loops",
+    "channel_name": "Neso Academy",
+    "url": "https://www.youtube.com/watch?v=EjavYOFoJJ0",
+    "skill_ids": [
+      "c"
+    ],
+    "topic_ids": [
+      "c-control-flow",
+      "c-loops"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Neso Academy.",
+    "provenance": "Neso Academy official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "zuegQmMdy8M",
+    "title": "C Functions, Pointers & Memory Management",
+    "channel_name": "Jacob Sorber",
+    "url": "https://www.youtube.com/watch?v=zuegQmMdy8M",
+    "skill_ids": [
+      "c"
+    ],
+    "topic_ids": [
+      "c-pointers",
+      "c-memory"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Jacob Sorber.",
+    "provenance": "Jacob Sorber official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "rfscVS0vtbw",
+    "title": "Python for Beginners - Full Course",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=rfscVS0vtbw",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-basics",
+      "python-syntax"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "_uQrJ0TkZlc",
+    "title": "Python Tutorial for Beginners - Full Course in 11 Hours",
+    "channel_name": "Programming with Mosh",
+    "url": "https://www.youtube.com/watch?v=_uQrJ0TkZlc",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-full-course",
+      "python-intro"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Programming with Mosh.",
+    "provenance": "Programming with Mosh listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "kqtD5dpn9C8",
+    "title": "Python Data Structures & Control Flow",
+    "channel_name": "Programming with Mosh",
+    "url": "https://www.youtube.com/watch?v=kqtD5dpn9C8",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-data-structures",
+      "python-loops"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Programming with Mosh.",
+    "provenance": "Programming with Mosh listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "8DvywoWv6fI",
+    "title": "Python Functions, Scope & Modules",
+    "channel_name": "Corey Schafer",
+    "url": "https://www.youtube.com/watch?v=8DvywoWv6fI",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-functions",
+      "python-scope"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Corey Schafer.",
+    "provenance": "Corey Schafer listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "HGOBQPFzWKo",
+    "title": "Object-Oriented Programming (OOP) in Python",
+    "channel_name": "Corey Schafer",
+    "url": "https://www.youtube.com/watch?v=HGOBQPFzWKo",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-oop",
+      "python-classes"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Corey Schafer.",
+    "provenance": "Corey Schafer listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "JeznW_7DlB0",
+    "title": "Python File Operations & Exception Handling",
+    "channel_name": "Corey Schafer",
+    "url": "https://www.youtube.com/watch?v=JeznW_7DlB0",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-files",
+      "python-exceptions"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Corey Schafer.",
+    "provenance": "Corey Schafer listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "jS4aFq5-91M",
+    "title": "JavaScript Programming - Full Course",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=jS4aFq5-91M",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-fundamentals",
+      "programming-basics"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "PkZNo7MFNFg",
+    "title": "Learn JavaScript - Full Course for Beginners",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=PkZNo7MFNFg",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-full-course",
+      "js-intro"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "W6NZfCO5SIk",
+    "title": "JavaScript DOM Manipulation Tutorial",
+    "channel_name": "Web Dev Simplified",
+    "url": "https://www.youtube.com/watch?v=W6NZfCO5SIk",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "dom-manipulation",
+      "event-listeners"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Web Dev Simplified.",
+    "provenance": "Web Dev Simplified listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "hdI2bqOjy3c",
+    "title": "JavaScript Async Await & Promises Explained",
+    "channel_name": "Traversy Media",
+    "url": "https://www.youtube.com/watch?v=hdI2bqOjy3c",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "async-await",
+      "promises"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Traversy Media.",
+    "provenance": "Traversy Media listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "DHvZLI7Db8E",
+    "title": "JavaScript Array Methods: Map, Filter, Reduce",
+    "channel_name": "Web Dev Simplified",
+    "url": "https://www.youtube.com/watch?v=DHvZLI7Db8E",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "array-methods",
+      "functional-js"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Web Dev Simplified.",
+    "provenance": "Web Dev Simplified listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "8aGhZQkoFbQ",
+    "title": "JavaScript Event Loop & Concurrency Model",
+    "channel_name": "JSConf",
+    "url": "https://www.youtube.com/watch?v=8aGhZQkoFbQ",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "event-loop",
+      "concurrency"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by JSConf.",
+    "provenance": "JSConf official listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "pQN-pnXPaVg",
+    "title": "HTML Full Course - Build a Website Tutorial",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=pQN-pnXPaVg",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "html-fundamentals",
+      "web-structure"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "qz0aGYrrlhU",
+    "title": "HTML & CSS Crash Course Tutorial",
+    "channel_name": "Traversy Media",
+    "url": "https://www.youtube.com/watch?v=qz0aGYrrlhU",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "css-fundamentals",
+      "css-styling"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Traversy Media.",
+    "provenance": "Traversy Media listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "UB1O30fR-EE",
+    "title": "CSS Flexbox Tutorial for Beginners",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=UB1O30fR-EE",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "css-flexbox",
+      "flexbox-layout"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "yfoY53QXEnI",
+    "title": "CSS Grid Crash Course",
+    "channel_name": "Traversy Media",
+    "url": "https://www.youtube.com/watch?v=yfoY53QXEnI",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "css-grid",
+      "grid-layout"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Traversy Media.",
+    "provenance": "Traversy Media listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "1Rs2ND1ryYc",
+    "title": "Responsive Web Design Tutorial",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=1Rs2ND1ryYc",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "responsive-design",
+      "media-queries"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "G3e-cpL7ofc",
+    "title": "HTML5 Semantic Elements & Web Accessibility",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=G3e-cpL7ofc",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "web-accessibility",
+      "semantic-html"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "A74TOX803D0",
+    "title": "Java Tutorial for Beginners",
+    "channel_name": "Programming with Mosh",
+    "url": "https://www.youtube.com/watch?v=A74TOX803D0",
+    "skill_ids": [
+      "java"
+    ],
+    "topic_ids": [
+      "java-intro",
+      "java-syntax"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Programming with Mosh.",
+    "provenance": "Programming with Mosh listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "eIrMbAQSU34",
+    "title": "Java Programming - Methods, Loops & Classes",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=eIrMbAQSU34",
+    "skill_ids": [
+      "java"
+    ],
+    "topic_ids": [
+      "java-methods",
+      "java-classes"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "grEKMHGYyns",
+    "title": "Java Multithreading & Concurrency",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=grEKMHGYyns",
+    "skill_ids": [
+      "java"
+    ],
+    "topic_ids": [
+      "java-concurrency",
+      "java-threads"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "RRubcjpTkks",
+    "title": "Java Collections Framework Complete Guide",
+    "channel_name": "Amigoscode",
+    "url": "https://www.youtube.com/watch?v=RRubcjpTkks",
+    "skill_ids": [
+      "java"
+    ],
+    "topic_ids": [
+      "java-collections",
+      "java-data-structures"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Amigoscode.",
+    "provenance": "Amigoscode listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "GoXwIVyNvX0",
+    "title": "Object-Oriented Programming (OOP) in Java",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=GoXwIVyNvX0",
+    "skill_ids": [
+      "java"
+    ],
+    "topic_ids": [
+      "java-oop",
+      "java-inheritance"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "HXV3zeQKqGY",
+    "title": "SQL Tutorial - Full Database Course for Beginners",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=HXV3zeQKqGY",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-fundamentals",
+      "relational-databases",
+      "mysql"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "7S_tz1z_5bA",
+    "title": "SQL Joins Tutorial (Inner, Left, Right, Full Outer)",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=7S_tz1z_5bA",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-joins",
+      "relational-queries"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "p3qvj9hO_Bo",
+    "title": "Advanced SQL Subqueries & Aggregations",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=p3qvj9hO_Bo",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-subqueries",
+      "sql-aggregations"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "9Pzj7Aj25lw",
+    "title": "Database Indexing & Query Optimization",
+    "channel_name": "Hussein Nasser",
+    "url": "https://www.youtube.com/watch?v=9Pzj7Aj25lw",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-indexing",
+      "database-performance"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Hussein Nasser.",
+    "provenance": "Hussein Nasser listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "c9Wg6Cb_YlU",
+    "title": "UI / UX Design Tutorial \u2013 Wireframe, Mockup & Prototype in Figma",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=c9Wg6Cb_YlU",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "figma-wireframing",
+      "ui-mockup"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "FTFaQWZBqQ8",
+    "title": "10 Usability Heuristics by Jakob Nielsen",
+    "channel_name": "NNgroup",
+    "url": "https://www.youtube.com/watch?v=FTFaQWZBqQ8",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "nielsen-heuristics",
+      "usability-evaluation"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by NNgroup.",
+    "provenance": "NNgroup listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "jwCmIBJ8Jtc",
+    "title": "Design Systems 101 \u2013 Foundations & Tokens",
+    "channel_name": "Figma",
+    "url": "https://www.youtube.com/watch?v=jwCmIBJ8Jtc",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "design-systems",
+      "component-tokens"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Figma.",
+    "provenance": "Figma listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "dXQ7IHkTiMM",
+    "title": "Web Accessibility & Color Contrast Standards (WCAG)",
+    "channel_name": "Kevin Powell",
+    "url": "https://www.youtube.com/watch?v=dXQ7IHkTiMM",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "wcag-accessibility",
+      "contrast-standards"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by Kevin Powell.",
+    "provenance": "Kevin Powell listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "kbZejnPXyLM",
+    "title": "User Research Methods & Usability Testing Sessions",
+    "channel_name": "NNgroup",
+    "url": "https://www.youtube.com/watch?v=kbZejnPXyLM",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "user-research",
+      "usability-testing"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by NNgroup.",
+    "provenance": "NNgroup listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "8hly31xKli0",
+    "title": "Algorithms and Data Structures Tutorial",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=8hly31xKli0",
+    "skill_ids": [
+      "data_science"
+    ],
+    "topic_ids": [
+      "dsa-algorithms",
+      "data-structures"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "RBSGKlAvoiM",
+    "title": "Full Stack Web Development Bootcamp",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=RBSGKlAvoiM",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "fullstack-web",
+      "backend-frontend"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "nu_pCVPKzTk",
+    "title": "Machine Learning & Deep Learning Full Course",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=nu_pCVPKzTk",
+    "skill_ids": [
+      "machine_learning"
+    ],
+    "topic_ids": [
+      "ml-foundations",
+      "deep-learning"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "GwIo3gDZCVQ",
+    "title": "Cloud Computing & AWS Architecture Essentials",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=GwIo3gDZCVQ",
+    "skill_ids": [
+      "cloud_computing"
+    ],
+    "topic_ids": [
+      "cloud-architecture",
+      "aws-essentials"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "i_LwzRVP7bg",
+    "title": "Cybersecurity & Ethical Hacking Course",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=i_LwzRVP7bg",
+    "skill_ids": [
+      "cybersecurity"
+    ],
+    "topic_ids": [
+      "network-security",
+      "ethical-hacking"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "3c-iBn73dDE",
+    "title": "Clean Architecture & Software Design Patterns",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=3c-iBn73dDE",
+    "skill_ids": [
+      "devops"
+    ],
+    "topic_ids": [
+      "clean-architecture",
+      "design-patterns"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "ulprqHHWlng",
+    "title": "System Design Interview & Scalability Architecture",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=ulprqHHWlng",
+    "skill_ids": [
+      "cloud_computing"
+    ],
+    "topic_ids": [
+      "system-design",
+      "distributed-systems"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  },
+  {
+    "video_id": "inWWhr5tnEA",
+    "title": "Technical Interview Preparation & Aptitude Problem Solving",
+    "channel_name": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=inWWhr5tnEA",
+    "skill_ids": [
+      "data_science"
+    ],
+    "topic_ids": [
+      "interview-prep",
+      "aptitude-reasoning"
+    ],
+    "provider": "YouTube",
+    "license_attribution": "Video hosted by freeCodeCamp.org.",
+    "provenance": "freeCodeCamp listing.",
+    "verification_status": "verified_youtube_listing",
+    "last_verified_at": "2026-10-28"
+  }
+]

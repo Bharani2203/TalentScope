@@ -826,7 +826,7 @@ class IntentPlannerService:
                 "clarification_questions": [],
                 "intent_explanation": f"{planned_name} is not available yet because no executable handler is registered.",
                 "limitations": sorted(set(plan_response.limitations + [f"{planned_name} is not available yet; no analysis was generated."])),
-                "understood": f"I understand you’re asking for {planned_name.lower()}.",
+                "understood": "",
                 "enough_data": False,
             })
         if not planned_feature and not unknown_requested_feature:
@@ -945,7 +945,7 @@ class IntentPlannerService:
         topic = " and ".join((parsed or {}).get("skills", [])[:2] + (parsed or {}).get("technologies", [])[:2])
         topic = topic or (parsed or {}).get("role") or "your workforce intelligence question"
         label = intent.replace("_", " ")
-        return f"I understand you’re asking for {label} about {topic}."
+        return f"{label.capitalize()} for {topic}."
 
     # -------------------------------------------------------------------------
     # ENTITY EXTRACTION & RESOLUTION

@@ -3,13 +3,12 @@
 // Master portal controller for Employee Workforce Intelligence & Growth routes
 // ============================================================================
 
-import { renderEmployeeHome, bindEmployeeHomeEvents } from '../../pages/employee/home/Home.js';
+import { renderEmployeeHome, bindEmployeeHomeEvents, renderEmployeeSkeleton } from '../../pages/employee/home/Home.js';
 import { renderEmployeeMySkills, bindEmployeeSkillsEvents } from '../../pages/employee/skills/MySkills.js';
 import { renderEmployeeMyGrowth, bindEmployeeGrowthEvents } from '../../pages/employee/growth/MyGrowth.js';
 import { renderEmployeeCommunity, bindEmployeeCommunityEvents } from '../../pages/employee/community/Community.js';
 import { renderEmployeeOpportunities, bindEmployeeOpportunitiesEvents } from '../../pages/employee/opportunities/Opportunities.js';
 import { renderEmployeeProfile, bindEmployeeProfileEvents } from '../../pages/employee/profile/Profile.js';
-import { renderEmployeeAIAssistant, bindEmployeeAIAssistantEvents } from '../../pages/employee/ai-assistant/AIAssistant.js';
 import { employeeRoutes, isEmployeeRouteCurrent, resolveEmployeeRoute } from './navigation.js';
 import { renderEmployeeCompanyConnection, bindEmployeeCompanyConnection } from '../../pages/employee/company/CompanyConnection.js';
 import {
@@ -68,13 +67,19 @@ export function renderEmployeeRoute(route) {
     profileLoadState = 'loading';
     profileLoadError = null;
     clearEmployeeOnboardingProfile();
-    main.innerHTML = '<div role="status" aria-live="polite" class="emp-card">Loading your employee profile…</div>';
+    main.innerHTML = renderEmployeeSkeleton();
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
     loadEmployeeProfile(user.uid);
     return;
   }
 
   if (profileLoadState === 'loading') {
-    main.innerHTML = '<div role="status" aria-live="polite" class="emp-card">Loading your employee profile…</div>';
+    main.innerHTML = renderEmployeeSkeleton();
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
     return;
   }
 
@@ -100,6 +105,11 @@ export function renderEmployeeRoute(route) {
 
   const p = getEmployeeProfile();
   const isCompany = p.profileLoaded ? p.companyVerified === true : isCompanyEmployee();
+
+  const assistantBtn = document.querySelector('.button--assistant');
+  if (assistantBtn) {
+    assistantBtn.style.display = 'none';
+  }
 
   const topbarContext = document.querySelector('#topbarContext');
   if (topbarContext) {
@@ -148,16 +158,25 @@ export function renderEmployeeRoute(route) {
   // Dispatch appropriate page
   if (resolvedRoute === '/employee/home') {
     main.innerHTML = renderEmployeeHome();
-    bindEmployeeHomeEvents();
+    bindEmployeeHomeEvents(rerender);
   } else if (resolvedRoute === '/employee/skills') {
     main.innerHTML = renderEmployeeMySkills();
     bindEmployeeSkillsEvents(rerender);
   } else if (resolvedRoute === '/employee/company') {
     main.innerHTML = renderEmployeeCompanyConnection();
-    bindEmployeeCompanyConnection();
+    bindEmployeeCompanyConnection(rerender);
   } else if (resolvedRoute === '/employee/growth') {
     main.innerHTML = renderEmployeeMyGrowth();
     bindEmployeeGrowthEvents(rerender);
+  } else if (resolvedRoute === '/employee/learning') {
+    import('../../pages/employee/learning/EmployeeLearning.js').then(mod => {
+      if (typeof mod.renderEmployeeLearningPage === 'function') {
+        mod.renderEmployeeLearningPage();
+      }
+    }).catch(err => {
+      console.error('Failed to load employee learning workspace:', err);
+      main.innerHTML = '<div role="alert" class="emp-card">The learning workspace could not be loaded. Please try again.</div>';
+    });
   } else if (resolvedRoute === '/employee/community') {
     main.innerHTML = renderEmployeeCommunity();
     bindEmployeeCommunityEvents(rerender);
@@ -167,9 +186,7 @@ export function renderEmployeeRoute(route) {
   } else if (resolvedRoute === '/employee/profile') {
     main.innerHTML = renderEmployeeProfile();
     bindEmployeeProfileEvents(rerender);
-  } else if (resolvedRoute === '/employee/ai-assistant') {
-    main.innerHTML = renderEmployeeAIAssistant();
-    bindEmployeeAIAssistantEvents(rerender);
+
   } else if (resolvedRoute === '/employee/notifications') {
     main.innerHTML = renderEmployeeNotifications();
     bindEmployeeNotificationsEvents(rerender);
@@ -178,10 +195,8 @@ export function renderEmployeeRoute(route) {
     bindEmployeeSettingsEvents(rerender);
   } else {
     main.innerHTML = renderEmployeeHome();
-    bindEmployeeHomeEvents();
+    bindEmployeeHomeEvents(rerender);
   }
-
-  main.insertAdjacentHTML('afterbegin', '<aside role="note" style="margin: 12px 0; padding: 10px 14px; border: 1px solid #D6C79A; border-radius: 8px; background: #FFF9E8; color: #574817; font-size: 13px;">Employee portal preview — sample workforce and company data. Company membership is determined by the backend; this preview state is not proof of a connection.</aside>');
 
   // Bind state changed listener once
   if (!employeeStateListenerBound) {

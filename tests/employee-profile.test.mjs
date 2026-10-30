@@ -9,6 +9,7 @@ import {
 import { renderEmployeeHome } from '../src/pages/employee/home/Home.js';
 import { renderEmployeeMySkills } from '../src/pages/employee/skills/MySkills.js';
 import {
+  employeeNavigation,
   isEmployeeRouteActive,
   isEmployeeRouteCurrent,
   resolveEmployeeRoute
@@ -108,3 +109,13 @@ test('employee profile report uses saved answers without inventing skills or ass
 });
 
 test.after(() => clearEmployeeOnboardingProfile());
+
+test('Employee AI Assistant page and navigation elements are removed from Employee Portal', () => {
+  const allRoutes = employeeNavigation.flatMap(group => group.items.map(item => item.route));
+  const allLabels = employeeNavigation.flatMap(group => group.items.map(item => item.label));
+  assert.equal(allRoutes.includes('/employee/ai-assistant'), false);
+  assert.equal(allLabels.includes('AI Assistant'), false);
+
+  assert.equal(resolveEmployeeRoute('/employee/ai-assistant'), '/employee/home');
+  assert.equal(resolveEmployeeRoute('/employee/assistant'), '/employee/home');
+});

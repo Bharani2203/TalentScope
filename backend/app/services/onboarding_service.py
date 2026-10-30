@@ -292,6 +292,60 @@ def get_individual_profile(uid: str) -> IndividualProfileResponse:
 
 ROLE_ONBOARDING_LIMITS = {"employee": 10, "company": 11}
 
+def _calculate_role_progress(document: dict[str, Any], user_type: str) -> OnboardingProgress:
+    limit = ROLE_ONBOARDING_LIMITS.get(user_type, 11)
+    role_questions = ROLE_QUESTION_IDS.get(user_type, {})
+    stored_profile = document.get("profile") if isinstance(document.get("profile"), dict) else {}
+    root = stored_profile.get(f"{user_type}_onboarding_answers")
+    root = root if isinstance(root, dict) else {}
+
+    # If no answers exist for this role at all, onboarding has not started yet.
+    if not root:
+        return OnboardingProgress(
+            current_step=1,
+            completed_steps=[],
+            completed=False,
+            last_updated_at=None,
+        )
+
+    answered_steps = {
+        step for step, qid in role_questions.items()
+        if qid in root and root[qid] not in (None, "", [], {})
+    }
+
+    role_ob = document.get(f"{user_type}_onboarding")
+    if isinstance(role_ob, dict):
+        recorded_steps = {s for s in role_ob.get("completed_steps", []) if isinstance(s, int) and 1 <= s <= limit}
+        last_updated_at = role_ob.get("last_updated_at")
+    elif document.get("user_type") == user_type:
+        ob = document.get("onboarding")
+        if isinstance(ob, dict):
+            recorded_steps = {s for s in ob.get("completed_steps", []) if isinstance(s, int) and 1 <= s <= limit}
+            last_updated_at = ob.get("last_updated_at")
+        else:
+            recorded_steps = set()
+            last_updated_at = None
+    else:
+        recorded_steps = set()
+        last_updated_at = None
+
+    completed_steps = sorted(answered_steps | recorded_steps)
+    completed = len(completed_steps) >= limit
+    if completed:
+        current_step = limit
+    elif not completed_steps:
+        current_step = 1
+    else:
+        current_step = next((s for s in range(1, limit + 1) if s not in completed_steps), 1)
+
+    return OnboardingProgress(
+        current_step=current_step,
+        completed_steps=completed_steps,
+        completed=completed,
+        last_updated_at=last_updated_at,
+    )
+
+
 
 def get_role_onboarding_profile(uid: str, user_type: str) -> RoleOnboardingProfileResponse:
     if user_type not in ROLE_ONBOARDING_LIMITS:
@@ -324,8 +378,7 @@ def get_role_onboarding_profile(uid: str, user_type: str) -> RoleOnboardingProfi
             get_firestore_client().collection("users").document(uid).update(patch)
         except Exception:
             raise HTTPException(status_code=503, detail="Canonical onboarding profile could not be saved.") from None
-    progress = _progress_from_document(stored)
-    progress.current_step = min(progress.current_step, ROLE_ONBOARDING_LIMITS[user_type])
+    progress = _calculate_role_progress(stored, user_type)
     return RoleOnboardingProfileResponse(
         uid=uid, user_type=user_type, answers={**root, **canonical_to_role_answers(user_type, merged)},
         profile=merged, onboarding_schema_version=ONBOARDING_SCHEMA_VERSION, onboarding=progress,
@@ -346,9 +399,9 @@ def save_role_onboarding_step(uid: str, user_type: str, step: int, request: Role
         stored = snapshot.to_dict() if snapshot.exists else {}
         if stored.get("user_type") != user_type:
             raise HTTPException(status_code=403, detail="This onboarding profile does not match the account type.")
-        progress = _progress_from_document(stored)
+        progress = _calculate_role_progress(stored, user_type)
         completed_steps = set(progress.completed_steps)
-        if not progress.completed and step > progress.current_step:
+        if not progress.completed and step > progress.current_step and step not in completed_steps:
             raise HTTPException(status_code=409, detail="Complete earlier onboarding steps before continuing.")
         answers = (stored.get("profile") or {}).get(f"{user_type}_onboarding_answers", {})
         answers = dict(answers) if isinstance(answers, dict) else {}
@@ -374,7 +427,7 @@ def save_role_onboarding_step(uid: str, user_type: str, step: int, request: Role
         canonical_merged = {**canonical_existing, **canonical}
         completed_steps.add(step)
         completed = len(completed_steps) >= limit
-        current_step = limit if completed else _next_incomplete_step(completed_steps)
+        current_step = limit if completed else next((s for s in range(1, limit + 1) if s not in completed_steps), limit)
         company_id = None
         if user_type == "company" and completed:
             company_id = stored.get("company_id") or uuid.uuid5(
@@ -397,6 +450,10 @@ def save_role_onboarding_step(uid: str, user_type: str, step: int, request: Role
         document.set({"uid": uid}, merge=True)
         update = {
             f"profile.{user_type}_onboarding_answers": answers,
+            f"{user_type}_onboarding.current_step": current_step,
+            f"{user_type}_onboarding.completed_steps": sorted(completed_steps),
+            f"{user_type}_onboarding.completed": completed,
+            f"{user_type}_onboarding.last_updated_at": firestore.SERVER_TIMESTAMP,
             "onboarding.current_step": current_step,
             "onboarding.completed_steps": sorted(completed_steps),
             "onboarding.completed": completed,

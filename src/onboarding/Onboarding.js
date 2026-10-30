@@ -7,7 +7,8 @@
 import {
   INDIVIDUAL_QUESTIONS,
   EMPLOYEE_QUESTIONS,
-  COMPANY_QUESTIONS
+  COMPANY_QUESTIONS,
+  resolveRoleStepIndex
 } from './onboarding-data.js';
 import { renderQuestionComponent } from './OnboardingQuestion.js';
 import {
@@ -44,7 +45,7 @@ export async function renderOnboardingPage(container) {
 
 async function initializeSession() {
   const user = getCurrentUser();
-  const draft = getOnboardingDraft(user?.userType === 'individual' ? 'individual' : undefined);
+  const draft = getOnboardingDraft(user?.userType);
 
   if (user?.userType === 'individual') {
     let remoteProfile;
@@ -101,12 +102,13 @@ async function initializeSession() {
       loadError = error?.message || 'Could not load your saved onboarding profile.';
     }
     const answers = { ...(remote?.answers || {}), ...(draft?.answers || {}) };
+    const resolvedStepIndex = resolveRoleStepIndex({ remote, draft, userType: type });
+
     onboardingSession = {
       userType: type,
       employeeType: draft?.employeeType || user.employeeType || null,
       companyName: draft?.companyName || user.companyName || null,
-      stepIndex: Math.max(0, Math.min((remote?.onboarding?.current_step || draft?.stepIndex + 1 || 1) - 1,
-        (type === 'employee' ? EMPLOYEE_QUESTIONS : COMPANY_QUESTIONS).length - 1)),
+      stepIndex: resolvedStepIndex,
       answers,
       completedSteps: remote?.onboarding?.completed_steps || draft?.completedSteps || [],
       pendingSteps: draft?.pendingSteps || []
@@ -116,11 +118,12 @@ async function initializeSession() {
   }
 
   if (draft) {
+    const hasDraftAnswers = draft.answers && Object.keys(draft.answers).length > 0;
     onboardingSession = {
       userType: draft.userType || user?.userType || 'individual',
       employeeType: draft.employeeType || user?.employeeType || null,
       companyName: draft.companyName || user?.companyName || null,
-      stepIndex: typeof draft.stepIndex === 'number' ? draft.stepIndex : 0,
+      stepIndex: hasDraftAnswers && typeof draft.stepIndex === 'number' ? draft.stepIndex : 0,
       answers: draft.answers || {},
       completedSteps: draft.completedSteps || [],
       pendingSteps: draft.pendingSteps || []

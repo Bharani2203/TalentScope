@@ -10,8 +10,10 @@
    ---------------------------------------------------------------------------- */
 html.portal-active,
 body.portal-active {
-  height: 100%;
-  overflow: hidden !important; /* Prevents whole-page scrolling across portals */
+  min-height: 100%;
+  height: auto;
+  overflow-x: clip;
+  overflow-y: auto;
 }
 
 body.mobile-nav-active {
@@ -33,7 +35,9 @@ body.mobile-nav-active {
    Zero portal sidebar, zero topbar, zero navigation.
    ---------------------------------------------------------------------------- */
 .app-shell.auth-layout,
-.app-shell.ts-fullscreen-auth {
+.app-shell.ts-fullscreen-auth,
+.app-shell.ts-assessment-fullscreen,
+body.ts-assessment-fullscreen .app-shell {
   min-height: 100vh;
   width: 100vw;
   max-width: 100%;
@@ -49,12 +53,40 @@ body.mobile-nav-active {
 .app-shell.ts-fullscreen-auth .sidebar,
 .app-shell.ts-fullscreen-auth #sidebar,
 .app-shell.ts-fullscreen-auth .topbar,
-.app-shell.ts-fullscreen-auth .mobile-scrim {
+.app-shell.ts-fullscreen-auth .mobile-scrim,
+.app-shell.ts-assessment-fullscreen .sidebar,
+.app-shell.ts-assessment-fullscreen #sidebar,
+.app-shell.ts-assessment-fullscreen .topbar,
+.app-shell.ts-assessment-fullscreen .mobile-scrim,
+.app-shell.ts-assessment-fullscreen .ai-assistant-fab,
+.app-shell.ts-assessment-fullscreen #aiAssistantFab,
+.app-shell.ts-assessment-fullscreen .lp-page-heading,
+.app-shell.ts-assessment-fullscreen .lp-profile-context-card,
+.app-shell.ts-assessment-fullscreen .lp-active-roadmap-header,
+.app-shell.ts-assessment-fullscreen .lp-verification-banner,
+.app-shell.ts-assessment-fullscreen .lp-yellow-banner,
+.app-shell.ts-assessment-fullscreen .lp-lesson-breadcrumbs,
+body.ts-assessment-fullscreen .sidebar,
+body.ts-assessment-fullscreen #sidebar,
+body.ts-assessment-fullscreen .topbar,
+body.ts-assessment-fullscreen .mobile-scrim,
+body.ts-assessment-fullscreen .ai-assistant-fab,
+body.ts-assessment-fullscreen #aiAssistantFab,
+body.ts-assessment-fullscreen [data-component="ai-assistant-fab"],
+body.ts-assessment-fullscreen .ts-ai-copilot-widget,
+body.ts-assessment-fullscreen .lp-page-heading,
+body.ts-assessment-fullscreen .lp-profile-context-card,
+body.ts-assessment-fullscreen .lp-active-roadmap-header,
+body.ts-assessment-fullscreen .lp-verification-banner,
+body.ts-assessment-fullscreen .lp-yellow-banner,
+body.ts-assessment-fullscreen .lp-lesson-breadcrumbs {
   display: none !important;
 }
 
 .app-shell.auth-layout .app-main,
-.app-shell.ts-fullscreen-auth .app-main {
+.app-shell.ts-fullscreen-auth .app-main,
+.app-shell.ts-assessment-fullscreen .app-main,
+body.ts-assessment-fullscreen .app-main {
   width: 100% !important;
   max-width: 100% !important;
   flex: 1 1 100% !important;
@@ -66,7 +98,9 @@ body.mobile-nav-active {
 }
 
 .app-shell.auth-layout .main-content,
-.app-shell.ts-fullscreen-auth .main-content {
+.app-shell.ts-fullscreen-auth .main-content,
+.app-shell.ts-assessment-fullscreen .main-content,
+body.ts-assessment-fullscreen .main-content {
   width: 100% !important;
   max-width: 100% !important;
   margin: 0 !important;
@@ -83,35 +117,38 @@ body.mobile-nav-active {
    Fixed stationary sidebar + independent scrollable main content.
    ---------------------------------------------------------------------------- */
 .app-shell.portal-layout {
-  height: 100vh;
-  max-height: 100vh;
+  min-height: 100vh;
+  height: auto;
+  max-height: none;
   width: 100vw;
   max-width: 100%;
   display: flex !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   position: relative;
 }
 
-/* Desktop Stationary Sidebar */
-.sidebar {
+/* Desktop Stationary Sidebar: Full-Viewport Fixed Navigation */
+.sidebar, #sidebar {
   width: var(--sidebar-collapsed, 72px);
   flex: 0 0 var(--sidebar-collapsed, 72px);
   color: rgba(255, 255, 255, 0.85);
   background: linear-gradient(180deg, var(--purple) 0%, var(--purple-mid) 45%, var(--deep-purple) 100%);
   transition: width 240ms var(--ease), flex-basis 240ms var(--ease);
-  position: relative;
-  z-index: 100;
-  height: 100vh;
-  max-height: 100vh;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  height: 100vh !important;
+  overflow-y: auto !important;
+  z-index: 100 !important;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   box-sizing: border-box;
 }
 
-.sidebar.is-expanded {
-  width: var(--sidebar-width, 252px);
-  flex: 0 0 var(--sidebar-width, 252px);
+.sidebar.is-expanded, #sidebar.is-expanded {
+  width: var(--sidebar-width, 252px) !important;
+  flex: 0 0 var(--sidebar-width, 252px) !important;
 }
 
 .sidebar__inner {
@@ -574,12 +611,32 @@ body.mobile-nav-active {
 .app-main {
   min-width: 0;
   flex: 1 1 auto;
-  height: 100vh;
-  max-height: 100vh;
+  min-height: 100vh;
+  height: auto;
+  max-height: none;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
+  margin-left: var(--sidebar-collapsed, 72px) !important;
+  width: calc(100vw - var(--sidebar-collapsed, 72px)) !important;
+  max-width: calc(100vw - var(--sidebar-collapsed, 72px)) !important;
+  transition: margin-left 240ms var(--ease), width 240ms var(--ease), max-width 240ms var(--ease);
+}
+
+.app-shell.portal-layout .sidebar.is-expanded ~ .app-main,
+.app-shell.portal-layout:has(.sidebar.is-expanded) .app-main {
+  margin-left: var(--sidebar-width, 252px) !important;
+  width: calc(100vw - var(--sidebar-width, 252px)) !important;
+  max-width: calc(100vw - var(--sidebar-width, 252px)) !important;
+}
+
+@media (max-width: 800px) {
+  .app-main {
+    margin-left: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
 }
 
 .topbar {
@@ -607,10 +664,10 @@ body.mobile-nav-active {
 .main-content {
   flex: 1 1 auto;
   min-width: 0;
-  height: calc(100vh - var(--topbar-height, 68px));
-  max-height: calc(100vh - var(--topbar-height, 68px));
-  overflow-y: auto !important; /* THE SINGLE VERTICAL SCROLLBAR */
-  overflow-x: hidden !important;
+  min-height: calc(100vh - var(--topbar-height, 68px));
+  height: auto;
+  max-height: none;
+  overflow: visible;
   background: var(--page, #FAF8FD);
   padding: 42px 48px;
   outline: none;
@@ -625,4 +682,74 @@ body.mobile-nav-active {
 .main-content::-webkit-scrollbar-thumb {
   background: #D3CADC;
   border-radius: 6px;
+}
+
+/* Keep the Learning Page on document scrolling while using available shell width. */
+#mainContent:has(> #learningPageRoot) {
+  padding: 16px clamp(14px, 2.2vw, 34px) 32px;
+}
+
+@media (max-width: 800px) {
+  #mainContent:has(> #learningPageRoot) {
+    padding: 12px 14px 24px;
+  }
+}
+
+
+/* Persistent AI Co-Pilot Slide-Out Drawer & FAB */
+.copilot-fab-button {
+  position: fixed !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  z-index: 9990 !important;
+  width: 56px !important;
+  height: 56px !important;
+  border-radius: 50% !important;
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  font-size: 26px !important;
+  transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+.copilot-fab-button:hover {
+  transform: scale(1.08) !important;
+  background-color: #1d4ed8 !important;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5) !important;
+}
+.copilot-drawer-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  background-color: rgba(15, 23, 42, 0.3) !important;
+  backdrop-filter: blur(2px) !important;
+  z-index: 9994 !important;
+  transition: opacity 0.25s ease !important;
+}
+.copilot-slideout-drawer {
+  position: fixed !important;
+  right: 0 !important;
+  top: 0 !important;
+  height: 100vh !important;
+  width: 440px !important;
+  max-width: 94vw !important;
+  background-color: #ffffff !important;
+  box-shadow: -6px 0 24px rgba(15, 23, 42, 0.15) !important;
+  z-index: 9995 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.copilot-slideout-drawer.is-closed {
+  transform: translateX(100%) !important;
+  pointer-events: none !important;
+}
+.copilot-slideout-drawer.is-open {
+  transform: translateX(0) !important;
+  pointer-events: auto !important;
 }

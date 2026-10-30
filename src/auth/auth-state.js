@@ -311,7 +311,7 @@ export function getOnboardingDraft(userType) {
     const raw = localStorage.getItem(STORAGE_KEY_ONBOARDING_DRAFT);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (userType && parsed.userType !== userType) return null;
+    if (userType && (!parsed.userType || parsed.userType !== userType)) return null;
     return parsed;
   } catch (e) {
     return null;

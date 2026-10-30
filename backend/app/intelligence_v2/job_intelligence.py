@@ -225,6 +225,16 @@ class V2JobIntelligenceEngine:
         elif any("schema" in str(v).lower() for v in errors.values()):
             headline = "Verified job search is unavailable: provider returned malformed or unexpected data."
             readiness = "unavailable"
+        elif any("offline_test_guard" in str(v).lower() for v in errors.values()):
+            return JobIntelligenceResult(
+                capability_id="job_verified_postings",
+                headline="Verified job search is unavailable: offline test guard.",
+                facts=[],
+                evidence=[],
+                postings=[],
+                readiness_state="unavailable",
+                metadata={"postings_count": 0, "listings_available": False, "error_categories": errors},
+            )
         else:
             # Fallback to stored jobs in Firestore if available
             from app.services.job_storage_service import search_stored_jsearch_jobs_with_stats

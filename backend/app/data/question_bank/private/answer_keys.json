@@ -1,0 +1,1469 @@
+{
+  "visibility": "backend_only",
+  "answers": [
+    {
+      "question_id": "ts-python-positive-sum-001",
+      "correct_answer": "Return sum(value for value in values if value > 0).",
+      "explanation": "Filter by the required strict positive comparison before summing. The built-in sum returns 0 for an empty iterable.",
+      "scoring_rubric": [
+        {
+          "criterion": "Includes values greater than zero and excludes zero/negative values",
+          "points": 2
+        },
+        {
+          "criterion": "Returns 0 for empty/no-positive input",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-javascript-filter-001",
+      "correct_answer": "b",
+      "explanation": "Array.prototype.filter returns a new array containing each element for which its callback is truthy; map returns mapped values, find returns one element, and forEach does not create a result array.",
+      "scoring_rubric": [
+        {
+          "criterion": "Selects option b",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-semantic-001",
+      "correct_answer": "Use <nav> for the site navigation and <main> for the primary page content; use <article> for the independently meaningful article where appropriate. Landmark semantics help assistive-technology users navigate page regions.",
+      "explanation": "Semantic elements convey purpose and structure to browsers and assistive technology without relying only on visual styling.",
+      "scoring_rubric": [
+        {
+          "criterion": "Chooses nav for navigation",
+          "points": 1
+        },
+        {
+          "criterion": "Chooses main for primary content and recognizes article semantics when suitable",
+          "points": 1
+        },
+        {
+          "criterion": "Explains the navigation/accessibility benefit",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-responsive-layout-001",
+      "correct_answer": "Expected result: a single readable column at 360 px and a two-column layout at a sufficiently wide breakpoint; no forced fixed width or horizontal page overflow.",
+      "explanation": "A flexible grid or flex layout with an appropriate breakpoint allows the content to adapt to available width. The breakpoint should be validated against actual content.",
+      "scoring_rubric": [
+        {
+          "criterion": "Provides a one-column narrow-screen layout",
+          "points": 2
+        },
+        {
+          "criterion": "Provides a two-column wide-screen layout using flexible sizing or a suitable breakpoint",
+          "points": 2
+        },
+        {
+          "criterion": "Includes a viewport/content overflow or readability check",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored rubric.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-active-users-001",
+      "correct_answer": "SELECT email FROM users WHERE active = TRUE ORDER BY email;",
+      "explanation": "The WHERE clause filters active rows and ORDER BY email sorts the returned values. SQL dialects differ in Boolean representation; the assessment runner must define the supported dialect and fixture schema.",
+      "scoring_rubric": [
+        {
+          "criterion": "Filters active users correctly",
+          "points": 2
+        },
+        {
+          "criterion": "Returns email values",
+          "points": 1
+        },
+        {
+          "criterion": "Sorts ascending by email",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-git-recover-commit-001",
+      "correct_answer": "Use an interactive rebase or reset the local commit while keeping the working tree, unstage the unrelated file, then recreate/amend the intended commit. For a simple last commit, `git reset --mixed HEAD~1` keeps changes in the working tree and unstages them; stage only intended files and recommit. Confirm the unrelated file remains modified and is not staged.",
+      "explanation": "The commit is local, so rewriting it is safe. A mixed reset preserves working-tree changes while moving the branch tip and clearing the index.",
+      "scoring_rubric": [
+        {
+          "criterion": "Recognizes that the commit is local and can be revised",
+          "points": 1
+        },
+        {
+          "criterion": "Uses a safe technique that preserves working-tree changes",
+          "points": 2
+        },
+        {
+          "criterion": "Stages only intended files and verifies the unrelated change remains uncommitted",
+          "points": 2
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-github-review-001",
+      "correct_answer": "Inspect the API change for compatibility and unintended behavior; review or request tests for the changed response contract; check CI/status and relevant branch requirements. Leave a specific, respectful blocking review comment tied to the affected code and describe the needed change before approval.",
+      "explanation": "An API response change can break consumers. A review should be evidence-based, check test coverage, and clearly communicate blocking feedback.",
+      "scoring_rubric": [
+        {
+          "criterion": "Checks response compatibility/behavior",
+          "points": 1
+        },
+        {
+          "criterion": "Checks or requests relevant tests and CI",
+          "points": 1
+        },
+        {
+          "criterion": "Communicates a blocking issue clearly and constructively",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-fastapi-validation-001",
+      "correct_answer": "Declare a typed query parameter with a bounded constraint (for example, an integer with a minimum and maximum), letting FastAPI return validation errors for invalid values. Use the verified Firebase identity supplied by the server authentication dependency; a client-supplied UID is untrusted and could target another user's data.",
+      "explanation": "Bounded validation limits resource use and gives predictable client errors. Authentication claims must be verified server-side before authorizing data access.",
+      "scoring_rubric": [
+        {
+          "criterion": "Uses a typed and bounded parameter",
+          "points": 1
+        },
+        {
+          "criterion": "Explains server-side verified identity",
+          "points": 1
+        },
+        {
+          "criterion": "Explains why a supplied UID is not authoritative",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-uiux-error-recovery-001",
+      "correct_answer": "A strong response gives a specific, actionable error near the relevant field or submission summary; preserves entered values; identifies the next recovery step; and communicates the error accessibly, such as associating text with the field and announcing submission errors without relying on color alone.",
+      "explanation": "Users need to understand what failed, how to recover, and retain their work. Error communication must be perceivable and associated with the affected control.",
+      "scoring_rubric": [
+        {
+          "criterion": "Specific and actionable error content/placement",
+          "points": 1
+        },
+        {
+          "criterion": "Preserves data and gives a recovery action",
+          "points": 1
+        },
+        {
+          "criterion": "Includes an accessibility consideration beyond color alone",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-python-mcq-001",
+      "correct_answer": "a",
+      "explanation": "The comprehension filters each value by the even predicate.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-python-mcq-002",
+      "correct_answer": "d",
+      "explanation": "A starred parameter collects positional arguments into a tuple.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-javascript-mcq-003",
+      "correct_answer": "c",
+      "explanation": "Strict equality does not coerce operand types.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-javascript-mcq-004",
+      "correct_answer": "b",
+      "explanation": "map returns a new array of callback results.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-mcq-005",
+      "correct_answer": "a",
+      "explanation": "A label associated by matching for/id provides an accessible name and a larger activation target.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-mcq-006",
+      "correct_answer": "d",
+      "explanation": "main identifies the document?s primary content.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-mcq-007",
+      "correct_answer": "c",
+      "explanation": "border-box makes the declared size include content, padding, and border.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-mcq-008",
+      "correct_answer": "b",
+      "explanation": "Flexbox handles one-dimensional alignment and distribution.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-mcq-009",
+      "correct_answer": "a",
+      "explanation": "WHERE filters input rows before grouping and aggregation.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-mcq-010",
+      "correct_answer": "d",
+      "explanation": "HAVING applies conditions to grouped results.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-git-mcq-011",
+      "correct_answer": "c",
+      "explanation": "git commit creates a repository commit from staged content.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-git-mcq-012",
+      "correct_answer": "b",
+      "explanation": "fetch updates remote-tracking references without integrating into the current branch.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-github-mcq-013",
+      "correct_answer": "a",
+      "explanation": "Inline review comments preserve context and make the requested change actionable.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-github-mcq-014",
+      "correct_answer": "d",
+      "explanation": "Documenting setup and recording dependency versions improves reproducibility.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-fastapi-mcq-015",
+      "correct_answer": "c",
+      "explanation": "Typed bounded parameters are validated before the handler runs.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-fastapi-mcq-016",
+      "correct_answer": "b",
+      "explanation": "Client-supplied identifiers are not proof of identity.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-fastapi-mcq-017",
+      "correct_answer": "a",
+      "explanation": "GET is intended for safe retrieval.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-ui-ux-mcq-018",
+      "correct_answer": "d",
+      "explanation": "Direct task observation exposes usability barriers.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-ui-ux-mcq-019",
+      "correct_answer": "c",
+      "explanation": "Visible focus shows the current keyboard position.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-mcq-020",
+      "correct_answer": "b",
+      "explanation": "A flexible single-column narrow layout avoids forced horizontal scrolling.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-mcq-021",
+      "correct_answer": "a",
+      "explanation": "Alternative text communicates the image?s relevant information to nonvisual users.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-mcq-022",
+      "correct_answer": "d",
+      "explanation": "DISTINCT removes duplicate result rows.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-mcq-023",
+      "correct_answer": "c",
+      "explanation": "A primary key enforces unique, non-null row identity.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-git-mcq-024",
+      "correct_answer": "b",
+      "explanation": "A merge records integration while retaining both branch histories.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-github-mcq-025",
+      "correct_answer": "a",
+      "explanation": "CI should block release steps when required checks fail.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-fastapi-mcq-026",
+      "correct_answer": "d",
+      "explanation": "401 indicates missing or invalid authentication credentials.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-mcq-027",
+      "correct_answer": "c",
+      "explanation": "Atomicity prevents a partial set of related changes.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-mcq-028",
+      "correct_answer": "b",
+      "explanation": "rem is relative to the root element?s computed font size.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-ui-ux-mcq-029",
+      "correct_answer": "a",
+      "explanation": "A visible associated label supports sighted and assistive technology users.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-python-scenario-030",
+      "correct_answer": "Return a defined empty-input result or raise a documented validation error before division; test the empty case.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-javascript-scenario-031",
+      "correct_answer": "Inspect mount/unmount lifecycle and remove the listener during cleanup; test repeated mount/unmount.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-scenario-032",
+      "correct_answer": "Provide a persistent visible label associated with the input; placeholder text is not a durable label.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-scenario-033",
+      "correct_answer": "Inspect fixed widths/min-widths and use a fluid grid or stacked layout at a content-driven breakpoint.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-scenario-034",
+      "correct_answer": "Check join cardinality and grouping; aggregate orders per customer or use the intended relation before selecting.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-git-scenario-035",
+      "correct_answer": "Revoke/rotate the exposed credential, remove it from tracked history as appropriate, and add secret scanning/ignore controls.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-github-scenario-036",
+      "correct_answer": "Compatibility analysis, updated contract tests, and migration/deprecation behavior for affected consumers.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-fastapi-scenario-037",
+      "correct_answer": "The client uid is untrusted; derive identity from verified Firebase claims and authorize access against that identity.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-ui-ux-scenario-038",
+      "correct_answer": "Ensure a visible high-contrast focus indicator and verify keyboard navigation in the actual menu.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-ui-ux-scenario-039",
+      "correct_answer": "Give the control a meaningful accessible name, preferably visible text such as ?Save changes.?",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-scenario-040",
+      "correct_answer": "Inspect the query plan, filters, join predicates, data volume, and existing indexes; benchmark representative data.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-git-scenario-041",
+      "correct_answer": "Review both branch intents, edit a coherent combined result, run relevant checks, and commit the resolution.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-github-scenario-042",
+      "correct_answer": "The build depends on untracked/local state; make required assets and setup steps explicit and test clean checkout.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-fastapi-scenario-043",
+      "correct_answer": "Use a consistent typed schema and bounded constraints, and test error status/shape for invalid boundaries.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-scenario-044",
+      "correct_answer": "Choose a breakpoint where content no longer fits legibly, then test real content around the threshold.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-ui-ux-scenario-045",
+      "correct_answer": "Add a non-color cue such as text/icon/pattern and verify contrast and assistive labels.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-fastapi-scenario-046",
+      "correct_answer": "Design idempotent behavior or a predictable not-found response, document it, and test retries.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-scenario-047",
+      "correct_answer": "Use a compatible staged migration such as nullable/default backfill before enforcement, coordinated with deploy order.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-git-scenario-048",
+      "correct_answer": "Inspect local and remote graphs and preserve unique commits before choosing a safe rebase/reset strategy.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-ui-ux-scenario-049",
+      "correct_answer": "Observe target users performing the flow and record errors, hesitation, and task completion without leading them.",
+      "explanation": "A strong response identifies the underlying constraint, proposes a safe remedy, and names a way to verify it.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-python-practical_task-050",
+      "correct_answer": "Cover match at start/middle/end, no match, empty input, and duplicate matches; assert returned value and type.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-javascript-practical_task-051",
+      "correct_answer": "Specify accepted syntax, empty/invalid behavior, finite-number check, and tests for whitespace, zero, invalid text, and bounds.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-practical_task-052",
+      "correct_answer": "Use header/nav/main/article/aside as appropriate, with a logical heading hierarchy and accessible link names.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-html-practical_task-053",
+      "correct_answer": "Test representative widths, readable headings, keyboard access, overflow strategy, and whether essential data remains available.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-practical_task-054",
+      "correct_answer": "SELECT customer_id, SUM(total) AS total_spend FROM orders GROUP BY customer_id;",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-git-practical_task-055",
+      "correct_answer": "Create a focused branch, make a small commit, push it, open a pull request, and include checks/reproduction notes.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-github-practical_task-056",
+      "correct_answer": "Include contract/compatibility, tests, auth/data ownership, error handling, docs, and CI status.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-fastapi-practical_task-057",
+      "correct_answer": "Validate types and min/max bounds, reject unknown identifiers, authenticate server-side, and test invalid boundaries.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-ui-ux-practical_task-058",
+      "correct_answer": "Tab through controls, verify order and visible focus, operate controls without pointer, and record inaccessible traps.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-ui-ux-practical_task-059",
+      "correct_answer": "Measure text/background contrast and add text/icon/pattern so meaning is not conveyed by color alone.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-practical_task-060",
+      "correct_answer": "Check parameterization, bounded result size, deterministic ordering, indexes/query plan, and empty/no-match behavior.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-git-practical_task-061",
+      "correct_answer": "Unstage only the unintended path, inspect the index and working tree, then commit intended paths only.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-github-practical_task-062",
+      "correct_answer": "Run markdown/link or repository-required checks, preserve required status checks, and report actionable failures.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-ui-ux-practical_task-063",
+      "correct_answer": "Name each invalid field, explain correction, link to controls, preserve entered values, and announce the summary accessibly.",
+      "explanation": "Assess the requested artifact for correctness, usability, and explicit verification steps.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-python-coding-064",
+      "correct_answer": "{\"Red red blue\": {\"red\": 2, \"blue\": 1}, \"\": {}}",
+      "explanation": "Compare the submitted implementation against the private fixtures; rubric should award edge-case behavior.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-javascript-coding-065",
+      "correct_answer": "[3,1,3,2] => [3,1,2]; [] => []",
+      "explanation": "Compare the submitted implementation against the private fixtures; rubric should award edge-case behavior.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-javascript-coding-066",
+      "correct_answer": "clamp(-2,0,5) => 0; clamp(3,0,5) => 3",
+      "explanation": "Compare the submitted implementation against the private fixtures; rubric should award edge-case behavior.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-coding-067",
+      "correct_answer": "GROUP BY category; HAVING COUNT(*) >= 2; ORDER BY average_score DESC",
+      "explanation": "Compare the submitted implementation against the private fixtures; rubric should award edge-case behavior.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-javascript-coding-068",
+      "correct_answer": "[\"oak\",\"maple\"], 3 => \"maple\"; no match => null",
+      "explanation": "Compare the submitted implementation against the private fixtures; rubric should award edge-case behavior.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-sql-coding-069",
+      "correct_answer": "Filter active=1 and order ascending by email",
+      "explanation": "Compare the submitted implementation against the private fixtures; rubric should award edge-case behavior.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-python-coding-070",
+      "correct_answer": "[2,4] => 3; [] => None",
+      "explanation": "Compare the submitted implementation against the private fixtures; rubric should award edge-case behavior.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    },
+    {
+      "question_id": "ts-python-coding-071",
+      "correct_answer": "\"Hello, World!\" => \"hello-world\"; repeated separators collapse",
+      "explanation": "Compare the submitted implementation against the private fixtures; rubric should award edge-case behavior.",
+      "scoring_rubric": [
+        {
+          "criterion": "Correctness and coverage of the stated requirements",
+          "points": 2
+        },
+        {
+          "criterion": "Clear handling of relevant edge cases and explanation",
+          "points": 1
+        }
+      ],
+      "provenance": "TalentScope.ai authored answer key.",
+      "license": "TalentScope.ai original content.",
+      "verification_status": "draft_unreviewed"
+    }
+  ]
+}

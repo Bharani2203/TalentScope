@@ -69,7 +69,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allowed_origins,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Accept", "Authorization", "Content-Type", *auth_diagnostic_headers],
     expose_headers=auth_diagnostic_exposed_headers,
 )
@@ -119,3 +119,12 @@ async def auth_sync_diagnostics(request, call_next):
 
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+from app.api.routes import skill_intelligence, career_intelligence, skills
+app.include_router(skill_intelligence.router, prefix="/api")
+app.include_router(career_intelligence.router, prefix="/api")
+app.include_router(skills.router, prefix="/api")
+from app.api.routes import market_intelligence
+app.include_router(market_intelligence.router, prefix="/api")
+from app.api.routes import assistant
+app.include_router(assistant.router, prefix="/api")

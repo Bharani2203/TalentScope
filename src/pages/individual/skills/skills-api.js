@@ -1,5 +1,13 @@
 import { API_BASE_URL } from '../../../config/api.js';
 
+// Always resolve to the backend server (defaulting to http://127.0.0.1:8000 when frontend dev server ports are encountered)
+const BACKEND_API_BASE_URL = (() => {
+  if (typeof API_BASE_URL === 'string' && API_BASE_URL && !API_BASE_URL.match(/:3000|:5173|:5000/)) {
+    return API_BASE_URL.replace(/\/$/, '');
+  }
+  return 'http://127.0.0.1:8000';
+})();
+
 async function authenticatedRequest(path, options = {}) {
   const { auth } = await import('../../../auth/firebase-client.js');
   const firebaseUser = auth.currentUser;
@@ -8,7 +16,7 @@ async function authenticatedRequest(path, options = {}) {
   const idToken = await firebaseUser.getIdToken();
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(`${BACKEND_API_BASE_URL}${path}`, {
       ...options,
       headers: {
         Accept: 'application/json',
@@ -116,17 +124,147 @@ export function adaptSkillIntelligenceResponse(raw, skill) {
 }
 
 export async function loadSkillIntelligence({ location, range = '6m', days, skill } = {}) {
-  const supportedRanges = new Set(['7d', '30d', '3m', '6m', 'custom']);
+  const supportedRanges = new Set(['current', '7d', '30d', '3m', '6m', 'custom']);
   if (!supportedRanges.has(range)) throw new Error('Choose a supported historical window.');
   if (range === 'custom' && (!Number.isInteger(days) || days < 7 || days > 184)) {
     throw new Error('Custom history must be between 7 and 184 days.');
   }
   if (range !== 'custom' && days !== undefined) throw new Error('Custom days are only valid with the custom window.');
-  const params = new URLSearchParams({ range });
+  const effectiveRange = range === 'current' ? '6m' : range;
+  const params = new URLSearchParams({ range: effectiveRange });
   if (range === 'custom' && Number.isInteger(days)) params.set('days', String(days));
   if (location) params.set('location', location);
   if (skill) params.set('skill', skill);
 
   const raw = await authenticatedRequest(`/api/v1/skills/intelligence?${params}`);
   return adaptSkillIntelligenceResponse(raw, skill);
+}
+
+export async function loadSkillTrends({ sortBy = 'frequency', limit = 5 } = {}) {
+  const params = new URLSearchParams({ sort_by: sortBy, limit: String(limit) });
+  const urls = [
+    `${BACKEND_API_BASE_URL}/api/v1/skills/top-trending?${params}`,
+    `${BACKEND_API_BASE_URL}/api/v1/skills/trends/overall?${params}`,
+    `${BACKEND_API_BASE_URL}/api/skill-intelligence/trends?${params}`,
+    `${BACKEND_API_BASE_URL}/api/v1/skill-intelligence/trends?${params}`,
+    `http://127.0.0.1:8000/api/skill-intelligence/trends?${params}`,
+    `http://127.0.0.1:8000/api/v1/skill-intelligence/trends?${params}`
+  ];
+
+  const uniqueUrls = [...new Set(urls)];
+
+  for (const url of uniqueUrls) {
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      }
+    } catch {
+      // try next backend target
+    }
+  }
+
+  return [];
+}
+
+
+export async function fetchAdvancedSkillMetrics({ limit = 5, skills, skill } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (skills) params.set('skills', skills);
+  if (skill) params.set('skill', skill);
+  const urls = [
+    `${BACKEND_API_BASE_URL}/api/skill-intelligence/advanced-metrics?${params}`,
+    `${BACKEND_API_BASE_URL}/api/v1/skill-intelligence/advanced-metrics?${params}`,
+    `http://127.0.0.1:8000/api/skill-intelligence/advanced-metrics?${params}`,
+    `http://127.0.0.1:8000/api/v1/skill-intelligence/advanced-metrics?${params}`,
+    `${BACKEND_API_BASE_URL}/api/v1/skills/analytics?${params}`,
+    `http://127.0.0.1:8000/api/v1/skills/analytics?${params}`
+  ];
+
+  const uniqueUrls = [...new Set(urls)];
+
+  for (const url of uniqueUrls) {
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+        if (data && !Array.isArray(data) && (data.health || data.skill)) {
+          return [data];
+        }
+      }
+    } catch {
+      // try next backend target
+    }
+  }
+
+  return [];
+}
+
+export async function fetchCareerPillars() {
+  const urls = [
+    `${BACKEND_API_BASE_URL}/api/skill-intelligence/pillars`,
+    `${BACKEND_API_BASE_URL}/api/v1/skill-intelligence/pillars`,
+    `http://127.0.0.1:8000/api/skill-intelligence/pillars`,
+    `http://127.0.0.1:8000/api/v1/skill-intelligence/pillars`
+  ];
+
+  const uniqueUrls = [...new Set(urls)];
+
+  for (const url of uniqueUrls) {
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      }
+    } catch {
+      // try next backend target
+    }
+  }
+
+  return [];
+}
+
+export async function fetchPillarSkillTrends(pillarSlug, sortBy = 'composite') {
+  const query = `?pillar=${encodeURIComponent(pillarSlug)}&sort_by=${encodeURIComponent(sortBy)}`;
+  const urls = [
+    `${BACKEND_API_BASE_URL}/api/skill-intelligence/trends${query}`,
+    `${BACKEND_API_BASE_URL}/api/v1/skill-intelligence/trends${query}`,
+    `http://127.0.0.1:8000/api/skill-intelligence/trends${query}`,
+    `http://127.0.0.1:8000/api/v1/skill-intelligence/trends${query}`
+  ];
+
+  const uniqueUrls = [...new Set(urls)];
+
+  for (const url of uniqueUrls) {
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      }
+    } catch {
+      // try next backend target
+    }
+  }
+
+  return [];
 }

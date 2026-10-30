@@ -2927,7 +2927,7 @@ class ExecutionOrchestratorService:
         entity = (plan.context_summary.get("primary_entity") if plan else None) or resp.resolved_entity
         understood = (plan.understood if plan and plan.understood else "") or (
             resp.understood
-            or f"I understand you’re asking about {intent.replace('_', ' ')} for {entity or 'your intelligence question'}."
+            or f"{intent.replace('_', ' ').capitalize()} for {entity or 'your intelligence question'}."
         )
         return {
             "understood": understood,
@@ -4173,6 +4173,10 @@ class ExecutionOrchestratorService:
             from difflib import SequenceMatcher
             local_occupations = self.reference_store.get_onet_occupations(limit=1000)
             if local_occupations:
+                local_occupations = [
+                    row for row in local_occupations
+                    if row.soc_code not in {"11-1011.03", "11-1011.00"} and "Sustainability" not in (row.title or "")
+                ]
                 ranked = sorted(
                     local_occupations,
                     key=lambda row: SequenceMatcher(
@@ -4180,13 +4184,17 @@ class ExecutionOrchestratorService:
                     ).ratio(),
                     reverse=True,
                 )
-                best = ranked[0]
-                similarity = SequenceMatcher(
-                    None, normalize_role_alias(request.target_role), normalize_role_alias(best.title),
-                ).ratio()
-                if similarity >= 0.35:
-                    target_soc = best.soc_code
-                    closest_match = normalize_role_alias(best.title) != normalize_role_alias(request.target_role)
+                if ranked:
+                    best = ranked[0]
+                    similarity = SequenceMatcher(
+                        None, normalize_role_alias(request.target_role), normalize_role_alias(best.title),
+                    ).ratio()
+                    if similarity >= 0.35 and best.soc_code not in {"11-1011.03", "11-1011.00"}:
+                        target_soc = best.soc_code
+                        closest_match = normalize_role_alias(best.title) != normalize_role_alias(request.target_role)
+
+        if target_soc in {"11-1011.03", "11-1011.00"}:
+            target_soc = None
 
         if target_soc:
             occs = self.reference_store.get_onet_occupations(code=target_soc)
@@ -4282,11 +4290,12 @@ class ExecutionOrchestratorService:
 
         if not target_soc and request.target_role:
             occs = self.reference_store.get_onet_occupations(title=request.target_role)
+            occs = [row for row in occs if row.soc_code not in {"11-1011.03", "11-1011.00"} and "Sustainability" not in (row.title or "")]
             if occs:
                 target_soc = occs[0].soc_code
                 target_title = occs[0].title
 
-        if not target_soc:
+        if not target_soc or target_soc in {"11-1011.03", "11-1011.00"}:
             # Default to Software Developers
             target_soc = "15-1252.00"
             target_title = "Software Developers"
@@ -4343,10 +4352,11 @@ class ExecutionOrchestratorService:
 
         if not target_soc and request.target_role:
             occs = self.reference_store.get_onet_occupations(title=request.target_role)
+            occs = [row for row in occs if row.soc_code not in {"11-1011.03", "11-1011.00"} and "Sustainability" not in (row.title or "")]
             if occs:
                 target_soc = occs[0].soc_code
 
-        if not target_soc:
+        if not target_soc or target_soc in {"11-1011.03", "11-1011.00"}:
             target_soc = "15-1252.00"
 
         related = self.entity_service.get_related_occupations(target_soc)

@@ -1,14 +1,25 @@
 import { API_BASE_URL } from '../config/api.js';
+import { getAuthIdToken } from '../api/core-intelligence-client.js';
+
+export class OnboardingApiError extends Error {
+  constructor(kind, message, status = null) {
+    super(message);
+    this.name = 'OnboardingApiError';
+    this.kind = kind;
+    this.status = status;
+  }
+}
 
 async function authenticatedRequest(path, options = {}) {
-  const isWrite = Boolean(options.method);
-  const { auth } = await import('../auth/firebase-client.js');
-  const firebaseUser = auth.currentUser;
-  if (!firebaseUser) {
-    throw new Error(`Your sign-in session expired. Sign in again to ${isWrite ? 'save onboarding' : 'load your profile'}.`);
+  let idToken;
+  try {
+    idToken = await getAuthIdToken();
+  } catch {
+    throw new OnboardingApiError('AUTHENTICATION_FAILED', 'Your sign-in session could not be verified. Sign in again.', 401);
   }
-
-  const idToken = await firebaseUser.getIdToken();
+  if (!idToken) {
+    throw new OnboardingApiError('AUTHENTICATION_REQUIRED', 'Your sign-in session expired. Sign in again.', 401);
+  }
   let response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
@@ -21,30 +32,25 @@ async function authenticatedRequest(path, options = {}) {
       }
     });
   } catch {
-    throw new Error(isWrite
-      ? 'Could not reach the onboarding service. Your local draft is preserved; retry when connected.'
-      : 'Could not reach the onboarding service to load your saved profile. Retry when connected.');
+    throw new OnboardingApiError('NETWORK_ERROR', 'Could not reach the onboarding service. Please retry when connected.');
   }
 
-  if (response.status === 401) {
-    const { logoutUser } = await import('../auth/auth-state.js');
-    await logoutUser();
-    throw new Error('Your sign-in session expired. Sign in again to continue.');
-  }
-  if (response.status === 403) {
-    throw new Error(`Your sign-in session could not be verified. Sign in again to ${isWrite ? 'save onboarding' : 'load your profile'}.`);
+  if (response.status === 401 || response.status === 403) {
+    throw new OnboardingApiError('AUTHENTICATION_FAILED', 'Your sign-in session could not be verified. Sign in again.', response.status);
   }
   if (!response.ok) {
     const detail = response.status === 422
-      ? isWrite ? 'This answer is not valid. Review it and try again.' : 'Your saved profile could not be validated.'
+      ? 'This answer is not valid. Review it and try again.'
       : response.status === 409
         ? 'Complete the earlier onboarding step before continuing.'
-        : isWrite
-          ? 'The answer could not be saved. Your local draft is preserved; please retry.'
-          : 'Your saved profile could not be loaded. Please retry.';
-    throw new Error(detail);
+        : 'The onboarding profile could not be loaded or saved. Please retry.';
+    throw new OnboardingApiError('REQUEST_FAILED', detail, response.status);
   }
-  return response.json();
+  try {
+    return await response.json();
+  } catch {
+    throw new OnboardingApiError('MALFORMED_RESPONSE', 'The onboarding service returned an invalid response.', response.status);
+  }
 }
 
 export async function loadIndividualOnboardingProfile() {

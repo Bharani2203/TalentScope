@@ -20,6 +20,7 @@ import {
   signInWithPopup
 } from './firebase-client.js';
 import {
+  clearOnboardingDraft,
   saveOnboardingDraft,
   setSignupFlowPending,
   syncCurrentFirebaseUser
@@ -555,6 +556,9 @@ function bindStepEvents(root) {
     document.querySelectorAll('.ts-usertype-card').forEach(card => {
       card.addEventListener('click', () => {
         const type = card.getAttribute('data-type');
+        if (signupState.userType !== type) {
+          clearOnboardingDraft();
+        }
         signupState.userType = type;
         renderCurrentSignupStep(root);
       });
@@ -620,12 +624,15 @@ function bindStepEvents(root) {
             logAuthTrace('login_to_profile_ready', { duration_ms: authTraceNow() - signupState.authStartedAt, result: 'success' });
           }
           setSignupFlowPending(false);
+          clearOnboardingDraft();
           saveOnboardingDraft({
             userType: signupState.userType,
             employeeType: signupState.employeeType,
             companyName: signupState.companyName,
             stepIndex: 0,
-            answers: {}
+            answers: {},
+            completedSteps: [],
+            pendingSteps: []
           });
           const routeStarted = authTraceNow();
           window.location.hash = '#/onboarding';
@@ -667,12 +674,15 @@ function bindStepEvents(root) {
             : null
         });
         setSignupFlowPending(false);
+        clearOnboardingDraft();
         saveOnboardingDraft({
           userType: signupState.userType,
           employeeType: signupState.employeeType,
           companyName: signupState.companyName,
           stepIndex: 0,
-          answers: {}
+          answers: {},
+          completedSteps: [],
+          pendingSteps: []
         });
         window.location.hash = '#/onboarding';
       } catch (err) {

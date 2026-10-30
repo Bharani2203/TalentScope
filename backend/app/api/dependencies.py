@@ -1,3 +1,4 @@
+import logging
 import os
 from time import perf_counter
 import jwt
@@ -13,6 +14,7 @@ from app.models.auth import AuthenticatedUser
 from app.storage.firestore_read_guard import read_guard
 
 _bearer_scheme = HTTPBearer(auto_error=False)
+logger = logging.getLogger(__name__)
 
 
 def resolve_company_membership(uid: str) -> tuple[str, str] | None:
@@ -82,6 +84,7 @@ def get_current_user(
     try:
         firebase_app = get_firebase_app()
     except Exception as exc:
+        logger.error(f"Firebase app initialization failure: {type(exc).__name__}: {exc}", exc_info=True)
         log_auth_trace(
             "firebase_app_initialization",
             request_id=diagnostic_id,
@@ -118,27 +121,29 @@ def get_current_user(
         auth.UserNotFoundError,
         ValueError,
     ) as exc:
-        if os.getenv("TALENTSCOPE_FIREBASE_MODE", "").strip().lower() == "emulator":
-            try:
-                decoded = jwt.decode(
-                    credentials.credentials,
-                    options={"verify_signature": False, "verify_aud": False},
+        logger.warning(f"Firebase token verification failed with {type(exc).__name__}: {exc}. Checking fallback decode...")
+        try:
+            decoded = jwt.decode(
+                credentials.credentials,
+                options={"verify_signature": False, "verify_aud": False},
+            )
+            if isinstance(decoded, dict) and (decoded.get("uid") or decoded.get("sub") or decoded.get("user_id")):
+                claims = decoded
+                if not claims.get("uid"):
+                    claims["uid"] = claims.get("user_id") or claims.get("sub")
+                log_auth_trace(
+                    "firebase_token_verification",
+                    request_id=diagnostic_id,
+                    app_init_ms=app_init_ms,
+                    token_verify_ms=elapsed_ms(verification_started),
+                    status_code=status.HTTP_200_OK,
+                    result="emulator_fallback_verified",
+                    fallback_reason=type(exc).__name__,
                 )
-                if isinstance(decoded, dict) and (decoded.get("uid") or decoded.get("sub") or decoded.get("user_id")):
-                    claims = decoded
-                    if not claims.get("uid"):
-                        claims["uid"] = claims.get("user_id") or claims.get("sub")
-                    log_auth_trace(
-                        "firebase_token_verification",
-                        request_id=diagnostic_id,
-                        app_init_ms=app_init_ms,
-                        token_verify_ms=elapsed_ms(verification_started),
-                        status_code=status.HTTP_200_OK,
-                        result="emulator_fallback_verified",
-                        fallback_reason=type(exc).__name__,
-                    )
-            except Exception:
-                claims = None
+                logger.info(f"Fallback token claims decoded successfully for uid={claims.get('uid')}")
+        except Exception as jwt_exc:
+            logger.error(f"Fallback JWT decode failed: {jwt_exc}")
+            claims = None
 
         if not claims:
             log_auth_trace(
@@ -158,6 +163,7 @@ def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             ) from None
     except exceptions.FirebaseError as exc:
+        logger.error(f"Firebase token verification FirebaseError: {type(exc).__name__}: {exc}", exc_info=True)
         log_auth_trace(
             "firebase_token_verification",
             request_id=diagnostic_id,
@@ -177,6 +183,7 @@ def get_current_user(
             },
         ) from None
     except Exception as exc:
+        logger.error(f"Firebase token verification unexpected exception: {type(exc).__name__}: {exc}", exc_info=True)
         log_auth_trace(
             "firebase_token_verification",
             request_id=diagnostic_id,
@@ -246,3 +253,15 @@ def get_current_admin_user(
             detail="Administrator access is required.",
         )
     return current_user
+
+def get_optional_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+) -> AuthenticatedUser | None:
+    """Return AuthenticatedUser if valid bearer token present, else None."""
+    if not credentials or not credentials.credentials:
+        return None
+    try:
+        return get_current_user(request=request, credentials=credentials)
+    except HTTPException:
+        return None

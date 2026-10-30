@@ -608,4 +608,28 @@ assert.doesNotThrow(() => {
   }
 }
 
-console.log('INTELLIGENCE EVIDENCE PANEL TESTS: 14 passed');
+{
+  const html = renderIntelligenceEvidencePanel({
+    status: 'ready',
+    metric_results: [
+      { source: 'adzuna', entity_name: 'AI', metric_value: 3 },
+      { source: 'jsearch', entity_name: 'AI', metric_value: 2 },
+      { source: 'jsearch', entity_name: 'Backend', metric_value: 4 },
+      { source: 'jsearch', entity_name: 'Python', metric_value: 10 }
+    ]
+  }, {
+    title: 'Skill intelligence evidence',
+    skill: 'Python'
+  });
+
+  assert.ok(html.includes('Top Associated Role'), 'should render Top Associated Role title');
+  assert.ok(html.includes('AI'), 'should identify top role AI');
+  assert.ok(html.includes('Top Role: <strong>AI</strong>'), 'should display Top Role: AI');
+  assert.ok(html.includes('Total Demand: <strong>5</strong>'), 'should aggregate total demand to 5');
+  assert.ok(html.includes('intel-evidence-single-box'), 'should render single box container');
+  assert.ok(!html.includes('intel-evidence-grid'), 'should not render evidence grid');
+  assert.ok(html.includes('Aggregated across 2 sources (Adzuna, JSearch)'), 'should report aggregated sources');
+}
+
+console.log('INTELLIGENCE EVIDENCE PANEL TESTS: 15 passed');
+

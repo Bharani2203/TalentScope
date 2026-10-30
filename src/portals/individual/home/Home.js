@@ -18,7 +18,6 @@ export function renderHomePage({
     <div class="home-dashboard-v2">
       ${renderPersonalContext()}
       ${renderIntelligenceOverview()}
-      ${renderConsole()}
       ${renderSkillIntelligence()}
       ${renderMarketIntelligence()}
       ${renderJobIntelligence()}

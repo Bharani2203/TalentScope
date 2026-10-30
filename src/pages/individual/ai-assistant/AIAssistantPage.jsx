@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { auth } from '../../../auth/firebase-client.js';
 import { API_BASE_URL } from '../../../config/api.js';
+import { sendSupervisorMessage, buildUserContext } from '../../../services/supervisor-api.js';
 
 const INITIAL_MESSAGE = {
   id: 'welcome',
@@ -78,33 +79,23 @@ export default function AIAssistantPage() {
     setIsLoading(true);
 
     try {
-      const idToken = await user.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/v1/intelligence/answer`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`
-        },
-        body: JSON.stringify({
-          message,
-          portal_type: 'individual',
-          conversation_id: conversationId,
-          client_message_id: newMessageId()
-        })
-      });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        const detail = typeof payload?.detail === 'string' ? payload.detail : payload?.detail?.message;
-        const requestError = new Error(detail || `The assistant request failed (HTTP ${response.status}).`);
-        requestError.status = response.status;
-        throw requestError;
-      }
-
-      const result = await response.json();
-      if (result?.conversation_id) setConversationId(result.conversation_id);
-      setMessages(current => [...current, getAssistantMessage(result)]);
+      const userContext = buildUserContext();
+      const history = messages.map(m => ({ role: m.role, content: m.text }));
+      history.push({ role: 'user', content: message });
+      const result = await sendSupervisorMessage(history, userContext);
+      setMessages(current => [
+        ...current,
+        {
+          id: newMessageId(),
+          role: 'assistant',
+          title: 'Supervisor Intelligence',
+          text: result?.answer || 'Analysis complete.',
+          bullets: [],
+          nextActions: Array.isArray(result?.suggested_followups) ? result.suggested_followups : [],
+          disclosures: [],
+          basedOn: result?.provenance_summary || 'PostgreSQL & Ecosystem Signals'
+        }
+      ]);
     } catch (error) {
       setErrorMessage(formatRequestError(error));
     } finally {

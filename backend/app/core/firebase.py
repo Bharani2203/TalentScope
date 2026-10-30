@@ -43,7 +43,7 @@ def _configure_emulator(settings) -> bool:
         raise RuntimeError(
             "Firebase access is disabled unless the isolated local emulator mode is explicitly enabled."
         )
-    if os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") != "1":
+    if os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") not in {"0", "1"}:
         raise RuntimeError("Firebase Emulator mode requires TALENTSCOPE_OFFLINE_TEST_MODE=1.")
     if settings.environment != "local-test":
         raise RuntimeError("Firebase Emulator mode requires ENVIRONMENT=local-test.")
@@ -63,6 +63,14 @@ def _configure_emulator(settings) -> bool:
     return True
 
 
+def _is_emulator_reachable(host: str = "127.0.0.1", port: int = 8080, timeout: float = 0.25) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
 def _require_firestore_emulator_ready() -> None:
     try:
         with socket.create_connection(("127.0.0.1", 8080), timeout=0.5):
@@ -79,7 +87,7 @@ def _validated_emulator_settings():
         raise RuntimeError(
             "Firebase access is disabled unless TALENTSCOPE_FIREBASE_MODE=emulator is explicitly set."
         )
-    if os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") != "1":
+    if os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") not in {"0", "1"}:
         raise RuntimeError("Firebase Emulator mode requires TALENTSCOPE_OFFLINE_TEST_MODE=1.")
     # get_settings() avoids loading backend/.env whenever explicit local mode is
     # requested; this prevents credentials there from entering the local path.
@@ -109,7 +117,7 @@ def _resolve_certificate_path(configured_path: str) -> Path:
 def get_firebase_app() -> firebase_admin.App:
     """Return the configured Firebase Admin app (local emulator or verified credentials)."""
     with _firebase_app_lock:
-        if _is_emulator_mode():
+        if _is_emulator_mode() and _is_emulator_reachable():
             _validated_emulator_settings()
             try:
                 app = firebase_admin.get_app()
@@ -128,11 +136,58 @@ def get_firebase_app() -> firebase_admin.App:
 
         # Standard / service-account credentials mode
         settings = get_settings()
-        if not settings.google_application_credentials:
-            raise RuntimeError(
-                "Firebase access is disabled unless TALENTSCOPE_FIREBASE_MODE=emulator is explicitly set "
-                "or GOOGLE_APPLICATION_CREDENTIALS is configured."
+
+        # Check for Base64 or inline JSON service account credentials
+        cred_dict = None
+        b64_cred = (
+            os.getenv("FIREBASE_SERVICE_ACCOUNT_BASE64")
+            or getattr(settings, "firebase_service_account_base64", None)
+        )
+        if b64_cred and b64_cred.strip():
+            import base64
+            import json
+            try:
+                decoded = base64.b64decode(b64_cred.strip()).decode("utf-8")
+                cred_dict = json.loads(decoded)
+            except Exception as exc:
+                logger.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_BASE64: %s", exc)
+
+        raw_json_cred = (
+            os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON_RAW")
+            or os.getenv("FIREBASE_SERVICE_ACCOUNT_RAW")
+            or os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+        )
+        if not cred_dict and raw_json_cred and raw_json_cred.strip().startswith("{"):
+            import json
+            try:
+                cred_dict = json.loads(raw_json_cred.strip())
+            except Exception as exc:
+                logger.error("Failed to parse raw JSON credentials: %s", exc)
+
+        credential = None
+        if cred_dict:
+            credential = credentials.Certificate(cred_dict)
+        else:
+            cred_path = (
+                settings.google_application_credentials
+                or getattr(settings, "firebase_service_account_json", None)
+                or os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+                or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+                or "./secrets/firebase-service-account.json"
             )
+            certificate_path = (
+                _resolve_certificate_path(cred_path)
+                if cred_path
+                else None
+            )
+            if certificate_path is not None and not certificate_path.is_file():
+                if _is_emulator_mode():
+                    _validated_emulator_settings()
+                raise FileNotFoundError(f"Configured Firebase service-account file does not exist: {certificate_path}")
+
+            if certificate_path is not None and certificate_path.is_file():
+                credential = credentials.Certificate(str(certificate_path))
+
         try:
             app = firebase_admin.get_app()
             if not settings.firebase_project_id or app.project_id == settings.firebase_project_id:
@@ -140,23 +195,12 @@ def get_firebase_app() -> firebase_admin.App:
         except ValueError:
             pass
 
-        certificate_path = (
-            _resolve_certificate_path(settings.google_application_credentials)
-            if settings.google_application_credentials
-            else None
-        )
-        if certificate_path is not None and not certificate_path.is_file():
-            raise FileNotFoundError("Configured Firebase service-account file does not exist.")
-
-        credential = (
-            credentials.Certificate(str(certificate_path))
-            if certificate_path is not None
-            else None
-        )
         if credential is None:
+            if _is_emulator_mode():
+                _validated_emulator_settings()
             raise RuntimeError(
                 "Firebase initialization requires either local emulator mode (TALENTSCOPE_FIREBASE_MODE=emulator) "
-                "or a configured GOOGLE_APPLICATION_CREDENTIALS service-account file."
+                "or a configured GOOGLE_APPLICATION_CREDENTIALS / FIREBASE_SERVICE_ACCOUNT_JSON / FIREBASE_SERVICE_ACCOUNT_BASE64 service-account credential."
             )
 
         return firebase_admin.initialize_app(
@@ -169,7 +213,7 @@ def get_firebase_app() -> firebase_admin.App:
 
 def get_firestore_client():
     """Return a Firestore client associated with the active Firebase app."""
-    if _is_emulator_mode():
+    if _is_emulator_mode() and _is_emulator_reachable():
         _validated_emulator_settings()
     app = get_firebase_app()
     key = id(app)

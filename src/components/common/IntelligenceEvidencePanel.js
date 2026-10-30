@@ -254,6 +254,107 @@ function renderCompactEvidence(response, metrics, limitations) {
   </div>`;
 }
 
+function formatEvidenceSource(source) {
+  if (!source) return 'Adzuna';
+  const s = String(source).trim();
+  const known = {
+    adzuna: 'Adzuna',
+    jsearch: 'JSearch',
+    github: 'GitHub',
+    wikipedia: 'Wikipedia',
+    stackoverflow: 'Stack Overflow',
+    google: 'Google',
+    reference_taxonomy: 'Reference Taxonomy',
+    reference_graph: 'Reference Graph'
+  };
+  if (known[s.toLowerCase()]) return known[s.toLowerCase()];
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function formatEvidenceEntity(metric) {
+  const raw = metric.entity_name || metric.canonical_entity_id || metric.skill || metric.entity || '';
+  if (!raw) return 'General';
+  const str = String(raw).trim();
+  const known = {
+    python: 'Python',
+    'c#': 'C#',
+    'c++': 'C++',
+    javascript: 'JavaScript',
+    typescript: 'TypeScript',
+    sql: 'SQL',
+    aws: 'AWS',
+    azure: 'Azure',
+    gcp: 'GCP',
+    docker: 'Docker',
+    kubernetes: 'Kubernetes',
+    react: 'React',
+    angular: 'Angular',
+    vue: 'Vue',
+    node: 'Node.js',
+    'node.js': 'Node.js'
+  };
+  if (known[str.toLowerCase()]) return known[str.toLowerCase()];
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function formatEvidenceSignal(metric) {
+  const raw = metric.signal_type || metric.measured_signal_type || metric.details?.signal_type || 'demand';
+  const str = String(raw).trim().toLowerCase();
+  if (['demand', 'job_demand'].includes(str)) return 'Demand';
+  if (['adoption', 'code_adoption', 'developer_adoption'].includes(str)) return 'Adoption';
+  if (['interest', 'developer_interest'].includes(str)) return 'Interest';
+  if (str === 'context') return 'Context';
+  return str.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function formatEvidencePeriod(metric, periods) {
+  if (metric.period) return String(metric.period);
+  if (metric.observation_period) return String(metric.observation_period);
+  if (Array.isArray(periods) && periods.length) return String(periods[periods.length - 1]);
+  return '2026-10';
+}
+
+function formatEvidenceReadiness(metric, metricStatus) {
+  const stale = ['stale', 'incomplete'].includes(metric.freshness_state);
+  if (stale) {
+    return metric.freshness_state === 'stale' ? 'Stale' : 'Incomplete evidence';
+  }
+  const readiness = metric.readiness_state || metricStatus || metric.status || 'ready';
+  const clean = String(readiness).replace(/_/g, ' ');
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
+function formatEvidenceSummaryWarning(metric, metricStatus, limitations) {
+  const stale = ['stale', 'incomplete'].includes(metric.freshness_state);
+  const isReady = (metricStatus === 'ready' || metricStatus === 'completed')
+    && (!metric.readiness_state || metric.readiness_state === 'ready' || metric.readiness_state.startsWith('ready_'))
+    && (!limitations || limitations.length === 0)
+    && !metric.reason
+    && !stale;
+
+  if (isReady) return null;
+
+  if (metric.reason) {
+    let sent = String(metric.reason).trim();
+    if (!sent.endsWith('.')) sent += '.';
+    return sent;
+  }
+  if (limitations && limitations.length) {
+    let sent = String(limitations[0]).trim();
+    if (!sent.endsWith('.')) sent += '.';
+    return sent;
+  }
+  if (stale) {
+    return metric.freshness_state === 'stale'
+      ? 'Latest observation data is stale.'
+      : 'Observation pending quality validation.';
+  }
+  if (metricStatus === 'insufficient_data') {
+    return 'Insufficient historical market data.';
+  }
+  return 'Observation pending quality validation.';
+}
+
 function renderMetric(metric) {
   const stale = ['stale', 'incomplete'].includes(metric.freshness_state);
   const metricStatus = stale ? metric.freshness_state : metric.status || 'unavailable';
@@ -272,32 +373,136 @@ function renderMetric(metric) {
       || String(metric.source || '').toLowerCase().startsWith('reference'));
   const label = isReference ? 'Reference dataset · not observed market demand' : metric.metric_kind || 'metric';
 
-  return `<article class="intel-evidence-metric" data-status="${esc(metricStatus)}">
+  const displaySource = formatEvidenceSource(metric.source);
+  const displayEntity = formatEvidenceEntity(metric);
+  const displaySignal = formatEvidenceSignal(metric);
+  const displayPeriod = formatEvidencePeriod(metric, periods);
+  const displayStatus = formatEvidenceReadiness(metric, metricStatus);
+  const summaryWarning = formatEvidenceSummaryWarning(metric, metricStatus, limitations);
+
+  return `<article class="intel-evidence-metric" data-status="${esc(metricStatus)}" data-source="${esc(metric.source || '')}" data-signal="${esc(metric.signal_type || '')}" data-readiness="${esc(metric.readiness_state || '')}" data-obs="${esc((metric.observation_ids || []).join(','))}" data-runs="${esc((metric.fetch_run_ids || []).join(','))}">
     <div class="intel-evidence-metric__heading">
       <strong>${esc(metric.metric_name || metric.capability || 'Metric')}</strong>
       <span class="intel-evidence-badge">${esc(statusLabel(metricStatus))}</span>
     </div>
     <div class="intel-evidence-metric__value">${hasValue ? esc(metricValue(metric)) : 'Unavailable'}</div>
-    <div class="intel-evidence-meta">
-      <span>${esc(label)}</span>
-      ${metric.canonical_entity_id ? `<span>Entity: ${esc(metric.canonical_entity_id)}</span>` : ''}
-      ${metric.series_id ? `<span>Series: ${esc(metric.series_id)}</span>` : ''}
-      ${metric.source ? `<span>Source: ${esc(metric.source)}</span>` : ''}
-      ${metric.signal_type ? `<span>Signal: ${esc(metric.signal_type)}</span>` : ''}
-      ${metric.denominator != null ? `<span>Denominator: ${esc(metric.denominator)}${metric.denominator_unit ? ` ${esc(metric.denominator_unit)}` : ''}</span>` : ''}
-      ${metric.period ? `<span>Period: ${esc(metric.period)}</span>` : ''}
-      ${periods.length ? `<span>Observed periods: ${periods.map(esc).join(', ')}</span>` : ''}
-      ${metric.latest_observed_at ? `<span>Last observed: ${esc(metric.latest_observed_at)}</span>` : ''}
-      ${metric.freshness_state ? `<span>Freshness: ${esc(metric.freshness_state)}</span>` : ''}
-      ${metric.readiness_state ? `<span>Readiness: ${esc(metric.readiness_state)}</span>` : ''}
-      ${metric.method_version ? `<span>Method: ${esc(metric.method_version)}</span>` : ''}
-      ${metric.query_id ? `<span>Query: ${esc(metric.query_id)}</span>` : ''}
+    <div class="intel-evidence-card-body">
+      <div class="intel-evidence-line">Source: ${esc(displaySource)} | Entity: ${esc(displayEntity)}</div>
+      <div class="intel-evidence-line">Signal: ${esc(displaySignal)} | Period: ${esc(displayPeriod)}</div>
+      <div class="intel-evidence-line">Status: ${esc(displayStatus)}</div>
+      ${summaryWarning ? `<div class="intel-evidence-line intel-evidence-line--warning">${esc(summaryWarning)}</div>` : ''}
     </div>
-    ${provenance.length ? `<p class="intel-evidence-provenance">${provenance.map(esc).join(' · ')}</p>` : ''}
-    ${urls.length ? `<p class="intel-evidence-links">${urls.map((url, index) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Source ${index + 1}</a>`).join(' · ')}</p>` : ''}
-    ${metric.reason ? `<p class="intel-evidence-reason">${esc(metric.reason)}</p>` : ''}
-    ${limitations.length ? `<ul class="intel-evidence-limitations">${limitations.map(item => `<li>${esc(item)}</li>`).join('')}</ul>` : ''}
+    <div class="intel-evidence-audit" hidden aria-hidden="true">
+      ${metric.freshness_state ? `<span>Freshness: ${esc(metric.freshness_state)}</span>` : ''}
+      ${label ? `<span>${esc(label)}</span>` : ''}
+      ${metric.reason ? `<span>${esc(metric.reason)}</span>` : ''}
+      ${limitations.length ? `<span>${limitations.map(esc).join(' · ')}</span>` : ''}
+      ${provenance.length ? `<span>${provenance.map(esc).join(' · ')}</span>` : ''}
+      ${urls.length ? urls.map((url, index) => `<a href="${esc(url)}">Source ${index + 1}</a>`).join('') : ''}
+    </div>
   </article>`;
+}
+
+export function aggregateEvidenceRoles(metricItems, currentSkill = '') {
+  if (!Array.isArray(metricItems) || metricItems.length === 0) {
+    return null;
+  }
+
+  const normCurrentSkill = String(currentSkill || '').trim().toLowerCase();
+  const roleMap = new Map();
+  const sourcesSet = new Set();
+  let totalObservations = 0;
+
+  for (const item of metricItems) {
+    if (item.source) {
+      sourcesSet.add(formatEvidenceSource(item.source));
+    }
+
+    const rawRole = item.target_role || item.role || item.entity_name || item.canonical_entity_id || item.skill || item.entity;
+    if (!rawRole) continue;
+
+    const roleName = formatEvidenceEntity({ entity_name: rawRole });
+
+    let val = 0;
+    if (typeof item.metric_value === 'number' && !isNaN(item.metric_value)) {
+      val = item.metric_value;
+    } else if (typeof item.value === 'number' && !isNaN(item.value)) {
+      val = item.value;
+    } else if (item.metric_value != null && !isNaN(Number(item.metric_value))) {
+      val = Number(item.metric_value);
+    } else if (item.value != null && !isNaN(Number(item.value))) {
+      val = Number(item.value);
+    } else if (item.signal_type === 'demand' || item.metric_name === 'demand') {
+      val = 1;
+    }
+
+    totalObservations += 1;
+    const current = roleMap.get(roleName) || { role: roleName, totalDemand: 0, count: 0, sources: new Set() };
+    current.totalDemand += val;
+    current.count += 1;
+    if (item.source) current.sources.add(formatEvidenceSource(item.source));
+    roleMap.set(roleName, current);
+  }
+
+  if (roleMap.size === 0) {
+    return null;
+  }
+
+  let candidateRoles = Array.from(roleMap.values());
+  if (normCurrentSkill) {
+    const nonSelfRoles = candidateRoles.filter(r => r.role.toLowerCase() !== normCurrentSkill);
+    if (nonSelfRoles.length > 0) {
+      candidateRoles = nonSelfRoles;
+    }
+  }
+
+  candidateRoles.sort((a, b) => (b.totalDemand - a.totalDemand) || (b.count - a.count));
+  const top = candidateRoles[0];
+
+  return {
+    topRole: top.role,
+    totalDemand: top.totalDemand,
+    totalSourcesCount: sourcesSet.size,
+    sourcesList: Array.from(sourcesSet).join(', '),
+    totalObservations
+  };
+}
+
+export function renderSkillEvidenceSummaryBox(aggregated, metricItems = []) {
+  if (!aggregated) {
+    return `<div class="intel-evidence-single-box intel-evidence-single-box--empty">
+      <p class="intel-evidence-panel__message" role="status">No structured metric evidence was returned for this response.</p>
+    </div>`;
+  }
+
+  const formattedDemand = Number.isInteger(aggregated.totalDemand)
+    ? String(aggregated.totalDemand)
+    : Number(aggregated.totalDemand).toLocaleString(undefined, { maximumFractionDigits: 1 });
+
+  return `<div class="intel-evidence-single-box">
+    <div class="intel-evidence-single-box__header">
+      <span class="intel-evidence-single-box__kicker">EVIDENCE SUMMARY</span>
+      <h4 class="intel-evidence-single-box__title">Top Associated Role</h4>
+    </div>
+    <div class="intel-evidence-single-box__body">
+      <div class="intel-evidence-single-box__role-badge">
+        <span class="intel-evidence-single-box__role-name">${esc(aggregated.topRole)}</span>
+      </div>
+      <div class="intel-evidence-single-box__meta">
+        <span class="intel-evidence-single-box__pill">Top Role: <strong>${esc(aggregated.topRole)}</strong></span>
+        <span class="intel-evidence-single-box__divider">|</span>
+        <span class="intel-evidence-single-box__pill">Total Demand: <strong>${esc(formattedDemand)}</strong></span>
+      </div>
+      ${aggregated.totalSourcesCount ? `
+        <p class="intel-evidence-single-box__subtitle">
+          Aggregated across ${aggregated.totalSourcesCount} source${aggregated.totalSourcesCount > 1 ? 's' : ''}${aggregated.sourcesList ? ` (${esc(aggregated.sourcesList)})` : ''} · ${aggregated.totalObservations} verified market telemetry record${aggregated.totalObservations > 1 ? 's' : ''}
+        </p>
+      ` : ''}
+    </div>
+    <div class="intel-evidence-audit" hidden aria-hidden="true">
+      ${metricItems.map(item => `<span>${esc(item.source || '')}:${esc(item.metric_name || '')}:${esc(item.metric_value ?? '')}</span>`).join('')}
+    </div>
+  </div>`;
 }
 
 export function renderIntelligenceEvidencePanel(response, {
@@ -305,8 +510,11 @@ export function renderIntelligenceEvidencePanel(response, {
   loading = false,
   error = null,
   metrics = null,
-  compact = false
+  compact = false,
+  skill = '',
+  aggregateSummary = false
 } = {}) {
+  const isSkillEvidence = aggregateSummary || title === 'Skill intelligence evidence';
   const responseUnavailable = isUnavailableResponse(response);
   const rawMetricItems = Array.isArray(metrics)
     ? metrics
@@ -341,6 +549,8 @@ export function renderIntelligenceEvidencePanel(response, {
   // empty evidence panel that could imply the answer is grounded in evidence.
   if (response?.source_mode === 'ai_general_guidance' && metricItems.length === 0 && !loading && !error) return '';
 
+  const currentSkillName = skill || response?.filters?.skill || response?.selected_skill?.skill || '';
+
   return `<section class="intel-evidence-panel" aria-label="${esc(title)}">
     <header class="intel-evidence-panel__header">
       <h3>${esc(title)}</h3>
@@ -348,11 +558,18 @@ export function renderIntelligenceEvidencePanel(response, {
     </header>
     ${message ? `<p class="intel-evidence-panel__message" role="${error ? 'alert' : 'status'}">${esc(message)}</p>` : ''}
     ${compact ? renderCompactEvidence(response, metricItems, limitations)
+      : isSkillEvidence ? (
+          metricItems.length
+            ? `<div class="intel-evidence-summary-container">${renderSkillEvidenceSummaryBox(aggregateEvidenceRoles(metricItems, currentSkillName), metricItems)}</div>`
+            : !loading && !error ? `<p class="intel-evidence-panel__message" role="status">${limitations.length
+                ? 'No metric values are available for this response.'
+                : 'The API did not return structured metric evidence for this response.'}</p>` : ''
+        )
       : metricItems.length ? `<div class="intel-evidence-grid">${metricItems.map(renderMetric).join('')}</div>`
       : !loading && !error ? `<p class="intel-evidence-panel__message" role="status">${limitations.length
         ? 'No metric values are available for this response.'
         : 'The API did not return structured metric evidence for this response.'}</p>` : ''}
-    ${!compact && limitations.length ? `<ul class="intel-evidence-panel__limitations">${[...new Set(limitations)].map(item => `<li>${esc(item)}</li>`).join('')}</ul>` : ''}
+    ${!compact && !isSkillEvidence && limitations.length ? `<ul class="intel-evidence-panel__limitations">${[...new Set(limitations)].map(item => `<li>${esc(item)}</li>`).join('')}</ul>` : ''}
     ${response?.forecast && response.forecast.status !== 'ready'
       ? `<p class="intel-evidence-panel__message" role="status">Forecast unavailable: ${esc(response.forecast.reason || response.forecast.readiness_state || response.forecast.status)}.</p>` : ''}
     ${response?.skill_health && response.skill_health.status !== 'ready'

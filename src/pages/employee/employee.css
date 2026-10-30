@@ -795,3 +795,1234 @@
     align-items: flex-start;
   }
 }
+
+
+/* --------------------------------------------------------------------------
+   12. REDESIGNED EMPLOYEE HOME DASHBOARD (Workforce Intelligence & Growth)
+   -------------------------------------------------------------------------- */
+
+/* Hero Meta Pill Row */
+.emp-hero-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0 10px;
+}
+
+.emp-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.emp-hero-pill i,
+.emp-hero-pill svg {
+  width: 14px;
+  height: 14px;
+}
+
+.emp-hero-pill--role {
+  background: var(--emp-light);
+  color: var(--emp-primary);
+  border: 1px solid rgba(39, 53, 245, 0.20);
+}
+
+.emp-hero-pill--company {
+  background: #FFFFFF;
+  color: var(--emp-text-primary);
+  border: 1px solid var(--emp-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.emp-hero-pill--dept {
+  background: #F3F4F6;
+  color: var(--emp-text-secondary);
+  border: 1px solid #E5E7EB;
+}
+
+.emp-hero-pill--location {
+  background: #FAFAFA;
+  color: var(--emp-text-muted);
+  border: 1px solid #E5E7EB;
+}
+
+/* Standout Career Direction Accent Card */
+.emp-accent-card {
+  background: linear-gradient(135deg, rgba(39, 53, 245, 0.05) 0%, rgba(24, 35, 168, 0.02) 100%), #FFFFFF;
+  border: 1.5px solid rgba(39, 53, 245, 0.22);
+  border-radius: 20px;
+  padding: 24px 28px;
+  box-shadow: 0 8px 24px rgba(39, 53, 245, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.emp-career-accent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.emp-career-accent-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.emp-accent-title {
+  font-size: 19px;
+  font-weight: 850;
+  color: var(--emp-text-primary);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.emp-badge-accent-soft {
+  background: rgba(39, 53, 245, 0.08);
+  color: var(--emp-primary);
+  border: 1px solid rgba(39, 53, 245, 0.18);
+  font-weight: 650;
+}
+
+/* Career Trajectory Visual Track */
+.emp-career-flow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 20px;
+  background: #FFFFFF;
+  border: 1px solid rgba(39, 53, 245, 0.12);
+  border-radius: 16px;
+  padding: 20px 24px;
+}
+
+.emp-flow-node {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.emp-flow-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--emp-light);
+  color: var(--emp-primary);
+  flex-shrink: 0;
+}
+
+.emp-flow-icon i,
+.emp-flow-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+}
+
+.emp-flow-icon--target {
+  background: linear-gradient(135deg, #2735F5 0%, #1823A8 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(39, 53, 245, 0.28);
+}
+
+.emp-flow-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.emp-flow-label {
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--emp-text-muted);
+}
+
+.emp-flow-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--emp-text-primary);
+  line-height: 1.3;
+}
+
+.emp-flow-value--target {
+  color: var(--emp-primary);
+}
+
+.emp-flow-sub {
+  font-size: 12.5px;
+  color: var(--emp-text-secondary);
+}
+
+.emp-flow-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-width: 80px;
+}
+
+.emp-flow-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(39, 53, 245, 0.2) 0%, rgba(39, 53, 245, 0.6) 50%, rgba(39, 53, 245, 0.2) 100%);
+}
+
+.emp-flow-badge {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #FFFFFF;
+  border: 1.5px solid var(--emp-primary);
+  color: var(--emp-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  box-shadow: 0 2px 8px rgba(39, 53, 245, 0.15);
+}
+
+.emp-flow-badge i,
+.emp-flow-badge svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.4;
+}
+
+.emp-career-accent-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid rgba(39, 53, 245, 0.10);
+  padding-top: 16px;
+  flex-wrap: wrap;
+}
+
+.emp-career-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--emp-text-secondary);
+}
+
+.emp-career-hint i,
+.emp-career-hint svg {
+  width: 16px;
+  height: 16px;
+  color: var(--emp-primary);
+  flex-shrink: 0;
+}
+
+/* Redesigned Metric Cards */
+.emp-metric-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 22px;
+}
+
+.emp-metric-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.emp-metric-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.emp-metric-val {
+  font-size: 20px;
+  font-weight: 850;
+  color: var(--emp-text-primary);
+  margin: 0;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.emp-metric-sub {
+  font-size: 13px;
+  color: var(--emp-text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.emp-metric-meta {
+  font-size: 11.5px;
+  color: var(--emp-text-muted);
+  margin: 4px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.emp-metric-meta i,
+.emp-metric-meta svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Skills & Development Modern Pill Badges */
+.emp-skills-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.emp-tags-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  align-content: flex-start;
+  min-height: 80px;
+}
+
+.emp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.3;
+  transition: all 140ms ease;
+}
+
+.emp-tag i,
+.emp-tag svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.2;
+}
+
+.emp-tag-text {
+  letter-spacing: 0.01em;
+}
+
+.emp-tag-confidence {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(39, 53, 245, 0.12);
+  color: var(--emp-primary);
+  margin-left: 2px;
+}
+
+/* Current skills: Electric Sapphire Indigo */
+.emp-tag--current {
+  background: var(--emp-light);
+  color: var(--emp-primary);
+  border: 1px solid rgba(39, 53, 245, 0.22);
+}
+
+.emp-tag--current:hover {
+  background: #E0E6FF;
+  border-color: rgba(39, 53, 245, 0.35);
+}
+
+/* Target skills: Vibrant Amber / Orange */
+.emp-tag--target {
+  background: #FFF7ED;
+  color: #C2410C;
+  border: 1px solid rgba(249, 115, 22, 0.28);
+}
+
+.emp-tag--target:hover {
+  background: #FFEDD5;
+  border-color: rgba(249, 115, 22, 0.45);
+}
+
+/* Growth Priorities: Modern Slate / Steel */
+.emp-tag--growth {
+  background: #F1F5F9;
+  color: #334155;
+  border: 1px solid #CBD5E1;
+}
+
+.emp-tag--growth:hover {
+  background: #E2E8F0;
+}
+
+/* Support Goals: Mint Emerald */
+.emp-tag--support {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+
+.emp-tag--support:hover {
+  background: #D1FAE5;
+}
+
+.emp-empty-tag {
+  font-size: 12.5px;
+  color: var(--emp-text-muted);
+  font-style: italic;
+  padding: 6px 0;
+}
+
+/* Skeleton Loading State & Shimmer */
+.emp-skeleton-page {
+  animation: empFadeIn 200ms ease-out;
+}
+
+.emp-skeleton-hero {
+  background: #FFFFFF;
+  border: 1px solid var(--emp-border);
+  border-radius: 20px;
+  padding: 24px 28px;
+}
+
+.emp-skeleton-accent {
+  background: #FFFFFF;
+  border: 1px solid var(--emp-border);
+  border-radius: 20px;
+  padding: 24px;
+}
+
+.emp-skeleton-card {
+  background: #FFFFFF;
+  border: 1px solid var(--emp-border);
+  border-radius: 18px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+}
+
+.emp-skeleton-shimmer {
+  background: linear-gradient(90deg, #F0F2F5 0%, #E4E7EB 50%, #F0F2F5 100%);
+  background-size: 200% 100%;
+  animation: empShimmerPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes empShimmerPulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes empFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 900px) {
+  .emp-career-flow {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .emp-flow-connector {
+    transform: rotate(90deg);
+    min-width: unset;
+    margin: 8px auto;
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   13. REDESIGNED EMPLOYEE MY SKILLS CAREER HUB
+   -------------------------------------------------------------------------- */
+
+.emp-skills-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.emp-skills-main-column,
+.emp-skills-sidebar-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.emp-my-skills-card {
+  padding: 24px;
+}
+
+/* Action Bar */
+.emp-skills-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--emp-soft);
+  border: 1px solid var(--emp-border-subtle);
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.emp-skill-add-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.emp-skill-input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.emp-skill-text-input {
+  width: 100%;
+  padding: 9px 12px 9px 36px;
+  border-radius: 10px;
+  border: 1px solid var(--emp-border);
+  background: #FFFFFF;
+  color: var(--emp-text-primary);
+  font-size: 13.5px;
+  outline: none;
+  transition: all 140ms ease;
+}
+
+.emp-skill-text-input:focus {
+  border-color: var(--emp-primary);
+  box-shadow: 0 0 0 3px rgba(39, 53, 245, 0.12);
+}
+
+.emp-input-icon {
+  position: absolute;
+  left: 11px;
+  width: 16px;
+  height: 16px;
+  color: var(--emp-text-muted);
+  pointer-events: none;
+}
+
+.emp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Save Status */
+.emp-save-status {
+  font-size: 12.5px;
+  color: var(--emp-primary);
+  margin: 0 0 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.emp-save-status--error {
+  color: var(--emp-danger);
+}
+
+/* Skills Cards Grid */
+.emp-skills-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin: 12px 0;
+}
+
+.emp-skill-item-card {
+  background: #FFFFFF;
+  border: 1px solid var(--emp-border);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+  transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.emp-skill-item-card:hover {
+  border-color: rgba(39, 53, 245, 0.30);
+  box-shadow: 0 6px 18px rgba(39, 53, 245, 0.08);
+  transform: translateY(-1px);
+}
+
+.emp-skill-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.emp-skill-name-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.emp-skill-icon-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--emp-light);
+  color: var(--emp-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.emp-skill-icon-badge i,
+.emp-skill-icon-badge svg {
+  width: 16px;
+  height: 16px;
+}
+
+.emp-skill-name {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--emp-text-primary);
+  line-height: 1.3;
+}
+
+.emp-skill-del-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--emp-text-muted);
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 140ms ease;
+}
+
+.emp-skill-del-btn:hover {
+  background: var(--emp-danger-light);
+  color: var(--emp-danger);
+  border-color: rgba(224, 82, 82, 0.25);
+}
+
+.emp-skill-del-btn i,
+.emp-skill-del-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Confidence Row & Badges */
+.emp-confidence-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.emp-confidence-caption {
+  font-size: 11.5px;
+  color: var(--emp-text-muted);
+}
+
+.emp-confidence-label {
+  font-size: 11.5px;
+  font-weight: 750;
+  text-transform: capitalize;
+}
+
+.emp-conf--expert { color: #7C3AED; }
+.emp-conf--advanced { color: #059669; }
+.emp-conf--comfortable { color: #2563EB; }
+.emp-conf--beginner { color: #D97706; }
+.emp-conf--unrated { color: #94A3B8; }
+
+.emp-confidence-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.emp-conf-pill {
+  flex: 1;
+  padding: 5px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  text-align: center;
+  border: 1px solid var(--emp-border);
+  background: #FAFAFA;
+  color: var(--emp-text-secondary);
+  cursor: pointer;
+  transition: all 130ms ease;
+  line-height: 1.2;
+}
+
+.emp-conf-pill:hover {
+  background: #F0F2F5;
+  color: var(--emp-text-primary);
+}
+
+.emp-conf-pill.is-active.emp-conf-pill--beginner {
+  background: #FEF3C7;
+  color: #B45309;
+  border-color: #FCD34D;
+}
+
+.emp-conf-pill.is-active.emp-conf-pill--comfortable {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border-color: #93C5FD;
+}
+
+.emp-conf-pill.is-active.emp-conf-pill--advanced {
+  background: #ECFDF5;
+  color: #047857;
+  border-color: #6EE7B7;
+}
+
+.emp-conf-pill.is-active.emp-conf-pill--expert {
+  background: #F5F3FF;
+  color: #6D28D9;
+  border-color: #C4B5FD;
+}
+
+/* Sidebar Widgets */
+.emp-widget-card {
+  padding: 20px;
+}
+
+.emp-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.emp-widget-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.emp-widget-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--emp-text-primary);
+  margin: 4px 0 0;
+  line-height: 1.3;
+}
+
+.emp-widget-desc {
+  font-size: 12px;
+  color: var(--emp-text-muted);
+  margin: 0;
+  line-height: 1.35;
+}
+
+/* Trending Skills Widget */
+.emp-trending-skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.emp-trending-skill-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--emp-soft);
+  border: 1px solid var(--emp-border-subtle);
+  transition: all 140ms ease;
+}
+
+.emp-trending-skill-card:hover {
+  background: #FFFFFF;
+  border-color: rgba(39, 53, 245, 0.25);
+  box-shadow: 0 2px 8px rgba(39, 53, 245, 0.06);
+}
+
+.emp-trending-skill-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.emp-trending-skill-name {
+  font-size: 13.5px;
+  font-weight: 750;
+  color: var(--emp-text-primary);
+}
+
+.emp-trending-skill-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.emp-trending-score {
+  font-size: 11px;
+  color: var(--emp-text-muted);
+}
+
+.emp-trending-score strong {
+  color: var(--emp-text-primary);
+}
+
+/* Matching Roles Widget */
+.emp-matching-roles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.emp-matching-role-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #FFFFFF;
+  border: 1px solid var(--emp-border);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.emp-matching-role-card:hover {
+  border-color: rgba(39, 53, 245, 0.35);
+  box-shadow: 0 4px 16px rgba(39, 53, 245, 0.08);
+  transform: translateY(-1px);
+}
+
+.emp-role-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.emp-role-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.emp-role-card-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--emp-text-primary);
+  line-height: 1.3;
+}
+
+.emp-role-match-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 750;
+  color: #047857;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+.emp-role-match-pill i,
+.emp-role-match-pill svg {
+  width: 12px;
+  height: 12px;
+}
+
+.emp-role-demand-badge {
+  font-size: 11px;
+  color: var(--emp-primary);
+  background: var(--emp-light);
+  border: 1px solid rgba(39, 53, 245, 0.18);
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.emp-role-matched-skills {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+
+.emp-role-matched-label {
+  color: var(--emp-text-muted);
+  font-weight: 600;
+}
+
+.emp-role-skill-pill {
+  background: #F1F5F9;
+  color: #334155;
+  border: 1px solid #E2E8F0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 650;
+  font-size: 10.5px;
+}
+
+.emp-role-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--emp-border-subtle);
+}
+
+@media (max-width: 1024px) {
+  .emp-skills-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+
+/* ==========================================================================
+   MY GROWTH — LEARNING & PROGRESSION HUB
+   (Added as part of Growth Hub overhaul)
+   ========================================================================== */
+
+/* ── Career Context Banner ── */
+.emp-growth-context-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  background: linear-gradient(135deg, #EEF1FF 0%, #F5F7FF 100%);
+  border: 1.5px solid rgba(39, 53, 245, 0.15);
+  border-radius: 18px;
+  padding: 20px 28px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.emp-growth-context-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 160px;
+}
+
+.emp-growth-context-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--emp-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.emp-growth-context-value {
+  font-size: 17px;
+  font-weight: 850;
+  color: var(--emp-text-primary);
+  line-height: 1.2;
+}
+
+.emp-growth-context-sub {
+  font-size: 12px;
+  color: var(--emp-text-muted);
+}
+
+.emp-growth-context-divider {
+  width: 1px;
+  background: rgba(39, 53, 245, 0.15);
+  align-self: stretch;
+  min-height: 40px;
+  flex-shrink: 0;
+}
+
+/* ── Two-column hub layout ── */
+.emp-growth-hub-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+/* ── Left panel (Active Plans) ── */
+.emp-growth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.emp-growth-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Right sidebar ── */
+.emp-growth-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Plan card ── */
+.emp-growth-plan-card {
+  background: #FFFFFF;
+  border: 1.5px solid var(--emp-border-subtle);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: var(--emp-shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.emp-growth-plan-card--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 24px;
+  background: linear-gradient(180deg, #FAFBFF 0%, #F5F7FF 100%);
+}
+
+.emp-growth-plan-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.emp-growth-plan-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--emp-text-primary);
+  line-height: 1.25;
+}
+
+.emp-growth-plan-goal {
+  font-size: 12.5px;
+  color: var(--emp-text-muted);
+  margin-top: 2px;
+}
+
+.emp-growth-plan-milestones {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.emp-growth-ms-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.emp-growth-ms-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--emp-border);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.emp-growth-ms-dot--active {
+  background: var(--emp-primary);
+  box-shadow: 0 0 0 3px rgba(39, 53, 245, 0.18);
+}
+
+/* ── Section cards (right sidebar) ── */
+.emp-growth-card-section {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.emp-growth-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.emp-growth-section-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Priority tags ── */
+.emp-growth-priority-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.emp-growth-priority-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--emp-soft);
+  border: 1px solid var(--emp-border-subtle);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--emp-text-secondary);
+}
+
+/* ── Support tags ── */
+.emp-growth-support-tag {
+  display: inline-flex;
+  align-items: center;
+  background: var(--emp-light);
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--emp-primary);
+}
+
+/* ── Skill badges (Skills to Build) ── */
+.emp-growth-skill-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.emp-growth-skill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  background: var(--emp-soft);
+  border: 1.5px solid var(--emp-border-subtle);
+  border-radius: 20px;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.emp-growth-skill-name {
+  padding: 6px 12px;
+  font-weight: 650;
+  color: var(--emp-text-primary);
+}
+
+.emp-growth-roadmap-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--emp-primary);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s ease;
+  border-left: 1px solid rgba(255,255,255,0.2);
+}
+
+.emp-growth-roadmap-btn:hover {
+  background: var(--emp-deep-primary);
+}
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .emp-growth-hub-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .emp-growth-context-banner {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .emp-growth-context-divider {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   8. LEARNING WORKSPACE THEME (Scoped to Employee Portal)
+   Remaps the Learning module's purple palette to Corporate Sapphire Blue
+   -------------------------------------------------------------------------- */
+
+.employee-portal .learning-page {
+  --lp-purple: var(--emp-primary);          /* #B22DEF -> #2735F5 */
+  --lp-deep: var(--emp-deep-primary);       /* #42075D -> #1823A8 */
+  --lp-secondary: #4555F7;                  /* #8B3DFF -> mid-blue */
+  --lp-light-purple: var(--emp-light);      /* #F3E9FF -> #EEF1FF */
+  --lp-border: var(--emp-border-subtle);    /* #e7d9f5 -> #EEF1FF */
+  --lp-border-glass: var(--emp-border-glass);
+  --lp-shadow-card: var(--emp-shadow-card);
+  --lp-shadow-glow: var(--emp-shadow-glass);
+  --lp-wash: var(--emp-soft);
+  background: radial-gradient(ellipse at 95% 0%, rgba(39, 53, 245, 0.055), transparent 35%) !important;
+}
+
+.employee-portal .learning-page button:focus-visible,
+.employee-portal .learning-page input:focus-visible,
+.employee-portal .learning-page select:focus-visible,
+.employee-portal .learning-page a:focus-visible {
+  outline-color: var(--emp-primary) !important;
+}
+
+.employee-portal .lp-plan-modal-header {
+  background: linear-gradient(135deg, #0f1642 0%, #1823A8 45%, #2735F5 100%) !important;
+}
+
+.employee-portal .lp-plan-step-indicator i {
+  background: linear-gradient(90deg, #1823A8, #2735F5) !important;
+  box-shadow: 0 0 10px rgba(39, 53, 245, 0.5) !important;
+}
+
+.employee-portal .lp-preview-badge-icon {
+  background: linear-gradient(135deg, #2735F5 0%, #4555F7 100%) !important;
+  box-shadow: 0 4px 14px rgba(39, 53, 245, 0.28) !important;
+}
+
+.employee-portal .lp-modal-overlay,
+.employee-portal .lp-modal,
+.employee-portal [class*="lp-modal"] {
+  --lp-purple: var(--emp-primary);
+  --lp-deep: var(--emp-deep-primary);
+  --lp-secondary: #4555F7;
+  --lp-light-purple: var(--emp-light);
+  --lp-border: var(--emp-border-subtle);
+  --lp-border-glass: var(--emp-border-glass);
+  --lp-shadow-card: var(--emp-shadow-card);
+  --lp-shadow-glow: var(--emp-shadow-glass);
+  --lp-wash: var(--emp-soft);
+}
+

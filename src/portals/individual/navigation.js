@@ -10,7 +10,13 @@ export const individualNavigation = [
     { label: 'Market Insights', icon: 'chart-no-axes-combined', route: '/individual/market-insights' }
   ] },
   { label: 'Workspace', items: [
-    { label: 'Notifications', icon: 'bell', route: '/individual/notifications' },
-    { label: 'AI Assistant', icon: 'sparkles', route: '/individual/ai-assistant' }
+    { label: 'Notifications', icon: 'bell', route: '/individual/notifications' }
   ] }
 ];
+
+export function resolveIndividualRoute(route) {
+  if (route === '/individual/ai-assistant' || route === '/individual/assistant' || route === '/assistant' || route === '/ai') {
+    return '/individual/home';
+  }
+  return route;
+}

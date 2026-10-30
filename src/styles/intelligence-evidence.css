@@ -174,3 +174,119 @@
     grid-template-columns: 1fr;
   }
 }
+
+.intel-evidence-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle, #F1F5F9);
+}
+
+.intel-evidence-line {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-secondary, #475467);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.intel-evidence-line--warning {
+  color: #B45309;
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.intel-evidence-audit {
+  display: none !important;
+}
+
+.intel-evidence-summary-container {
+  margin-top: 10px;
+}
+
+.intel-evidence-single-box {
+  background: var(--surface, #FFFFFF);
+  border: 1px solid var(--border-subtle, #E2E8F0);
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.intel-evidence-single-box--empty {
+  padding: 14px;
+}
+
+.intel-evidence-single-box__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.intel-evidence-single-box__kicker {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--primary, #2563EB);
+}
+
+.intel-evidence-single-box__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary, #475467);
+}
+
+.intel-evidence-single-box__role-badge {
+  display: inline-flex;
+  align-items: center;
+}
+
+.intel-evidence-single-box__role-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary, #0F172A);
+  letter-spacing: -0.02em;
+}
+
+.intel-evidence-single-box__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.intel-evidence-single-box__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  color: var(--text-secondary, #475467);
+  padding: 8px 12px;
+  background: var(--surface-subtle, #F8FAFC);
+  border: 1px solid var(--border-subtle, #E2E8F0);
+  border-radius: 6px;
+}
+
+.intel-evidence-single-box__pill strong {
+  color: var(--text-primary, #0F172A);
+  font-weight: 700;
+}
+
+.intel-evidence-single-box__divider {
+  color: var(--border-subtle, #CBD5E1);
+  font-weight: 300;
+}
+
+.intel-evidence-single-box__subtitle {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-muted, #64748B);
+  line-height: 1.45;
+}

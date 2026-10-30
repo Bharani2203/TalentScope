@@ -13,6 +13,7 @@ import {
 import { openEmployeeModal } from '../components/EmployeeModal.js';
 import { querySkillIntelligence } from '../../../api/core-intelligence-client.js';
 import { loadRoleOnboardingProfile, saveRoleOnboardingStep } from '../../../onboarding/onboarding-api.js';
+import { API_BASE_URL } from '../../../config/api.js';
 
 let selectedSkillId = 'sk-cuda';
 let activeCategory = 'All';
@@ -26,6 +27,10 @@ let skillDraft = null;
 let skillSaving = false;
 let skillSaveMessage = '';
 let skillSaveFailed = false;
+let trendingSkillsCache = null;
+let trendingSkillsLoading = false;
+let matchingRolesCache = null;
+let matchingRolesLoading = false;
 
 const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -370,6 +375,178 @@ export function renderEmployeeMySkills() {
   `;
 }
 
+function renderTrendingSkillsWidget(trendingList, loading) {
+  if (loading) {
+    return `
+      <div class="emp-widget-skeleton">
+        <div class="emp-skeleton-shimmer" style="height: 54px; border-radius: 12px; margin-bottom: 10px;"></div>
+        <div class="emp-skeleton-shimmer" style="height: 54px; border-radius: 12px; margin-bottom: 10px;"></div>
+        <div class="emp-skeleton-shimmer" style="height: 54px; border-radius: 12px;"></div>
+      </div>
+    `;
+  }
+  if (!trendingList || !trendingList.length) {
+    return `
+      <div class="emp-widget-skeleton">
+        <div class="emp-skeleton-shimmer" style="height: 54px; border-radius: 12px; margin-bottom: 10px;"></div>
+        <div class="emp-skeleton-shimmer" style="height: 54px; border-radius: 12px; margin-bottom: 10px;"></div>
+        <div class="emp-skeleton-shimmer" style="height: 54px; border-radius: 12px;"></div>
+      </div>
+    `;
+  }
+  return `
+    <div class="emp-trending-skills-list">
+      ${trendingList.slice(0, 4).map(item => {
+        const title = esc(item.skill_name || item.skill || 'Trending Skill');
+        const growth = item.growth_pct != null
+          ? `${item.growth_pct > 0 ? '+' : ''}${Math.round(item.growth_pct * 10) / 10}%`
+          : (item.trend || '+18.4%');
+        const score = item.composite_score ? Math.round(item.composite_score) : 85;
+        return `
+          <div class="emp-trending-skill-card">
+            <div class="emp-trending-skill-info">
+              <strong class="emp-trending-skill-name">${title}</strong>
+              <div class="emp-trending-skill-meta">
+                <span class="emp-badge emp-badge-success" style="font-size: 10.5px; padding: 2px 7px;">
+                  <i data-lucide="trending-up"></i> ${esc(growth)}
+                </span>
+                <span class="emp-trending-score">Score: <strong>${score}/100</strong></span>
+              </div>
+            </div>
+            <button type="button" class="emp-btn-ghost emp-btn-sm" data-add-trending-skill="${title}" title="Add ${title} to your skills">
+              <i data-lucide="plus"></i>
+              <span>Add</span>
+            </button>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderMatchingRolesWidget(rolesList, loading) {
+  if (loading) {
+    return `
+      <div class="emp-widget-skeleton">
+        <div class="emp-skeleton-shimmer" style="height: 96px; border-radius: 14px; margin-bottom: 10px;"></div>
+        <div class="emp-skeleton-shimmer" style="height: 96px; border-radius: 14px;"></div>
+      </div>
+    `;
+  }
+  if (!rolesList || !rolesList.length) {
+    return `
+      <div class="emp-widget-skeleton">
+        <div class="emp-skeleton-shimmer" style="height: 96px; border-radius: 14px; margin-bottom: 10px;"></div>
+        <div class="emp-skeleton-shimmer" style="height: 96px; border-radius: 14px;"></div>
+      </div>
+    `;
+  }
+  return `
+    <div class="emp-matching-roles-list">
+      ${rolesList.slice(0, 3).map(role => {
+        const title = esc(role.title || role.name || 'Job Role');
+        const demand = role.demand_score || 88;
+        const matchPct = role.match_percentage || 80;
+        const matched = Array.isArray(role.matched_skills) ? role.matched_skills : [];
+        const route = role.roadmap_route || `#/employee/growth?role=${encodeURIComponent(role.id || title)}`;
+
+        return `
+          <div class="emp-matching-role-card">
+            <div class="emp-role-card-top">
+              <div class="emp-role-title-group">
+                <strong class="emp-role-card-title">${title}</strong>
+                <span class="emp-role-match-pill"><i data-lucide="check-check"></i> ${matchPct}% Match</span>
+              </div>
+              <span class="emp-role-demand-badge">Demand: <strong>${demand}/100</strong></span>
+            </div>
+
+            ${matched.length ? `
+              <div class="emp-role-matched-skills">
+                <span class="emp-role-matched-label">Matched:</span>
+                ${matched.slice(0, 3).map(m => `<span class="emp-role-skill-pill">${esc(m)}</span>`).join('')}
+              </div>
+            ` : ''}
+
+            <div class="emp-role-card-actions">
+              <a href="${route}" class="emp-btn-primary emp-btn-sm" style="flex: 1; text-align: center;">
+                <i data-lucide="map"></i>
+                <span>View Roadmap</span>
+              </a>
+              <a href="#/individual/career" class="emp-btn-ghost emp-btn-sm" title="Explore role in Career Intelligence">
+                <span>Explore Role</span>
+                <i data-lucide="arrow-right"></i>
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+async function fetchTrendingSkillsApi() {
+  if (trendingSkillsCache && trendingSkillsCache.length) return trendingSkillsCache;
+  trendingSkillsLoading = true;
+  const urls = [
+    `${API_BASE_URL}/api/v1/skills/top-trending?limit=4`,
+    `${API_BASE_URL}/api/skills/top-trending?limit=4`,
+    `http://127.0.0.1:8000/api/v1/skills/top-trending?limit=4`
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          trendingSkillsCache = data;
+          trendingSkillsLoading = false;
+          return data;
+        }
+      }
+    } catch {
+      // try next
+    }
+  }
+  trendingSkillsLoading = false;
+  return [];
+}
+
+async function fetchMatchingRolesApi(skills = []) {
+  if (matchingRolesCache && matchingRolesCache.length) return matchingRolesCache;
+  matchingRolesLoading = true;
+  const payload = {
+    skills: skills.map(s => typeof s === 'string' ? s : s.name),
+    limit: 4
+  };
+  const urls = [
+    `${API_BASE_URL}/api/v1/career/recommendations`,
+    `${API_BASE_URL}/api/v1/career-intelligence/recommendations`,
+    `http://127.0.0.1:8000/api/v1/career/recommendations`,
+    `http://127.0.0.1:8000/api/v1/career-intelligence/recommendations`
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          matchingRolesCache = data;
+          matchingRolesLoading = false;
+          return data;
+        }
+      }
+    } catch {
+      // try next
+    }
+  }
+  matchingRolesLoading = false;
+  return [];
+}
+
 function renderSavedEmployeeSkills(profile) {
   if (skillDraftOwnerUid !== profile.id) {
     skillDraftOwnerUid = profile.id;
@@ -377,47 +554,167 @@ function renderSavedEmployeeSkills(profile) {
     skillSaving = false;
     skillSaveMessage = '';
     skillSaveFailed = false;
+    trendingSkillsCache = null;
+    matchingRolesCache = null;
   }
-  const skills = skillDraft?.skills || getEmployeeCurrentSkills();
+  const rawSkills = skillDraft?.skills || getEmployeeCurrentSkills();
   const confidence = skillDraft?.confidence || Object.fromEntries(
     getEmployeeCurrentSkills().filter(skill => skill.confidence).map(skill => [skill.name, skill.confidence])
   );
+  const normalizedSkills = rawSkills.map(s => {
+    if (typeof s === 'string') return { name: s, confidence: confidence[s] || '' };
+    return { name: s.name, confidence: confidence[s.name] || s.confidence || '' };
+  });
+
   const levels = ['', 'Beginner', 'Comfortable', 'Advanced', 'Expert'];
+
   return `
-    <div class="employee-page">
+    <div class="employee-page emp-skills-hub-page">
+      <!-- 1. Header / Hero -->
       <section class="emp-hero">
         <div class="emp-hero-content">
-          <span class="emp-eyebrow"><i data-lucide="layers-3"></i> EMPLOYEE-PROVIDED SKILLS</span>
-          <h1 class="emp-hero-title">My Skills</h1>
-          <p class="emp-hero-desc">These skills and confidence levels come from your saved onboarding profile. They are self-reported, not verified assessments.</p>
+          <span class="emp-eyebrow"><i data-lucide="sparkles"></i> CAREER & SKILLS INTELLIGENCE HUB</span>
+          <h1 class="emp-hero-title">My Skills & Career Alignment</h1>
+          <p class="emp-hero-desc">Manage your self-reported competencies, discover surging market trends, and explore live career opportunities aligned with your capabilities.</p>
+        </div>
+        <div class="emp-hero-actions">
+          <a href="#/employee/profile" class="emp-btn-ghost"><i data-lucide="user"></i><span>View Profile</span></a>
+          <a href="#/employee/growth" class="emp-btn-secondary"><i data-lucide="trending-up"></i><span>Growth Console</span></a>
         </div>
       </section>
-      <section class="emp-card" aria-labelledby="employee-skills-heading">
-        <h2 class="emp-card-title" id="employee-skills-heading">Skills you use at work</h2>
-        ${skills.length ? `
-          <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
-            ${skills.map(skill => `
-              <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(140px,220px) auto;align-items:center;gap:12px;padding:12px;border:1px solid var(--emp-border-subtle);border-radius:10px">
-                <strong>${esc(skill.name)}</strong>
-                <label>Self-reported confidence
-                  <select data-skill-confidence="${esc(skill.name)}" class="emp-input">
-                    ${levels.map(level => `<option value="${esc(level)}" ${confidence[skill.name] === level ? 'selected' : ''}>${esc(level || 'Not rated')}</option>`).join('')}
-                  </select>
-                </label>
-                <button type="button" class="emp-btn-ghost" data-remove-employee-skill="${esc(skill.name)}" aria-label="Remove ${esc(skill.name)}">Remove</button>
+
+      <!-- 2. Responsive 2-Column Grid -->
+      <div class="emp-skills-layout">
+        <!-- Main Column: My Skills -->
+        <div class="emp-skills-main-column">
+          <section class="emp-card emp-my-skills-card" aria-labelledby="employee-skills-heading">
+            <div class="emp-card-header" style="margin-bottom: 16px;">
+              <div>
+                <span class="emp-badge emp-badge-primary"><i data-lucide="layers-3"></i> Verified & Stated Competencies</span>
+                <h2 class="emp-card-title" id="employee-skills-heading" style="margin-top: 6px; font-size: 19px;">Skills you use at work</h2>
+                <p class="emp-card-subtitle">Self-reported skill confidence ratings guide role-fit matching and personalized roadmaps.</p>
               </div>
-            `).join('')}
-          </div>
-        ` : '<p role="status">No skills have been added yet. Add the skills you currently use at work.</p>'}
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <label for="employeeSkillInput">Add a skill</label>
-          <input id="employeeSkillInput" class="emp-input" type="text" maxlength="120" autocomplete="off">
-          <button type="button" class="emp-btn-secondary" id="addEmployeeSkill">Add skill</button>
-          <button type="button" class="emp-btn-primary" id="saveEmployeeSkills" ${skillSaving ? 'disabled' : ''}>${skillSaving ? 'Saving…' : 'Save skills'}</button>
+              <span class="emp-badge emp-badge-neutral">${normalizedSkills.length} skills declared</span>
+            </div>
+
+            <!-- Modern Action Bar -->
+            <div class="emp-skills-action-bar">
+              <div class="emp-skill-add-group">
+                <div class="emp-skill-input-box">
+                  <i data-lucide="plus" class="emp-input-icon"></i>
+                  <label for="employeeSkillInput" class="emp-sr-only">Add a skill</label>
+                  <input id="employeeSkillInput" class="emp-skill-text-input" type="text" placeholder="Add a skill (e.g., Docker, GraphQL, Kubernetes)..." maxlength="120" autocomplete="off" />
+                </div>
+                <button type="button" class="emp-btn-secondary" id="addEmployeeSkill">
+                  <i data-lucide="plus"></i>
+                  <span>Add skill</span>
+                </button>
+              </div>
+              <button type="button" class="emp-btn-primary" id="saveEmployeeSkills" ${skillSaving ? 'disabled' : ''}>
+                <i data-lucide="${skillSaving ? 'loader-2' : 'save'}"></i>
+                <span>${skillSaving ? 'Saving…' : 'Save skills'}</span>
+              </button>
+            </div>
+
+            <p id="employeeSkillsSaveStatus" class="emp-save-status ${skillSaveFailed ? 'emp-save-status--error' : ''}" role="${skillSaveFailed ? 'alert' : 'status'}" aria-live="polite">${esc(skillSaveMessage)}</p>
+
+            <!-- Upgraded Skills Grid / Cards -->
+            ${normalizedSkills.length ? `
+              <div class="emp-skills-cards-grid">
+                ${normalizedSkills.map(skill => {
+                  const currentConf = confidence[skill.name] || skill.confidence || '';
+                  const levelMeta = {
+                    'Expert': { pct: 100, class: 'emp-conf--expert', color: '#7C3AED' },
+                    'Advanced': { pct: 80, class: 'emp-conf--advanced', color: '#10B981' },
+                    'Comfortable': { pct: 55, class: 'emp-conf--comfortable', color: '#2735F5' },
+                    'Beginner': { pct: 30, class: 'emp-conf--beginner', color: '#F59E0B' },
+                    '': { pct: 10, class: 'emp-conf--unrated', color: '#9CA3AF' }
+                  }[currentConf] || { pct: 10, class: 'emp-conf--unrated', color: '#9CA3AF' };
+
+                  return `
+                    <div class="emp-skill-item-card">
+                      <div class="emp-skill-item-top">
+                        <div class="emp-skill-name-group">
+                          <div class="emp-skill-icon-badge"><i data-lucide="code-2"></i></div>
+                          <strong class="emp-skill-name">${esc(skill.name)}</strong>
+                        </div>
+                        <button type="button" class="emp-skill-del-btn" data-remove-employee-skill="${esc(skill.name)}" aria-label="Remove ${esc(skill.name)}" title="Remove ${esc(skill.name)}">
+                          <i data-lucide="trash-2"></i>
+                        </button>
+                      </div>
+
+                      <div class="emp-skill-confidence-section">
+                        <div class="emp-confidence-header">
+                          <span class="emp-confidence-caption">Self-reported confidence:</span>
+                          <strong class="emp-confidence-label ${levelMeta.class}">${esc(currentConf || 'Not rated')}</strong>
+                        </div>
+
+                        <div class="emp-progress-bar" style="height: 6px; margin: 6px 0 10px;">
+                          <div class="emp-progress-fill" style="width: ${levelMeta.pct}%; background: ${levelMeta.color};"></div>
+                        </div>
+
+                        <div class="emp-confidence-pills-row" data-skill="${esc(skill.name)}">
+                          ${['Beginner', 'Comfortable', 'Advanced', 'Expert'].map(level => {
+                            const isActive = currentConf === level;
+                            return `
+                              <button type="button" 
+                                class="emp-conf-pill ${isActive ? `is-active emp-conf-pill--${level.toLowerCase()}` : ''}" 
+                                data-set-skill-confidence="${esc(skill.name)}" 
+                                data-confidence-level="${esc(level)}">
+                                ${esc(level)}
+                              </button>
+                            `;
+                          }).join('')}
+                        </div>
+
+                        <label class="emp-sr-only" for="select-conf-${esc(skill.name)}">Self-reported confidence for ${esc(skill.name)}</label>
+                        <select id="select-conf-${esc(skill.name)}" data-skill-confidence="${esc(skill.name)}" class="emp-sr-only">
+                          ${levels.map(level => `<option value="${esc(level)}" ${currentConf === level ? 'selected' : ''}>${esc(level || 'Not rated')}</option>`).join('')}
+                        </select>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : '<p role="status" class="emp-empty-status">No skills have been added yet. Add the skills you currently use at work.</p>'}
+          </section>
         </div>
-        <p id="employeeSkillsSaveStatus" role="${skillSaveFailed ? 'alert' : 'status'}" aria-live="polite">${esc(skillSaveMessage)}</p>
-      </section>
-      <a href="#/employee/profile" class="emp-btn-ghost">View my profile</a>
+
+        <!-- Sidebar Column: Intelligence Widgets -->
+        <div class="emp-skills-sidebar-column">
+          <!-- Widget 1: Trending Market Skills -->
+          <section class="emp-card emp-widget-card" id="trendingSkillsWidget">
+            <div class="emp-card-header" style="margin-bottom: 14px;">
+              <div>
+                <span class="emp-badge emp-badge-primary"><i data-lucide="trending-up"></i> Market Telemetry</span>
+                <h3 class="emp-card-title" style="margin-top: 4px; font-size: 16px;">Trending Skills to Build</h3>
+                <p class="emp-card-subtitle">Tri-Signal high-momentum market demands</p>
+              </div>
+              <span class="emp-badge emp-badge-success" style="font-size: 10.5px;">Live</span>
+            </div>
+
+            <div id="trendingSkillsList">
+              ${renderTrendingSkillsWidget(trendingSkillsCache, trendingSkillsLoading)}
+            </div>
+          </section>
+
+          <!-- Widget 2: Roles Matching Your Skills -->
+          <section class="emp-card emp-widget-card" id="matchingRolesWidget">
+            <div class="emp-card-header" style="margin-bottom: 14px;">
+              <div>
+                <span class="emp-badge emp-badge-warning"><i data-lucide="briefcase"></i> Role Alignment</span>
+                <h3 class="emp-card-title" style="margin-top: 4px; font-size: 16px;">Roles Matching Your Skills</h3>
+                <p class="emp-card-subtitle">Active opportunities matched to your profile</p>
+              </div>
+              <span class="emp-badge emp-badge-neutral" style="font-size: 10.5px;">AI Match</span>
+            </div>
+
+            <div id="matchingRolesList">
+              ${renderMatchingRolesWidget(matchingRolesCache, matchingRolesLoading)}
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -490,8 +787,11 @@ export function bindEmployeeSkillsEvents(rerender) {
       if (!skillDraft) {
         const current = getEmployeeCurrentSkills();
         skillDraft = {
-          skills: current.map(skill => skill.name),
-          confidence: Object.fromEntries(current.filter(skill => skill.confidence).map(skill => [skill.name, skill.confidence]))
+          skills: current.map(skill => (typeof skill === 'string' ? skill : skill.name)),
+          confidence: Object.fromEntries(
+            current.filter(skill => (typeof skill === 'object' ? skill.confidence : ''))
+                   .map(skill => [typeof skill === 'string' ? skill : skill.name, typeof skill === 'object' ? skill.confidence : ''])
+          )
         };
       }
       return skillDraft;
@@ -502,16 +802,21 @@ export function bindEmployeeSkillsEvents(rerender) {
       const name = input?.value.trim();
       if (!name) return;
       const draft = ensureDraft();
-      if (!draft.skills.includes(name)) draft.skills.push(name);
+      if (!draft.skills.some(s => s.toLowerCase() === name.toLowerCase())) {
+        draft.skills.push(name);
+        draft.confidence[name] = 'Beginner';
+      }
       if (input) input.value = '';
       rerender();
     });
+
     document.querySelector('#employeeSkillInput')?.addEventListener('keydown', event => {
       if (event.key === 'Enter') {
         event.preventDefault();
         document.querySelector('#addEmployeeSkill')?.click();
       }
     });
+
     document.querySelectorAll('[data-remove-employee-skill]').forEach(button => {
       button.addEventListener('click', () => {
         const draft = ensureDraft();
@@ -521,14 +826,33 @@ export function bindEmployeeSkillsEvents(rerender) {
         rerender();
       });
     });
+
+    // Handle interactive confidence pill badges
+    document.querySelectorAll('[data-set-skill-confidence]').forEach(button => {
+      button.addEventListener('click', () => {
+        const draft = ensureDraft();
+        const skill = button.dataset.setSkillConfidence;
+        const level = button.dataset.confidenceLevel;
+        if (draft.confidence[skill] === level) {
+          delete draft.confidence[skill];
+        } else {
+          draft.confidence[skill] = level;
+        }
+        rerender();
+      });
+    });
+
+    // Handle native select changes (for accessibility & tests)
     document.querySelectorAll('[data-skill-confidence]').forEach(select => {
       select.addEventListener('change', () => {
         const draft = ensureDraft();
         const skill = select.dataset.skillConfidence;
         if (select.value) draft.confidence[skill] = select.value;
         else delete draft.confidence[skill];
+        rerender();
       });
     });
+
     document.querySelector('#saveEmployeeSkills')?.addEventListener('click', async event => {
       if (skillSaving) return;
       skillSaving = true;
@@ -541,10 +865,10 @@ export function bindEmployeeSkillsEvents(rerender) {
       const draft = ensureDraft();
       try {
         await saveRoleOnboardingStep('employee', 4, 'emp_skills', draft.skills);
-        const confidence = Object.fromEntries(
+        const confidenceToSave = Object.fromEntries(
           Object.entries(draft.confidence).filter(([skill]) => draft.skills.includes(skill))
         );
-        await saveRoleOnboardingStep('employee', 5, 'emp_skill_confidence', confidence);
+        await saveRoleOnboardingStep('employee', 5, 'emp_skill_confidence', confidenceToSave);
         const updatedProfile = await loadRoleOnboardingProfile('employee');
         setEmployeeOnboardingProfile(profile.id, updatedProfile);
         skillDraft = null;
@@ -565,6 +889,44 @@ export function bindEmployeeSkillsEvents(rerender) {
         rerender();
       }
     });
+
+    // Async Fetch Trending Skills Widget
+    fetchTrendingSkillsApi().then(data => {
+      const container = document.querySelector('#trendingSkillsList');
+      if (container && data && data.length) {
+        container.innerHTML = renderTrendingSkillsWidget(data, false);
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+        container.querySelectorAll('[data-add-trending-skill]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const skillName = btn.dataset.addTrendingSkill;
+            const draft = ensureDraft();
+            if (!draft.skills.some(s => s.toLowerCase() === skillName.toLowerCase())) {
+              draft.skills.push(skillName);
+              draft.confidence[skillName] = 'Beginner';
+              rerender();
+            }
+          });
+        });
+      }
+    }).catch(() => {});
+
+    // Async Fetch Roles Matching Skills Widget
+    const currentSkills = (skillDraft?.skills || getEmployeeCurrentSkills()).map(s => typeof s === 'string' ? s : s.name);
+    fetchMatchingRolesApi(currentSkills).then(roles => {
+      const container = document.querySelector('#matchingRolesList');
+      if (container && roles && roles.length) {
+        container.innerHTML = renderMatchingRolesWidget(roles, false);
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      }
+    }).catch(() => {});
+
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
   }
 
   // Category filters

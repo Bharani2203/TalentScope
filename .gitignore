@@ -9,6 +9,7 @@ node_modules/
 .venv/
 **/.pytest_cache/
 **/.pytest-*/
+**/.pytest-tmp*
 **/__pycache__/
 *.py[cod]
 *.sqlite3

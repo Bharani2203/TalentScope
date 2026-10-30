@@ -19,7 +19,14 @@ import {
   verifyFirebaseEmulator
 } from './firebase-emulator-config.js';
 
-const emulatorConfig = resolveFirebaseEmulatorConfig(window.location);
+// Safe environment shim across browser and build bundlers
+if (typeof process === 'undefined') {
+  const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location?.hostname);
+  globalThis.process = { env: { NODE_ENV: isLocalhost ? 'development' : 'production' } };
+}
+
+// Emulator mode is strictly restricted to development environments
+const emulatorConfig = process.env.NODE_ENV === 'development' ? resolveFirebaseEmulatorConfig(window.location) : null;
 if (emulatorConfig) await verifyFirebaseEmulator(emulatorConfig);
 
 const firebaseConfig = emulatorConfig ? {
@@ -41,8 +48,10 @@ if (emulatorConfig && firebaseApp.options.projectId !== emulatorConfig.projectId
   throw new Error('Firebase Emulator mode rejected an already initialized non-emulator project.');
 }
 export const auth = getAuth(firebaseApp);
-if (emulatorConfig) {
-  connectAuthEmulator(auth, emulatorConfig.authUrl, { disableWarnings: true });
+if (process.env.NODE_ENV === 'development') {
+  if (emulatorConfig) {
+    connectAuthEmulator(auth, emulatorConfig.authUrl, { disableWarnings: true });
+  }
 }
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });

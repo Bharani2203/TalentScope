@@ -7,6 +7,12 @@ from typing import Any
 
 def _practice_for(skill: str, role: str) -> tuple[str, str, str]:
     label = skill.casefold()
+    if label in {"c", "c programming", "c language", "c programming language"}:
+        return (
+            "Write a small C program that reads input, uses a condition and a loop, and prints a result.",
+            "A C source file with sample input/output and a short note explaining the logic.",
+            "Compile and run the program with a normal case and an edge case; compare both outputs with your expected results.",
+        )
     if "sql" in label or "query language" in label or "database" in label:
         return (
             "Write SQL queries over a small sample schema: filter rows, group results, and join two tables.",

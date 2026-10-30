@@ -531,3 +531,30 @@ export const COMPANY_QUESTIONS = [
     ]
   }
 ];
+
+// ----------------------------------------------------------------------------
+// 4. STEP RESOLUTION & DRAFT VALIDATION HELPERS
+// ----------------------------------------------------------------------------
+export function filterOnboardingDraft(parsed, userType) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (userType && (!parsed.userType || parsed.userType !== userType)) return null;
+  return parsed;
+}
+
+export function resolveRoleStepIndex({ remote, draft, userType }) {
+  const type = userType || 'company';
+  const questions = type === 'employee' ? EMPLOYEE_QUESTIONS : COMPANY_QUESTIONS;
+  const maxSteps = questions.length;
+
+  const hasRemoteAnswers = remote?.answers && Object.keys(remote.answers).length > 0;
+  const hasDraftAnswers = draft?.answers && Object.keys(draft.answers).length > 0;
+
+  // When no answers exist yet, user must strictly start at Step 1 (index 0)
+  if (!hasRemoteAnswers && !hasDraftAnswers) {
+    return 0;
+  }
+
+  const candidateStep = remote?.onboarding?.current_step || (typeof draft?.stepIndex === 'number' ? draft.stepIndex + 1 : 1);
+  return Math.max(0, Math.min(candidateStep - 1, maxSteps - 1));
+}
+

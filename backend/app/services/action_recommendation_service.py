@@ -323,6 +323,60 @@ def build_action_recommendations(
         or (response.answer.readiness_status if response.answer else "insufficient_history")
     )
     if upstream_readiness in ("blocked_quality", "blocked_coverage", "blocked_configuration", "blocked_missing_period"):
+        # Check if user profile has verified skills (e.g. Python, SQL) to generate actionable learning steps
+        verified_skills: list[str] = []
+        if ind_ctx and getattr(ind_ctx, "selected_skills", None):
+            verified_skills.extend(ind_ctx.selected_skills)
+        if emp_ctx and getattr(emp_ctx, "verified_company_skills", None):
+            verified_skills.extend(emp_ctx.verified_company_skills)
+        if request.selected_skills:
+            verified_skills.extend([s for s in request.selected_skills if s and s.lower() not in {"market", "monitored skill"}])
+
+        profile_skills = [
+            s.strip() for s in dict.fromkeys(verified_skills)
+            if s and s.strip() and s.strip().lower() not in {"market", "monitored skill"}
+        ]
+
+        if profile_skills:
+            for s in profile_skills[:3]:
+                action_id = f"act_{portal}_{_slugify(s)}_learning_step"
+                title = f"Advance Core Competency in {s}"
+                summary = f"Practical capability advancement and assessment roadmap for verified profile skill {s}."
+                why_it_matters = (
+                    f"FACT: User profile demonstrates verified proficiency in {s}. "
+                    f"INTERPRETATION: Target role readiness and career mobility are accelerated by deep skill mastery. "
+                    f"ACTION: Complete curated practical learning modules and code assessments in {s}."
+                )
+                recommended_action = f"Complete structured practice modules, skill assessments, and practical roadmap steps for {s}."
+                recommendations.append(ActionRecommendation(
+                    action_id=action_id,
+                    action_type="prioritize_upskilling",
+                    title=title,
+                    summary=summary,
+                    why_it_matters=why_it_matters,
+                    recommended_action=recommended_action,
+                    priority="high",
+                    target_type="skill",
+                    target_id=_slugify(s),
+                    portal=portal,
+                    readiness_status="ready_for_trend",
+                    evidence_references=evidence_refs or [f"verified_profile:{s}"],
+                    limitations=[
+                        "Step grounded in verified user profile competencies and curriculum alignment.",
+                        "Directional market telemetry is in baseline collection phase.",
+                    ],
+                    roadmap_eligible=True,
+                    calculation_version=CALCULATION_VERSION,
+                ))
+            return ActionRecommendationResponse(
+                data_status="available",
+                recommendations=recommendations,
+                contextual_focus=contextual_focus,
+                limitations=limitations,
+                evidence_summary=evidence_summary,
+                calculation_version=CALCULATION_VERSION,
+            )
+
         target_entity = signals[0].entity_name if signals else (
             request.selected_skills[0] if request.selected_skills else "Monitored Skill"
         )

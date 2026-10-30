@@ -59,7 +59,7 @@ FEATURE_ANSWER_POLICIES: dict[str, FeatureAnswerPolicy] = {
     "job_verified_postings": FeatureAnswerPolicy(
         "job", "run_verified_postings", "Verified job postings were retrieved.",
         False, True, "explanation", "Verified Job Postings",
-        "Explain only retrieved job postings and fields supplied by their records. Do not invent postings, links, salaries, company details, or market metrics; identify unavailable fields."
+        "Never generate postings. Explain only retrieved job postings and fields supplied by their records. Do not invent postings, links, salaries, company details, or market metrics; identify unavailable fields."
     ),
     "career_transition_opportunity": FeatureAnswerPolicy(
         "job", "run_transition_opportunity", "Current or target role and reference mappings are available.",

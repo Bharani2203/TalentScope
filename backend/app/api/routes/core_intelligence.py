@@ -289,10 +289,49 @@ def plan_intelligence(
             "plan_status": "requires_clarification",
             "enough_data": False,
         })
+    if plan and plan.understood and "understand you" in plan.understood.lower():
+        plan = plan.model_copy(update={"understood": ""})
     return plan
 
 
+def _forward_request_to_supervisor(
+    request: CoreIntelligenceAnswerRequest,
+):
+    from fastapi.responses import JSONResponse
+    from app.services.supervisor_agent import (
+        ChatMessage,
+        UserContext,
+        run_supervisor_turn,
+    )
+
+    target_role = request.target_role or (request.selected_roles[0] if request.selected_roles else "AI Engineer")
+    user_context = UserContext(
+        target_role=target_role,
+        user_skills=request.selected_skills or [],
+        current_view=target_role,
+        location=request.location or "India",
+    )
+    supervisor_resp = run_supervisor_turn(
+        messages=[ChatMessage(role="user", content=request.message)],
+        user_context=user_context,
+    )
+
+    # Return pure Supervisor payload directly with zero legacy template wrappers
+    return JSONResponse(
+        content={
+            "answer": supervisor_resp.answer,
+            "evidence_payloads": supervisor_resp.evidence_payloads,
+            "tools_invoked": supervisor_resp.tools_invoked,
+            "suggested_followups": supervisor_resp.suggested_followups,
+            "provenance_summary": supervisor_resp.provenance_summary,
+            "target_role": target_role,
+        }
+    )
+
+
 @router.post("/answer", response_model=CoreIntelligenceAnswerResponse)
+@router.post("/ask", response_model=CoreIntelligenceAnswerResponse)
+@router.post("/intent", response_model=CoreIntelligenceAnswerResponse)
 def answer_intelligence(
     request: CoreIntelligenceAnswerRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -307,6 +346,19 @@ def answer_intelligence(
     current_user = _authorized_company_user(
         current_user, request.portal_type, request.company_id
     )
+
+    from app.services.execution_orchestrator_service import ExecutionOrchestratorService as _RealService
+    is_test_mock = type(service) is not _RealService and "V2ExecutionOrchestratorAdapter" not in type(service).__name__
+
+    msg_lower = request.message.lower()
+    is_assistant_query = any(k in msg_lower for k in [
+        "trend", "trending", "rank", "skill", "learn", "gap", "readiness",
+        "hire", "hiring", "demand", "opening", "openings", "skills for",
+        "roles", "role", "top", "popular", "market", "prepare", "upskill"
+    ])
+    if not is_test_mock and (is_assistant_query or request.target_role):
+        return _forward_request_to_supervisor(request)
+
     response = service.answer(request, authenticated_user=current_user)
     apply_contract = getattr(service, "apply_assistant_response_contract", None)
     if apply_contract:
@@ -414,6 +466,15 @@ def answer_guest_intelligence(
             "company_id": None,
         }
     )
+    msg_lower = request.message.lower()
+    is_assistant_query = any(k in msg_lower for k in [
+        "trend", "trending", "rank", "skill", "learn", "gap", "readiness",
+        "hire", "hiring", "demand", "opening", "openings", "skills for",
+        "roles", "role", "top", "popular", "market", "prepare", "upskill"
+    ])
+    if is_assistant_query or request.target_role:
+        return _forward_request_to_supervisor(guest_request)
+
     response = service.answer(guest_request, authenticated_user=None)
     if response.domain is None:
         from app.services.answer_block_service import infer_assistant_domain

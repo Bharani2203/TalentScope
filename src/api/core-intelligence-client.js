@@ -1129,6 +1129,68 @@ export async function fetchMarketJobs(params = {}, options = {}) {
 
 export const fetchActionRecommendations = queryActionRecommendations;
 
+export async function fetchActiveJobs(params = {}, options = {}) {
+  const rawQuery = (params.query || params.role || 'engineer').trim();
+  const query = rawQuery.length >= 2 ? rawQuery : 'Software';
+  const country = params.country ? String(params.country).trim().slice(0, 2) : null;
+  const qParams = new URLSearchParams({ query, live: 'true' });
+  if (country && /^[A-Za-z]{2}$/.test(country)) {
+    qParams.set('country', country.toLowerCase());
+  }
+
+  const token = await getAuthIdToken(options.token);
+  const headers = {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers
+  };
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/jobs/active?${qParams.toString()}`, {
+      method: 'GET',
+      headers,
+      ...options
+    });
+    if (!res.ok) {
+      return fetchMarketJobs(params, options);
+    }
+    const data = await res.json();
+    return {
+      status: data.status || (data.jobs && data.jobs.length ? 'available' : 'empty'),
+      query: data.query || query,
+      country: data.country || country,
+      jobs: Array.isArray(data.jobs) ? data.jobs : [],
+      count: typeof data.count === 'number' ? data.count : (data.jobs ? data.jobs.length : 0),
+      fetched_at: data.fetched_at || null,
+      source: data.source || 'live'
+    };
+  } catch (err) {
+    return fetchMarketJobs(params, options);
+  }
+}
+
+export async function fetchRoadmapProgress(options = {}) {
+  const token = await getAuthIdToken(options.token);
+  const headers = {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers
+  };
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/learning/roadmap/progress`, {
+      method: 'GET',
+      headers,
+      ...options
+    });
+    if (!res.ok) {
+      return { has_roadmap: false, progress_percent: 0, current_milestone: 'Choose a learning path' };
+    }
+    return await res.json();
+  } catch (err) {
+    return { has_roadmap: false, progress_percent: 0, current_milestone: 'Choose a learning path', error: err.message };
+  }
+}
+
 export async function createIntelligenceConversation(payload = {}, options = {}) {
   const token = await getAuthIdToken(options.token);
   const headers = {

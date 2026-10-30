@@ -678,12 +678,83 @@
 .ji-chart-container {
   position: relative;
   width: 100%;
-  height: 200px;
+  height: auto;
+  min-height: 236px;
   background: #FFFFFF;
   border-radius: 12px;
   border: 1px solid rgba(178, 45, 239, 0.1);
-  padding: 12px 12px 28px 12px;
+  padding: 14px 14px 10px 14px;
   margin-bottom: 16px;
+}
+
+.ji-chart-axis-labels {
+  position: relative;
+  width: 100%;
+  height: 30px;
+  margin-top: 8px;
+  box-sizing: border-box;
+}
+
+.ji-chart-axis-labels span {
+  position: absolute;
+  top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ji-muted);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.ji-chart-axis-labels span:nth-child(1) {
+  left: 24px;
+}
+
+.ji-chart-axis-labels span:nth-child(2) {
+  left: calc(24px + (100% - 48px) * 0.3333);
+  transform: translateX(-50%);
+}
+
+.ji-chart-axis-labels span:nth-child(3),
+.ji-chart-axis-labels .is-current {
+  left: calc(24px + (100% - 48px) * 0.6667);
+  transform: translateX(-50%);
+  font-weight: 700;
+  color: var(--ji-purple);
+  background: rgba(178, 45, 239, 0.08);
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(178, 45, 239, 0.22);
+}
+
+.ji-chart-axis-labels span:nth-child(4),
+.ji-chart-axis-labels .is-forecast {
+  right: 24px;
+  font-weight: 600;
+  color: #8B3DFF;
+  background: rgba(139, 61, 255, 0.08);
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px dashed rgba(139, 61, 255, 0.3);
+}
+
+.ji-hero-role-select {
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ji-deep);
+  background: #FFFFFF;
+  border: 1px solid var(--ji-border);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  max-width: 200px;
+}
+
+.ji-hero-role-select:hover,
+.ji-hero-role-select:focus {
+  border-color: var(--ji-purple);
+  box-shadow: 0 0 0 2px rgba(178, 45, 239, 0.15);
 }
 
 .ji-chart-svg {
@@ -916,11 +987,12 @@
    SECTION 3: JOB INTELLIGENCE CONSOLE
    -------------------------------------------------------------------------- */
 .ji-console-card {
-  background: var(--ji-surface);
-  border: 1px solid var(--ji-border);
-  border-radius: 16px;
-  padding: 28px;
-  box-shadow: var(--ji-shadow-card);
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 24px;
+  margin-top: 32px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   position: relative;
   overflow: hidden;
 }
@@ -1164,12 +1236,24 @@
    SECTION 4: INTELLIGENCE RESULT
    -------------------------------------------------------------------------- */
 .ji-result-card {
-  background: var(--ji-surface);
-  border: 1px solid var(--ji-border);
-  border-radius: 16px;
-  padding: 28px;
-  box-shadow: var(--ji-shadow-card);
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 24px;
+  margin-top: 32px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   position: relative;
+  overflow: hidden;
+}
+
+.ji-result-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #8B3DFF, #3B82F6, #10B981);
 }
 
 .ji-result-header {
@@ -1918,3 +2002,586 @@
     margin: 12px;
   }
 }
+
+/* ==========================================================================
+   Skill Gap Analysis & Readiness Section (Standalone Full-Width Card)
+   ========================================================================== */
+.ji-skill-gap-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 24px;
+  margin-top: 32px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.ji-skill-gap-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #8B3DFF, #10B981, #06B6D4);
+}
+
+.ji-gap-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.ji-gap-header-title-block h2 {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ji-deep, #1E1B4B);
+  margin: 4px 0 6px;
+  letter-spacing: -0.3px;
+}
+
+.ji-gap-header-title-block p {
+  font-size: 13px;
+  color: var(--ji-muted, #64748B);
+  margin: 0;
+}
+.ji-gap-subtitle-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--ji-muted, #64748B);
+}
+
+.ji-gap-role-selector {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #FAF5FF;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B3DFF' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 13px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 6px 30px 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8B3DFF;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  vertical-align: middle;
+}
+
+.ji-gap-role-selector:hover {
+  border-color: #C084FC;
+  background-color: #F3E8FF;
+}
+
+.ji-gap-role-selector:focus {
+  border-color: #8B3DFF;
+  box-shadow: 0 0 0 3px rgba(139, 61, 255, 0.15);
+  background-color: #FFFFFF;
+}
+
+
+.ji-gap-header-score-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 4px;
+}
+
+.ji-gap-score-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ji-gap-status-pill {
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.ji-gap-big-score {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ji-purple, #8B3DFF);
+  line-height: 1;
+}
+
+.ji-gap-score-subtext {
+  font-size: 12px;
+  color: var(--ji-muted, #64748B);
+}
+
+.ji-gap-dot-divider {
+  margin: 0 6px;
+  opacity: 0.6;
+}
+
+.ji-gap-progress-track {
+  height: 10px;
+  background: #F1F5F9;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.ji-gap-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #8B3DFF 0%, #10B981 100%);
+  transition: width 0.4s ease;
+}
+
+.ji-gap-columns-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 860px) {
+  .ji-gap-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .ji-gap-header-score-summary {
+    align-items: flex-start;
+    text-align: left;
+  }
+  .ji-gap-columns-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ji-gap-column {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ji-gap-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #E2E8F0;
+  padding-bottom: 10px;
+}
+
+.ji-gap-col-header strong {
+  font-size: 13.5px;
+  color: var(--ji-deep, #1E1B4B);
+}
+
+.ji-gap-col-header small {
+  font-size: 11.5px;
+  color: var(--ji-muted, #64748B);
+}
+
+.ji-gap-skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ji-gap-skill-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+.ji-gap-skill-pill.is-verified {
+  background: #FFFFFF;
+  border: 1px solid #DCFCE7;
+  color: #14532D;
+}
+
+.ji-gap-skill-pill.is-verified:hover {
+  border-color: #86EFAC;
+}
+
+.ji-gap-skill-pill.is-gap {
+  background: #FFFFFF;
+  border: 1px solid #FEF3C7;
+  color: #78350F;
+}
+
+.ji-gap-skill-pill.is-gap:hover {
+  border-color: #FDE68A;
+}
+
+.ji-gap-skill-name {
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.ji-gap-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #F59E0B;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.ji-gap-freq-tag {
+  font-size: 11px;
+  color: var(--ji-muted, #64748B);
+}
+
+.ji-gap-verified-badge {
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #86EFAC;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ji-btn-gap-upskill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #8B3DFF;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ji-btn-gap-upskill:hover {
+  background: #7A2FE6;
+}
+
+.ji-gap-empty-text {
+  font-size: 12px;
+  color: var(--ji-muted, #64748B);
+  text-align: center;
+  padding: 16px 8px;
+}
+
+/* ==========================================================================
+   SUPERVISOR AGENT CONVERSATION THREAD & EVIDENCE STYLES
+   ========================================================================== */
+
+.ji-conversation-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 20px 0;
+  max-height: 520px;
+  overflow-y: auto;
+  padding: 12px 4px;
+}
+
+.ji-chat-msg {
+  display: flex;
+  width: 100%;
+}
+
+.ji-chat-msg--user {
+  justify-content: flex-end;
+}
+
+.ji-chat-msg--assistant {
+  justify-content: flex-start;
+}
+
+.ji-chat-bubble {
+  max-width: 88%;
+  border-radius: 12px;
+  padding: 14px 18px;
+  line-height: 1.55;
+  font-size: 13.5px;
+}
+
+.ji-chat-bubble--user {
+  background: #F3E9FF;
+  border: 1px solid #D8B4FE;
+  color: #42075D;
+  border-bottom-right-radius: 3px;
+}
+
+.ji-chat-user-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8B3DFF;
+  margin-bottom: 4px;
+}
+
+.ji-chat-bubble--assistant {
+  background: #FAFAFD;
+  border: 1px solid #E2E8F0;
+  color: #1E293B;
+  border-bottom-left-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.ji-chat-asst-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.ji-chat-asst-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #8B3DFF;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ji-chat-provenance {
+  font-size: 11px;
+  color: #64748B;
+  background: #F1F5F9;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.ji-chat-tools-invoked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.ji-tool-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #EDE9FE;
+  border: 1px solid #DDD6FE;
+  color: #6D28D9;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ji-chat-content {
+  color: #334155;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.ji-chat-content p {
+  margin: 6px 0;
+}
+
+.ji-chat-content strong {
+  color: #0F172A;
+}
+
+.ji-chat-content ul,
+.ji-chat-content ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.ji-chat-content li {
+  margin-bottom: 4px;
+}
+
+/* Live Job Evidence Cards */
+.ji-chat-evidence-container {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ji-evidence-job-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.ji-evidence-job-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ji-evidence-job-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(139, 61, 255, 0.08);
+  border-color: #C084FC;
+}
+
+.ji-evidence-job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ji-evidence-job-role {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.ji-evidence-job-source {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+}
+
+.ji-evidence-job-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11.5px;
+  color: #64748B;
+}
+
+.ji-evidence-job-company {
+  font-weight: 600;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ji-evidence-job-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ji-evidence-job-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ji-job-skill-tag {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  color: #334155;
+}
+
+.ji-evidence-job-action {
+  margin-top: 4px;
+}
+
+.ji-job-apply-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #8B3DFF;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #F3E9FF;
+  transition: background 0.15s ease;
+}
+
+.ji-job-apply-link:hover {
+  background: #EDE9FE;
+  text-decoration: underline;
+}
+
+/* Follow-up chips */
+.ji-chat-followups {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed #E2E8F0;
+}
+
+.ji-followup-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748B;
+  margin-bottom: 6px;
+}
+
+.ji-followup-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ji-followup-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #FFFFFF;
+  border: 1px solid #DDD6FE;
+  color: #6D28D9;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ji-followup-chip:hover {
+  background: #8B3DFF;
+  color: #FFFFFF;
+  border-color: #8B3DFF;
+}
+
+.is-spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+

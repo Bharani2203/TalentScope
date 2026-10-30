@@ -20,6 +20,7 @@ def block_outbound_network(monkeypatch):
     without interfering with mocked HTTP transports. Only the two explicitly
     approved emulator endpoints are reachable.
     """
+    monkeypatch.setenv("TALENTSCOPE_OFFLINE_TEST_MODE", "1")
     blocked_attempts: list[str] = []
     allowed = {("127.0.0.1", 8080), ("127.0.0.1", 9099)}
     original_getaddrinfo = socket.getaddrinfo

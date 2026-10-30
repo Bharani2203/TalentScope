@@ -31,6 +31,7 @@ import { renderIntelligenceEvidencePanel } from '../../../components/common/Inte
 import { renderStructuredIntelligenceDetails } from '../../../components/common/IntelligenceResultDetails.js';
 import { cleanConversationAnswer, renderConversationAnswer } from '../../../components/common/ConversationAnswer.js';
 import { API_BASE_URL } from '../../../config/api.js';
+import { sendSupervisorMessage, buildUserContext } from '../../../services/supervisor-api.js';
 
 function formatMarkdown(content) {
   if (!content) return '';
@@ -55,7 +56,10 @@ function formatMarkdown(content) {
     .replace(/^### (.*$)/gim, '<h4 class="ai-md-h4">$1</h4>')
     .replace(/^## (.*$)/gim, '<h3 class="ai-md-h3">$1</h3>')
     .replace(/^# (.*$)/gim, '<h2 class="ai-md-h2">$1</h2>')
+    .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="ai-md-link" style="color:var(--portal-primary, #2563eb);text-decoration:underline;font-weight:500;">$1</a>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code class="ai-md-code" style="background:var(--portal-soft, #f1f5f9);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12px;">$1</code>')
     .replace(/^\s*-\s+(.*$)/gim, '<li class="ai-md-li">$1</li>')
     .replace(/^\s*(\d+)\.\s+(.*$)/gim, '<li class="ai-md-li-num">$2</li>')
     .replace(/\n\n/g, '<br/><br/>')
@@ -2465,7 +2469,7 @@ export function renderAssistantResponseDetails(turn) {
 
   return `
     ${hasDemoOrigin ? '<p class="ai-demo-sample-banner" role="note">DEMO SAMPLE — illustrative data only; not live market evidence.</p>' : ''}
-    ${turn?.understood ? `<p class="ai-understood-line"><strong>Understood:</strong> ${escapeHTML(turn.understood)}</p>` : ''}
+    ${turn?.understood && !turn.understood.toLowerCase().includes('understand you') ? `<p class="ai-understood-line"><strong>Understood:</strong> ${escapeHTML(turn.understood)}</p>` : ''}
     ${showLimitedData ? `<section class="ai-limited-data" aria-label="Limited data"><strong>Limited data</strong>${limitations.length ? `<ul>${limitations.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>` : ''}</section>` : ''}
     ${turn?.degraded === true ? '<p class="ai-degraded-banner" role="status">Gemini unavailable, showing deterministic answer</p>' : ''}
     ${evidence.length ? renderIntelligenceEvidencePanel({
@@ -3939,16 +3943,37 @@ async function executeAiQuery(question, options = {}) {
       portalType: 'individual',
       timeRange: 'max',
       conversationId
+    }).catch(() => null);
+
+    const historyMessages = (domState.history || []).flatMap(turn => [
+      turn.userQuestion ? { role: 'user', content: turn.userQuestion } : null,
+      turn.answer ? { role: 'assistant', content: turn.answer } : null
+    ]).filter(Boolean);
+    historyMessages.push({ role: 'user', content: question });
+
+    const userContext = buildUserContext({
+      target_role: domState.targetRole || 'AI Engineer',
+      current_view: dom,
+      location: 'India'
     });
-    const answerRes = await queryCoreIntelligenceAnswer({
-      message: question,
-      portalType: 'individual',
-      ...requestContext,
-      capabilityId: selectedCapabilityId,
-      conversationId,
-      clientMessageId: options.clientMessageId || clientMessageId,
-      regenerate: Boolean(options.regenerate)
-    }, { guest: isGuest });
+
+    const supervisorResult = await sendSupervisorMessage(historyMessages, userContext);
+    const answerRes = {
+      request_id: `ans_${Date.now()}`,
+      user_message: question,
+      portal_type: 'individual',
+      domain: dom,
+      intent: supervisorResult.intent || 'CAREER_INTELLIGENCE',
+      execution_status: 'completed',
+      status: 'ready',
+      answer: supervisorResult.answer || 'Analysis complete.',
+      answer_origin: 'deterministic',
+      facts: [],
+      evidence: supervisorResult.evidence_payloads || [],
+      capabilities_used: supervisorResult.tools_invoked || ['supervisor_agent'],
+      conversation_id: conversationId,
+      suggested_followups: supervisorResult.suggested_followups || []
+    };
 
     if (reqId !== activeRequestCounter) return;
 
@@ -4005,7 +4030,7 @@ async function executeAiQuery(question, options = {}) {
       answer: answerRes.answer,
       answer_block: answerRes.answer_block || null,
       answer_origin: answerRes.answer_origin,
-      understood: typeof planResult?.understood === 'string' ? planResult.understood : null,
+      understood: typeof planResult?.understood === 'string' && !planResult.understood.toLowerCase().includes('understand you') ? planResult.understood : null,
       clarification: Array.isArray(planResult?.clarification_questions) ? planResult.clarification_questions[0] : null,
       clarification_questions: Array.isArray(planResult?.clarification_questions) ? planResult.clarification_questions : [],
       sources: Array.isArray(answerRes.sources) ? answerRes.sources : [],
@@ -4145,7 +4170,7 @@ async function executeAiQuery(question, options = {}) {
       domainIcon: 'alert-triangle',
       badgeClass: 'badge-skill',
       answer: errorMessage,
-      understood: typeof planResult?.understood === 'string' ? planResult.understood : null,
+      understood: typeof planResult?.understood === 'string' && !planResult.understood.toLowerCase().includes('understand you') ? planResult.understood : null,
       clarification: Array.isArray(planResult?.clarification_questions) ? planResult.clarification_questions[0] : null,
       finding: errorMessage,
       facts: [],

@@ -1,4 +1,5 @@
 import { getTemporaryHelpResponse, AI_HELP_MAX_QUESTION_LENGTH } from './ai-help-service.js';
+import { sendSupervisorMessage, buildUserContext } from '../../../services/supervisor-api.js';
 
 const welcomeText = 'Hi! Welcome to TalentScope.ai Help. You can ask questions about platform features, navigation, and how to use the application.';
 
@@ -228,10 +229,27 @@ async function sendQuestion(question, { appendUser = true } = {}) {
   drawPage();
 
   try {
-    const response = await getTemporaryHelpResponse(normalizedQuestion);
+    const userContext = buildUserContext();
+    const history = messages.map(m => ({ role: m.role, content: m.text }));
+    history.push({ role: 'user', content: normalizedQuestion });
+    const supervisorResp = await sendSupervisorMessage(history, userContext);
     if (requestId !== activeRequestId || !isPageActive()) return;
-    if (response.mode !== 'demo') throw new Error('The local help provider returned an unexpected response mode.');
-    messages.push({ id: makeId(), role: 'assistant', text: response.text, mode: response.mode });
+    messages.push({
+      id: makeId(),
+      role: 'assistant',
+      text: supervisorResp.answer || 'Analysis complete.',
+      mode: 'supervisor'
+    });
+  } catch (err) {
+    try {
+      const response = await getTemporaryHelpResponse(normalizedQuestion);
+      if (requestId !== activeRequestId || !isPageActive()) return;
+      messages.push({ id: makeId(), role: 'assistant', text: response.text, mode: response.mode });
+    } catch (fallbackErr) {
+      if (requestId !== activeRequestId || !isPageActive()) return;
+      errorText = err?.message || 'The temporary help response could not be prepared.';
+      lastFailedQuestion = normalizedQuestion;
+    }
   } catch (error) {
     if (requestId !== activeRequestId || !isPageActive()) return;
     errorText = error?.message || 'The temporary help response could not be prepared.';

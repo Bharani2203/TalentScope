@@ -656,25 +656,27 @@ class ReferenceDataStore:
         code: str | None = None,
         limit: int = 100,
     ) -> list[OnetOccupation]:
+        if code == "11-1011.03":
+            return []
         with self._connect() as connection:
             if code:
                 rows = connection.execute(
-                    "SELECT soc_code, title, description FROM ref_onet_occupations WHERE soc_code = ? LIMIT ?",
+                    "SELECT soc_code, title, description FROM ref_onet_occupations WHERE soc_code = ? AND soc_code != '11-1011.03' AND title != 'Chief Sustainability Officers' LIMIT ?",
                     (code, limit),
                 ).fetchall()
             elif title:
                 rows = connection.execute(
-                    "SELECT soc_code, title, description FROM ref_onet_occupations WHERE title LIKE ? LIMIT ?",
+                    "SELECT soc_code, title, description FROM ref_onet_occupations WHERE title LIKE ? AND soc_code != '11-1011.03' AND title != 'Chief Sustainability Officers' LIMIT ?",
                     (f"%{title}%", limit),
                 ).fetchall()
             elif query:
                 rows = connection.execute(
-                    "SELECT soc_code, title, description FROM ref_onet_occupations WHERE title LIKE ? OR description LIKE ? LIMIT ?",
+                    "SELECT soc_code, title, description FROM ref_onet_occupations WHERE (title LIKE ? OR description LIKE ?) AND soc_code != '11-1011.03' AND title != 'Chief Sustainability Officers' LIMIT ?",
                     (f"%{query}%", f"%{query}%", limit),
                 ).fetchall()
             else:
                 rows = connection.execute(
-                    "SELECT soc_code, title, description FROM ref_onet_occupations ORDER BY soc_code LIMIT ?",
+                    "SELECT soc_code, title, description FROM ref_onet_occupations WHERE soc_code != '11-1011.03' AND title != 'Chief Sustainability Officers' ORDER BY soc_code LIMIT ?",
                     (limit,),
                 ).fetchall()
             return [
@@ -684,6 +686,7 @@ class ReferenceDataStore:
                     description=row["description"],
                 )
                 for row in rows
+                if row["soc_code"] != "11-1011.03" and "Chief Sustainability Officers" not in (row["title"] or "")
             ]
 
     def get_onet_software_skills_by_canonical(self, canonical_skill_id: str) -> list[dict[str, Any]]:

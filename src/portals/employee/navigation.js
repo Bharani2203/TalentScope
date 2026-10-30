@@ -10,6 +10,7 @@ export const employeeNavigation = [
       { label: 'Home', icon: 'house', route: '/employee/home' },
       { label: 'My Skills', icon: 'layers-3', route: '/employee/skills' },
       { label: 'My Growth', icon: 'trending-up', route: '/employee/growth' },
+      { label: 'Learning & Roadmaps', icon: 'book-open', route: '/employee/learning' },
       { label: 'Company Connection', icon: 'building-2', route: '/employee/company' },
       { label: 'Community', icon: 'users-round', route: '/employee/community' },
       { label: 'Opportunities', icon: 'compass', route: '/employee/opportunities' }
@@ -18,14 +19,15 @@ export const employeeNavigation = [
   {
     label: 'Intelligence',
     items: [
-      { label: 'AI Assistant', icon: 'sparkles', route: '/employee/ai-assistant' },
       { label: 'Notifications', icon: 'bell', route: '/employee/notifications' }
     ]
   }
 ];
 
 export function resolveEmployeeRoute(route) {
-  return route === '/employee/career' ? '/employee/growth' : route;
+  if (route === '/employee/career') return '/employee/growth';
+  if (route === '/employee/ai-assistant' || route === '/employee/assistant') return '/employee/home';
+  return route;
 }
 
 export function isEmployeeRouteActive(currentRoute, itemRoute) {
@@ -55,6 +57,12 @@ export const employeeRoutes = {
     description: 'Role evolution, promotion readiness milestones, and targeted capability roadmaps.',
     icon: 'trending-up'
   },
+  '/employee/learning': {
+    eyebrow: 'MY LEARNING & ROADMAPS',
+    title: 'Learning & Roadmaps',
+    description: 'Active learning roadmaps, practice modules, and skill certifications.',
+    icon: 'book-open'
+  },
   '/employee/career': {
     eyebrow: 'ROLE & CAREER PROGRESSION',
     title: 'My Growth',
@@ -78,12 +86,6 @@ export const employeeRoutes = {
     title: 'Opportunities',
     description: 'Internal requisitions and high-impact career pathways matched to your skills.',
     icon: 'compass'
-  },
-  '/employee/ai-assistant': {
-    eyebrow: 'WORKFORCE INTELLIGENCE COPILOT',
-    title: 'Employee AI Assistant',
-    description: 'Strategic answers for career growth, skill assessments, and internal mobility.',
-    icon: 'sparkles'
   },
   '/employee/notifications': {
     eyebrow: 'UPDATES & ALERTS',

@@ -14,12 +14,30 @@ class Settings(BaseSettings):
     environment: str = "production"
     firebase_project_id: str = "skill-demand-forecasting"
     google_application_credentials: str | None = None
-    gemini_api_key: SecretStr | None = None
-    gemini_model: str = "gemini-3.5-flash"
+    firebase_service_account_json: str | None = None
+    firebase_service_account_base64: str | None = None
+    database_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "SQLALCHEMY_DATABASE_URI")
+    )
+    gemini_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY")
+    )
+    gemini_model: str = "gemini-1.5-flash"
     # Separate, opt-in provider for general guidance when a V2 result is unavailable.
     gemini_b_api_key: SecretStr | None = None
     gemini_b_model: str = "gemini-3.5-flash"
     gemini_b_backup_model: str | None = None
+    # Learning roadmap enrichment is an isolated, opt-in Gemini integration.
+    learning_gemini_api_key: SecretStr | None = None
+    youtube_api_key: str | None = None
+    learning_gemini_model: str = Field(default="gemini-3.8-flash", min_length=1, max_length=100, pattern=r"^[A-Za-z0-9._-]+$")
+    learning_gemini_request_timeout_seconds: float = Field(default=8, ge=1, le=20)
+    learning_gemini_max_calls_per_minute: int = Field(default=4, ge=0, le=60)
+    learning_gemini_max_calls_per_day: int = Field(default=60, ge=0, le=5000)
+    learning_gemini_max_calls_per_user_per_hour: int = Field(default=3, ge=0, le=100)
+    learning_gemini_max_output_tokens: int = Field(default=1200, ge=128, le=4096)
     gemini_b_request_timeout_seconds: float = Field(
         default=5,
         ge=1,
@@ -62,6 +80,10 @@ class Settings(BaseSettings):
     cors_allowed_origins: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
     ]
     # G1.7 Collection and scheduling configuration
     market_collection_cadence_hours: float = Field(default=24.0, ge=1.0, le=168.0)
@@ -78,6 +100,21 @@ class Settings(BaseSettings):
     wikimedia_user_agent: str = "TalentScope/1.0.0 (https://github.com/akash/S7_PROJECT_SKILL_1-main; workforce-skill-intelligence)"
     wikimedia_timeout_seconds: float = Field(default=15.0, gt=0, le=60)
     wikimedia_max_retries: int = Field(default=2, ge=0, le=5)
+    # Remote compiler sandbox configuration (Piston, Judge0, or JDoodle)
+    compiler_enabled: bool = False
+    compiler_provider: Literal["piston", "judge0", "jdoodle"] = "piston"
+    compiler_api_url: str | None = None
+    compiler_api_key: SecretStr | None = None
+    compiler_timeout_seconds: float = Field(default=10.0, gt=0, le=30.0)
+    jdoodle_client_id: str | None = None
+    jdoodle_client_secret: SecretStr | None = None
+    jdoodle_client_id_2: str | None = None
+    jdoodle_client_secret_2: SecretStr | None = None
+    jdoodle_client_id_3: str | None = None
+    jdoodle_client_secret_3: SecretStr | None = None
+    jdoodle_client_id_4: str | None = None
+    jdoodle_client_secret_4: SecretStr | None = None
+    jdoodle_api_url: str = "https://api.jdoodle.com/v1/execute"
 
     @property
     def database_path(self) -> Path:
@@ -121,7 +158,7 @@ def get_settings() -> Settings:
         # file may contain production credentials and must not fill missing
         # local settings.
         settings = Settings(_env_file=None)
-        if firebase_mode != "emulator" or offline_mode != "1":
+        if firebase_mode != "emulator" or offline_mode not in {"0", "1"}:
             raise RuntimeError(
                 "Offline test mode requires explicit Firebase Emulator mode and TALENTSCOPE_OFFLINE_TEST_MODE=1."
             )

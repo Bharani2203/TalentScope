@@ -1,0 +1,288 @@
+[
+  {
+    "resource_id": "python-docs-tutorial",
+    "title": "The Python Tutorial",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-fundamentals"
+    ],
+    "resource_type": "documentation",
+    "url": "https://docs.python.org/3/tutorial/",
+    "provider": "Python Software Foundation",
+    "level": "beginner",
+    "language": "en",
+    "license_attribution": "Python documentation; external link only. See https://docs.python.org/3/license.html.",
+    "provenance": "Official Python documentation site; metadata curated for TalentScope.ai.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "fcc-python-certification",
+    "title": "Python Certification",
+    "skill_ids": [
+      "python"
+    ],
+    "topic_ids": [
+      "python-fundamentals",
+      "scientific-computing"
+    ],
+    "resource_type": "course",
+    "url": "https://www.freecodecamp.org/learn/python-v9/",
+    "provider": "freeCodeCamp",
+    "level": "beginner",
+    "language": "en",
+    "license_attribution": "Curriculum content is copyrighted by freeCodeCamp.org; external link only, no content copied. Repository software license does not relicense curriculum content.",
+    "provenance": "Official freeCodeCamp course URL; topic provenance: local curriculum/challenges/english/certifications/python-v9.yml metadata.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "mdn-javascript-guide",
+    "title": "JavaScript Guide",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-fundamentals"
+    ],
+    "resource_type": "documentation",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide",
+    "provider": "MDN Web Docs",
+    "level": "intermediate",
+    "language": "en",
+    "license_attribution": "MDN prose generally CC BY-SA 2.5; examples can have separate terms. External link only; no content copied. See MDN copyright and license guidance.",
+    "provenance": "Official MDN documentation; title/slug checked against downloaded files/en-us/web/javascript/guide/index.md; metadata only, no content copied.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "fcc-javascript-certification",
+    "title": "JavaScript Certification",
+    "skill_ids": [
+      "javascript"
+    ],
+    "topic_ids": [
+      "javascript-fundamentals",
+      "algorithms",
+      "data-structures"
+    ],
+    "resource_type": "course",
+    "url": "https://www.freecodecamp.org/learn/javascript-v9/",
+    "provider": "freeCodeCamp",
+    "level": "beginner",
+    "language": "en",
+    "license_attribution": "Curriculum content is copyrighted by freeCodeCamp.org; external link only, no content copied.",
+    "provenance": "Official freeCodeCamp course URL; topic provenance: local curriculum/challenges/english/certifications/javascript-v9.yml metadata.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "fcc-responsive-web-design-v9",
+    "title": "Responsive Web Design Certification",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "responsive-web-design",
+      "css-fundamentals",
+      "accessibility"
+    ],
+    "resource_type": "course",
+    "url": "https://www.freecodecamp.org/learn/responsive-web-design-v9/",
+    "provider": "freeCodeCamp",
+    "level": null,
+    "language": "en",
+    "license_attribution": "Curriculum content is copyrighted by freeCodeCamp.org; external link only, no content copied.",
+    "provenance": "Official freeCodeCamp course URL; topic provenance: local curriculum/challenges/english/certifications/responsive-web-design-v9.yml metadata.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "fcc-relational-databases-v9",
+    "title": "Relational Databases Certification",
+    "skill_ids": [
+      "sql",
+      "git"
+    ],
+    "topic_ids": [
+      "relational-databases",
+      "sql-fundamentals",
+      "version-control"
+    ],
+    "resource_type": "course",
+    "url": "https://www.freecodecamp.org/learn/relational-databases-v9/",
+    "provider": "freeCodeCamp",
+    "level": null,
+    "language": "en",
+    "license_attribution": "Curriculum content is copyrighted by freeCodeCamp.org; external link only, no content copied.",
+    "provenance": "Official freeCodeCamp course URL; topic provenance: local curriculum/challenges/english/certifications/relational-databases-v9.yml metadata.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "mdn-html-reference",
+    "title": "HTML: HyperText Markup Language",
+    "skill_ids": [
+      "html"
+    ],
+    "topic_ids": [
+      "html-fundamentals",
+      "web-development"
+    ],
+    "resource_type": "documentation",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/HTML",
+    "provider": "MDN Web Docs",
+    "level": "beginner",
+    "language": "en",
+    "license_attribution": "MDN prose generally CC BY-SA 2.5; examples can have separate terms. External link only; no content copied.",
+    "provenance": "Official MDN documentation; title/slug checked against downloaded files/en-us/web/html/index.md; metadata only, no content copied.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "mdn-css-reference",
+    "title": "CSS: Cascading Style Sheets",
+    "skill_ids": [],
+    "topic_ids": [
+      "css-fundamentals",
+      "web-development"
+    ],
+    "resource_type": "documentation",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/CSS",
+    "provider": "MDN Web Docs",
+    "level": "beginner",
+    "language": "en",
+    "license_attribution": "MDN prose generally CC BY-SA 2.5; examples can have separate terms. External link only; no content copied.",
+    "provenance": "Official MDN documentation; title/slug checked against downloaded files/en-us/web/css/index.md; CSS has no canonical skill entry and uses a catalog topic ID; no content copied.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "mdn-learn-web-development",
+    "title": "Learn web development",
+    "skill_ids": [
+      "html",
+      "javascript"
+    ],
+    "topic_ids": [
+      "web-development",
+      "responsive-web-design",
+      "accessibility"
+    ],
+    "resource_type": "documentation",
+    "url": "https://developer.mozilla.org/en-US/docs/Learn_web_development",
+    "provider": "MDN Web Docs",
+    "level": "beginner",
+    "language": "en",
+    "license_attribution": "MDN prose generally CC BY-SA 2.5 or later; examples can have separate terms. External link only; no content copied.",
+    "provenance": "Official MDN learning area; title/slug checked against downloaded files/en-us/learn_web_development/index.md; metadata only, no content copied.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "postgresql-sql-tutorial",
+    "title": "PostgreSQL Tutorial",
+    "skill_ids": [
+      "sql"
+    ],
+    "topic_ids": [
+      "sql-fundamentals",
+      "relational-databases"
+    ],
+    "resource_type": "documentation",
+    "url": "https://www.postgresql.org/docs/current/tutorial.html",
+    "provider": "PostgreSQL Global Development Group",
+    "level": "beginner",
+    "language": "en",
+    "license_attribution": "PostgreSQL documentation; external link only, no content copied. See the linked PostgreSQL project documentation for terms.",
+    "provenance": "Official PostgreSQL documentation; metadata curated for TalentScope.ai.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "git-book",
+    "title": "Pro Git Book",
+    "skill_ids": [
+      "git"
+    ],
+    "topic_ids": [
+      "version-control",
+      "git-fundamentals"
+    ],
+    "resource_type": "documentation",
+    "url": "https://git-scm.com/book/en/v2",
+    "provider": "Git Project",
+    "level": "beginner",
+    "language": "en",
+    "license_attribution": "Pro Git is linked only; no text copied. See the linked project for applicable terms.",
+    "provenance": "Official Git project learning resource; metadata curated for TalentScope.ai.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "github-skills",
+    "title": "GitHub Skills interactive courses",
+    "skill_ids": [
+      "github",
+      "git"
+    ],
+    "topic_ids": [
+      "github-workflows",
+      "version-control",
+      "collaboration"
+    ],
+    "resource_type": "practice",
+    "url": "https://learn.github.com/",
+    "provider": "GitHub",
+    "level": null,
+    "language": "en",
+    "license_attribution": "External link to GitHub Skills; course content remains hosted by GitHub and is not copied.",
+    "provenance": "Official GitHub Skills site; metadata curated for TalentScope.ai.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "w3c-accessibility-introduction",
+    "title": "Introduction to Web Accessibility",
+    "skill_ids": [
+      "ui_ux"
+    ],
+    "topic_ids": [
+      "accessibility",
+      "inclusive-design",
+      "usability"
+    ],
+    "resource_type": "documentation",
+    "url": "https://www.w3.org/WAI/fundamentals/accessibility-intro/",
+    "provider": "W3C Web Accessibility Initiative",
+    "level": "beginner",
+    "language": "en",
+    "license_attribution": "External link to W3C WAI material; no page content copied. Refer to W3C terms for reuse.",
+    "provenance": "Official W3C WAI introductory resource; URL verified 2026-10-25; metadata only.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  },
+  {
+    "resource_id": "fastapi-tutorial",
+    "title": "FastAPI Tutorial",
+    "skill_ids": [
+      "fastapi",
+      "python"
+    ],
+    "topic_ids": [
+      "api-development",
+      "python-web-development"
+    ],
+    "resource_type": "documentation",
+    "url": "https://fastapi.tiangolo.com/tutorial/",
+    "provider": "FastAPI",
+    "level": "intermediate",
+    "language": "en",
+    "license_attribution": "FastAPI documentation; external link only, no content copied. See the linked project for terms.",
+    "provenance": "Official FastAPI documentation; metadata curated for TalentScope.ai.",
+    "verification_status": "verified_official",
+    "last_verified_at": "2026-10-25"
+  }
+]
