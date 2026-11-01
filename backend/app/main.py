@@ -65,10 +65,30 @@ async def request_validation_error_handler(request: Request, exc: RequestValidat
     )
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Return structured error with CORS headers so browsers never block error responses."""
+    logger.error("Unhandled exception during request %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    origin = request.headers.get("origin")
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": "An internal server error occurred. Please retry shortly."},
+    )
+    if origin and (
+        origin in settings.cors_allowed_origins
+        or (getattr(settings, "cors_allow_origin_regex", None) and re.match(settings.cors_allow_origin_regex, origin))
+        or re.match(r"^https://.*\.vercel\.app$", origin)
+    ):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Vary"] = "Origin"
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allowed_origins,
-    allow_origin_regex=getattr(settings, 'cors_allow_origin_regex', None),
+    allow_origin_regex=getattr(settings, "cors_allow_origin_regex", None) or r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

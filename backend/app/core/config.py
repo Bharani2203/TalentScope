@@ -89,7 +89,7 @@ class Settings(BaseSettings):
         "https://app.talentscope.ai",
         "https://talentscope-im0q.onrender.com",
     ]
-    cors_allow_origin_regex: str | None = r"^https:\/\/.*\.vercel\.app$"
+    cors_allow_origin_regex: str | None = r"https://.*\.vercel\.app"
     # G1.7 Collection and scheduling configuration
     market_collection_cadence_hours: float = Field(default=24.0, ge=1.0, le=168.0)
     market_collection_cron: str = "15 3 * * *"
