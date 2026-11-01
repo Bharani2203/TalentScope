@@ -28,6 +28,7 @@ import {
 import { profileSyncErrorMessage } from './auth-api.js';
 import { authTraceNow, logAuthTrace, recordAuthEvent, setAuthDiagnosticState } from './auth-trace.js';
 import { ensureAuthDiagnosticsPanel } from './auth-diagnostics-panel.js';
+import logoImage from '../../assets/logo.png';
 
 let signupState = {
   step: 1, // 1: credentials, 1.5: email-verify, 2: role-select
@@ -52,7 +53,7 @@ function renderCurrentSignupStep(root) {
         <div class="ts-auth-visual-top">
           <a class="ts-auth-brand" href="#/individual/home" aria-label="TalentScope.ai">
             <span class="ts-auth-brand-mark">
-              <img src="assets/logo.png" alt="TalentScope Logo">
+              <img src="${logoImage}" alt="TalentScope Logo">
             </span>
             <span class="ts-auth-brand-name">TalentScope<span>.ai</span></span>
           </a>

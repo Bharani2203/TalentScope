@@ -23,6 +23,7 @@ import {
   loadRoleOnboardingProfile,
   saveRoleOnboardingStep
 } from './onboarding-api.js';
+import logoImage from '../../assets/logo.png';
 
 let onboardingSession = {
   userType: 'individual',
@@ -201,7 +202,7 @@ function renderCurrentQuestionView(root) {
 
           <a class="ts-ob-brand" href="${onboardingSession.userType === 'employee' ? '#/employee/home' : onboardingSession.userType === 'company' ? '#/company/home' : '#/individual/home'}" aria-label="TalentScope.ai">
             <span class="ts-ob-brand-mark">
-              <img src="assets/logo.png" alt="TalentScope">
+              <img src="${logoImage}" alt="TalentScope">
             </span>
             <span class="ts-ob-brand-name">TalentScope<span>.ai</span></span>
           </a>

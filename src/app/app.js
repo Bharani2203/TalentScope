@@ -8714,7 +8714,80 @@ function getSkillNextActionRecommendation(selectedSkillData) {
   return { stateType, primaryActionTitle, rationale, suggestedPills };
 }
 
+
+function showPageSkeleton(container, label = 'Loading workspace...') {
+  const target = container || document.getElementById('mainContent') || document.querySelector('.main-content');
+  if (!target) return;
+  target.innerHTML = `
+    <div class="ts-page-skeleton" role="status" aria-live="polite" aria-busy="true">
+      <div class="ts-skeleton-header">
+        <div class="ts-skeleton-line ts-skeleton-line--title"></div>
+        <div class="ts-skeleton-line ts-skeleton-line--subtitle"></div>
+      </div>
+      <div class="ts-skeleton-grid">
+        <div class="ts-skeleton-card">
+          <div class="ts-skeleton-line ts-skeleton-line--card-title"></div>
+          <div class="ts-skeleton-line ts-skeleton-line--card-body"></div>
+          <div class="ts-skeleton-line ts-skeleton-line--card-body-short"></div>
+        </div>
+        <div class="ts-skeleton-card">
+          <div class="ts-skeleton-line ts-skeleton-line--card-title"></div>
+          <div class="ts-skeleton-line ts-skeleton-line--card-body"></div>
+          <div class="ts-skeleton-line ts-skeleton-line--card-body-short"></div>
+        </div>
+      </div>
+      <div class="ts-skeleton-status">
+        <span class="ts-skeleton-spinner"></span>
+        <span class="ts-skeleton-text">${label}</span>
+      </div>
+    </div>
+  `;
+}
+
+function prefetchRouteModules() {
+  const prefetch = () => {
+    const modules = [
+      () => import('../pages/individual/skills/SkillIntelligence.js'),
+      () => import('../pages/individual/career/Career.js'),
+      () => import('../pages/individual/learning/Learning.js'),
+      () => import('../pages/individual/market/MarketIntelligence.js'),
+      () => import('../portals/company/CompanyPortal.js'),
+      () => import('../portals/employee/EmployeePortal.js'),
+      () => import('../pages/individual/community/Community.js'),
+      () => import('../pages/individual/profile/Profile.js'),
+      () => import('../pages/individual/notifications/Notifications.js'),
+      () => import('../pages/individual/settings/Settings.js')
+    ];
+    let index = 0;
+    const idlePrefetchNext = () => {
+      if (index >= modules.length) return;
+      const load = modules[index++];
+      load().catch(() => {}).finally(() => {
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          window.requestIdleCallback(idlePrefetchNext, { timeout: 2000 });
+        } else {
+          setTimeout(idlePrefetchNext, 200);
+        }
+      });
+    };
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      window.requestIdleCallback(idlePrefetchNext, { timeout: 1500 });
+    } else {
+      setTimeout(idlePrefetchNext, 500);
+    }
+  };
+
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'complete') {
+      prefetch();
+    } else {
+      window.addEventListener('load', prefetch, { once: true });
+    }
+  }
+}
+
 async function renderDedicatedAIAssistantPage() {
+  showPageSkeleton(mainContent, 'Loading AI Assistant...');
   try {
     const module = await import('../pages/individual/ai-assistant/AIAssistant.js');
     // The route may have changed while the lazy-loaded page was resolving.
@@ -8885,6 +8958,7 @@ function syncFloatingAiLauncher(route) {
 }
 
 async function renderDedicatedLearningPage() {
+  showPageSkeleton(mainContent, 'Loading Learning Workspace...');
   try {
     const module = await import('../pages/individual/learning/Learning.js');
     if (typeof module.renderDedicatedLearningPage === 'function') {
@@ -8898,6 +8972,7 @@ async function renderDedicatedLearningPage() {
 }
 
 async function renderDedicatedJobPage() {
+  showPageSkeleton(mainContent, 'Loading Career & Job Intelligence...');
   try {
     const module = await import('../pages/individual/career/Career.js');
     if (typeof module.renderDedicatedJobPage === 'function') {
@@ -8911,6 +8986,7 @@ async function renderDedicatedJobPage() {
 }
 
 async function renderDedicatedMarketPage() {
+  showPageSkeleton(mainContent, 'Loading Market Intelligence...');
   try {
     const module = await import('../pages/individual/market/MarketIntelligence.js');
     if (typeof module.renderDedicatedMarketPage === 'function') {
@@ -8922,6 +8998,7 @@ async function renderDedicatedMarketPage() {
 }
 
 async function renderDedicatedSkillsPage() {
+  showPageSkeleton(mainContent, 'Loading Skill Intelligence...');
   try {
     const module = await import('../pages/individual/skills/SkillIntelligence.js');
     if (typeof module.renderDedicatedSkillsPage === 'function') {
@@ -10290,6 +10367,7 @@ async function renderDedicatedSkillsPage() {
 }
 
 async function renderDedicatedCommunityPage() {
+  showPageSkeleton(mainContent, 'Loading Community Workspace...');
   try {
     const module = await import('../pages/individual/community/Community.js');
     if (currentRoute().split('?')[0] !== '/individual/community') return;
@@ -10751,6 +10829,7 @@ function renderPlaceholder(page) {
 }
 
 async function renderCompanyPortal(route) {
+  showPageSkeleton(mainContent, 'Loading Company Portal...');
   try {
     const module = await import('../portals/company/CompanyPortal.js');
     if (typeof module.renderCompanyRoute === 'function') {
@@ -10762,6 +10841,7 @@ async function renderCompanyPortal(route) {
 }
 
 async function renderEmployeePortal(route) {
+  showPageSkeleton(mainContent, 'Loading Employee Portal...');
   try {
     const module = await import('../portals/employee/EmployeePortal.js');
     if (typeof module.renderEmployeeRoute === 'function') {
@@ -11786,6 +11866,7 @@ if (!currentInitialHash || currentInitialHash === '/' || currentInitialHash === 
 } else {
   renderPage();
 }
+prefetchRouteModules();
 function refreshSkillTrendModule() {
   const module = document.querySelector('.skill-trend-module');
   if (!module) return;

@@ -9,6 +9,7 @@ import { determineUserRedirect, getProfileSyncErrorKind, syncCurrentFirebaseUser
 import { profileSyncErrorMessage } from './auth-api.js';
 import { authTraceNow, logAuthTrace, recordAuthEvent, setAuthDiagnosticState } from './auth-trace.js';
 import { ensureAuthDiagnosticsPanel } from './auth-diagnostics-panel.js';
+import logoImage from '../../assets/logo.png';
 
 export function renderLoginPage(container) {
   ensureAuthDiagnosticsPanel();
@@ -21,7 +22,7 @@ export function renderLoginPage(container) {
         <div class="ts-auth-visual-top">
           <a class="ts-auth-brand" href="#/individual/home" aria-label="TalentScope.ai">
             <span class="ts-auth-brand-mark">
-              <img src="assets/logo.png" alt="TalentScope Logo">
+              <img src="${logoImage}" alt="TalentScope Logo">
             </span>
             <span class="ts-auth-brand-name">TalentScope<span>.ai</span></span>
           </a>

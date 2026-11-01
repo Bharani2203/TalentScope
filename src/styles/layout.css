@@ -753,3 +753,111 @@ body.ts-assessment-fullscreen .main-content {
   transform: translateX(0) !important;
   pointer-events: auto !important;
 }
+
+/* ============================================================================
+   PAGE SKELETON & ROUTE TRANSITION OPTIMIZATIONS
+   ============================================================================ */
+@keyframes tsSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes tsPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.25; }
+}
+
+@keyframes tsFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ts-page-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  animation: tsFadeIn 0.15s ease-out;
+}
+
+.ts-skeleton-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding-bottom: 0.5rem;
+}
+
+.ts-skeleton-line {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: tsPulse 1.5s ease-in-out infinite;
+}
+
+.ts-skeleton-line--title {
+  width: 260px;
+  height: 32px;
+}
+
+.ts-skeleton-line--subtitle {
+  width: 420px;
+  max-width: 80%;
+  height: 18px;
+}
+
+.ts-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.ts-skeleton-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 180px;
+}
+
+.ts-skeleton-line--card-title {
+  width: 50%;
+  height: 22px;
+}
+
+.ts-skeleton-line--card-body {
+  width: 90%;
+  height: 14px;
+}
+
+.ts-skeleton-line--card-body-short {
+  width: 65%;
+  height: 14px;
+}
+
+.ts-skeleton-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-top: 1rem;
+}
+
+.ts-skeleton-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #cbd5e1;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  display: inline-block;
+  animation: tsSpin 0.7s linear infinite;
+}

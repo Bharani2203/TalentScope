@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { getGeneratedReport, getCurrentUser } from '../auth/auth-state.js';
+import logoImage from '../../assets/logo.png';
 
 export function renderReportPage(container) {
   const root = container || document.getElementById('mainContent') || document.getElementById('appShell') || document.body;
@@ -29,7 +30,7 @@ export function renderReportPage(container) {
         <div class="ts-ob-nav-left">
           <a class="ts-ob-brand" href="${report.reportType.includes('employee') ? '#/employee/home' : report.reportType === 'company' ? '#/company/home' : '#/individual/home'}" aria-label="TalentScope.ai">
             <span class="ts-ob-brand-mark">
-              <img src="assets/logo.png" alt="TalentScope">
+              <img src="${logoImage}" alt="TalentScope">
             </span>
             <span class="ts-ob-brand-name">TalentScope<span>.ai</span></span>
           </a>
