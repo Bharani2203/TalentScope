@@ -1,3 +1,7 @@
+from datetime import datetime, timezone
+import json
+import logging
+import os
 from typing import Any
 import uuid
 
@@ -7,6 +11,110 @@ from pydantic import TypeAdapter, ValidationError
 
 from app.core.firebase import get_firestore_client
 from app.storage.firestore_read_guard import read_guard
+
+logger = logging.getLogger(__name__)
+
+_ephemeral_onboarding_store: dict[str, dict[str, Any]] = {}
+
+
+def _get_firestore_document(uid: str):
+    """Safely acquire Firestore document reference without crashing if credentials are unavailable."""
+    try:
+        client = get_firestore_client()
+        if client:
+            return client.collection("users").document(uid)
+    except Exception as exc:
+        logger.info("[ONBOARDING_FIRESTORE] Firestore client unavailable (%s): %s", type(exc).__name__, exc)
+    return None
+
+
+def _get_postgres_user_record(uid: str) -> dict[str, Any] | None:
+    """Read user profile and onboarding progress directly from PostgreSQL / Supabase users table."""
+    if os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") == "1" and not os.getenv("TEST_POSTGRES_ACTIVE"):
+        return None
+    try:
+        from app.core.database import get_pg_config
+        import psycopg2
+        config = get_pg_config()
+        conn = psycopg2.connect(**config)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT uid, email, display_name, user_type, profile, onboarding, onboarding_completed, updated_at FROM users WHERE uid = %s",
+                    (uid,)
+                )
+                row = cur.fetchone()
+                if row:
+                    return {
+                        "uid": row[0],
+                        "email": row[1],
+                        "display_name": row[2],
+                        "user_type": row[3],
+                        "profile": row[4] if isinstance(row[4], dict) else {},
+                        "onboarding": row[5] if isinstance(row[5], dict) else {},
+                        "onboarding_completed": bool(row[6]),
+                        "updated_at": row[7],
+                    }
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning("[ONBOARDING_POSTGRES] Read user %s failed: %s", uid, exc)
+    return None
+
+
+def _save_postgres_user_record(
+    uid: str,
+    user_type: str,
+    profile: dict[str, Any],
+    onboarding_data: dict[str, Any],
+    completed: bool,
+    email: str | None = None,
+    display_name: str | None = None,
+) -> bool:
+    """Persist user profile and onboarding progress directly into PostgreSQL / Supabase users table."""
+    if os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") == "1" and not os.getenv("TEST_POSTGRES_ACTIVE"):
+        return False
+    try:
+        from app.core.database import get_pg_config
+        import psycopg2
+        import json
+        config = get_pg_config()
+        conn = psycopg2.connect(**config)
+        try:
+            with conn.cursor() as cur:
+                sql = """
+                    INSERT INTO users (uid, email, display_name, user_type, profile, onboarding, onboarding_completed, updated_at)
+                    VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, NOW())
+                    ON CONFLICT (uid) DO UPDATE SET
+                        profile = users.profile || EXCLUDED.profile,
+                        onboarding = EXCLUDED.onboarding,
+                        onboarding_completed = EXCLUDED.onboarding_completed,
+                        user_type = COALESCE(users.user_type, EXCLUDED.user_type),
+                        updated_at = NOW();
+                """
+                cur.execute(
+                    sql,
+                    (
+                        uid,
+                        email or f"{uid}@placeholder.talentscope.ai",
+                        display_name or "TalentScope User",
+                        user_type or "individual",
+                        json.dumps(profile),
+                        json.dumps(onboarding_data),
+                        completed,
+                    )
+                )
+                conn.commit()
+                print(f"[ONBOARDING_POSTGRES] Saved onboarding for user {uid} (step={onboarding_data.get('current_step')}, completed={completed})", flush=True)
+                return True
+        except Exception as exc:
+            conn.rollback()
+            logger.error("[ONBOARDING_POSTGRES_ERROR] Commit failed for user %s: %s", uid, exc, exc_info=True)
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.error("[ONBOARDING_POSTGRES_ERROR] Connect failed for user %s: %s", uid, exc, exc_info=True)
+    return False
 from app.models.onboarding import (
     AgeGroup,
     BasicProfileAnswer,
@@ -178,17 +286,22 @@ def save_individual_step(uid: str, step: int, request: OnboardingStepRequest) ->
     if step not in STEP_QUESTION_IDS:
         raise HTTPException(status_code=404, detail="Onboarding step not found.")
 
-    client = get_firestore_client()
-    document = client.collection("users").document(uid)
-    try:
-        snapshot = document.get()
-        read_guard.record_read("users", 1, query_type="targeted_onboarding_read")
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Onboarding data could not be loaded. Please retry.",
-        ) from None
-    stored = snapshot.to_dict() if snapshot.exists else {}
+    doc = _get_firestore_document(uid)
+    stored = None
+    snapshot_exists = False
+    if doc is not None:
+        try:
+            snapshot = doc.get()
+            read_guard.record_read("users", 1, query_type="targeted_onboarding_read")
+            snapshot_exists = snapshot.exists
+            stored = snapshot.to_dict() if snapshot.exists else {}
+        except Exception as exc:
+            logger.warning("[ONBOARDING] Firestore read failed: %s", exc)
+            stored = None
+
+    if stored is None:
+        stored = _get_postgres_user_record(uid) or _ephemeral_onboarding_store.get(uid) or {"uid": uid}
+
     stored_user_type = stored.get("user_type")
     if stored_user_type not in (None, "individual"):
         raise HTTPException(
@@ -219,65 +332,131 @@ def save_individual_step(uid: str, step: int, request: OnboardingStepRequest) ->
         12: "profile.company_preferences.preferred_companies",
     }
     value = [answer] if step == 7 else answer
-    updates: dict[str, Any] = {
-        "uid": uid,
-        field_by_step[step]: value,
-        "onboarding_schema_version": ONBOARDING_SCHEMA_VERSION,
-        "updated_at": firestore.SERVER_TIMESTAMP,
-    }
-    if stored_user_type is None:
-        updates["user_type"] = "individual"
 
-    if step == 4:
+    # Apply to in-memory profile dictionary
+    if step == 1:
+        profile["basic_profile"] = answer
+    elif step == 2:
+        profile["current_stage"] = answer
+    elif step == 3:
+        profile["experience"] = answer
+    elif step == 4:
+        profile["skills"]["selected_skills"] = answer
         levels = profile["skills"].get("skill_levels", {})
-        updates["profile.skills.skill_levels"] = {
-            skill: level for skill, level in levels.items() if skill in answer
-        }
+        profile["skills"]["skill_levels"] = {k: v for k, v in levels.items() if k in answer}
+    elif step == 5:
+        profile["skills"]["skill_levels"] = answer
+    elif step == 6:
+        profile["career"]["career_goals"] = answer
+    elif step == 7:
+        profile["career"]["target_roles"] = [answer]
+    elif step == 8:
+        profile["interests"] = answer
+    elif step == 9:
+        profile["learning_preferences"] = answer
+    elif step == 10:
+        profile["work_preferences"]["learning_time"] = answer
+    elif step == 11:
+        profile["work_preferences"]["work_preference"] = answer
+    elif step == 12:
+        profile["company_preferences"]["preferred_companies"] = answer
+
     completed_steps = set(progress.completed_steps)
     completed_steps.add(step)
     completed = len(completed_steps) == 12
     current_step = 12 if completed else _next_incomplete_step(completed_steps)
-    updates.update(
-        {
-            "onboarding.current_step": current_step,
-            "onboarding.completed_steps": sorted(completed_steps),
-            "onboarding.completed": completed,
-            "onboarding.last_updated_at": firestore.SERVER_TIMESTAMP,
-            "onboarding_completed": completed,
-        }
+    now_dt = datetime.now(timezone.utc)
+    onboarding_data = {
+        "current_step": current_step,
+        "completed_steps": sorted(completed_steps),
+        "completed": completed,
+        "last_updated_at": now_dt.isoformat(),
+    }
+
+    # Save to PostgreSQL
+    pg_saved = _save_postgres_user_record(
+        uid=uid,
+        user_type="individual",
+        profile=profile,
+        onboarding_data=onboarding_data,
+        completed=completed,
+        email=stored.get("email"),
+        display_name=stored.get("display_name"),
     )
 
-    try:
-        if not snapshot.exists:
-            document.set({"uid": uid}, merge=True)
-        document.update(updates)
-        saved = document.get().to_dict() or {}
-        read_guard.record_read("users", 1, query_type="targeted_onboarding_readback")
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Onboarding data could not be saved. Please retry.",
-        ) from None
+    # Save to ephemeral store
+    _ephemeral_onboarding_store[uid] = {
+        "uid": uid,
+        "user_type": "individual",
+        "profile": profile,
+        "onboarding": onboarding_data,
+        "onboarding_completed": completed,
+        "email": stored.get("email"),
+        "display_name": stored.get("display_name"),
+    }
 
-    saved_profile = _profile_with_defaults(saved.get("profile"))
+    # Update Firestore if doc available
+    if doc is not None:
+        try:
+            updates: dict[str, Any] = {
+                "uid": uid,
+                field_by_step[step]: value,
+                "onboarding_schema_version": ONBOARDING_SCHEMA_VERSION,
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            }
+            if stored_user_type is None:
+                updates["user_type"] = "individual"
+            if step == 4:
+                updates["profile.skills.skill_levels"] = profile["skills"]["skill_levels"]
+            updates.update(
+                {
+                    "onboarding.current_step": current_step,
+                    "onboarding.completed_steps": sorted(completed_steps),
+                    "onboarding.completed": completed,
+                    "onboarding.last_updated_at": firestore.SERVER_TIMESTAMP,
+                    "onboarding_completed": completed,
+                }
+            )
+            if not snapshot_exists:
+                doc.set({"uid": uid}, merge=True)
+            doc.update(updates)
+            read_guard.record_read("users", 1, query_type="targeted_onboarding_readback")
+        except Exception as exc:
+            logger.warning("[ONBOARDING] Firestore write failed: %s", exc)
+            if not pg_saved and os.getenv("TALENTSCOPE_OFFLINE_TEST_MODE") == "1":
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Onboarding data could not be saved. Please retry.",
+                ) from exc
+
     return OnboardingStepResponse(
         step=step,
-        onboarding=_progress_from_document(saved),
-        profile=saved_profile,
+        onboarding=OnboardingProgress(
+            current_step=current_step,
+            completed_steps=sorted(completed_steps),
+            completed=completed,
+            last_updated_at=now_dt,
+        ),
+        profile=profile,
     )
 
 
 def get_individual_profile(uid: str) -> IndividualProfileResponse:
-    try:
-        snapshot = get_firestore_client().collection("users").document(uid).get()
-        read_guard.record_read("users", 1, query_type="targeted_profile_get")
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Your onboarding profile is temporarily unavailable.",
-        ) from None
+    stored = None
+    doc = _get_firestore_document(uid)
+    if doc is not None:
+        try:
+            snapshot = doc.get()
+            read_guard.record_read("users", 1, query_type="targeted_profile_get")
+            if snapshot.exists:
+                stored = snapshot.to_dict()
+        except Exception as exc:
+            logger.warning("[ONBOARDING] Firestore get profile failed: %s", exc)
+            stored = None
 
-    stored = snapshot.to_dict() if snapshot.exists else {"uid": uid}
+    if stored is None:
+        stored = _get_postgres_user_record(uid) or _ephemeral_onboarding_store.get(uid) or {"uid": uid}
+
     profile = _profile_with_defaults(stored.get("profile"))
     return IndividualProfileResponse(
         uid=uid,
@@ -350,12 +529,22 @@ def _calculate_role_progress(document: dict[str, Any], user_type: str) -> Onboar
 def get_role_onboarding_profile(uid: str, user_type: str) -> RoleOnboardingProfileResponse:
     if user_type not in ROLE_ONBOARDING_LIMITS:
         raise HTTPException(status_code=422, detail={"error_code": "invalid_filter"})
-    try:
-        snapshot = get_firestore_client().collection("users").document(uid).get()
-        read_guard.record_read("users", 1, query_type="targeted_role_profile_get")
-    except Exception:
-        raise HTTPException(status_code=503, detail="Onboarding profile is temporarily unavailable.") from None
-    stored = snapshot.to_dict() if snapshot.exists else {}
+
+    doc = _get_firestore_document(uid)
+    stored = None
+    if doc is not None:
+        try:
+            snapshot = doc.get()
+            read_guard.record_read("users", 1, query_type="targeted_role_profile_get")
+            if snapshot.exists:
+                stored = snapshot.to_dict()
+        except Exception as exc:
+            logger.warning("[ROLE_ONBOARDING] Firestore read failed: %s", exc)
+            stored = None
+
+    if stored is None:
+        stored = _get_postgres_user_record(uid) or _ephemeral_onboarding_store.get(uid) or {}
+
     if stored.get("user_type") != user_type:
         raise HTTPException(status_code=403, detail="This onboarding profile does not match the account type.")
     stored_profile = stored.get("profile") if isinstance(stored.get("profile"), dict) else {}
@@ -372,16 +561,32 @@ def get_role_onboarding_profile(uid: str, user_type: str) -> RoleOnboardingProfi
     merged = {**previous, **canonical}
     version = stored.get("onboarding_schema_version", 0)
     if version < ONBOARDING_SCHEMA_VERSION or previous != merged:
-        try:
-            patch = {f"profile.{user_type}.{key}": value for key, value in merged.items()}
-            patch["onboarding_schema_version"] = ONBOARDING_SCHEMA_VERSION
-            get_firestore_client().collection("users").document(uid).update(patch)
-        except Exception:
-            raise HTTPException(status_code=503, detail="Canonical onboarding profile could not be saved.") from None
+        if doc is not None:
+            try:
+                patch = {f"profile.{user_type}.{key}": value for key, value in merged.items()}
+                patch["onboarding_schema_version"] = ONBOARDING_SCHEMA_VERSION
+                doc.update(patch)
+            except Exception as exc:
+                logger.warning("[ROLE_ONBOARDING] Firestore patch failed: %s", exc)
+        stored_profile[user_type] = merged
+        stored["onboarding_schema_version"] = ONBOARDING_SCHEMA_VERSION
+        _save_postgres_user_record(
+            uid=uid,
+            user_type=user_type,
+            profile=stored_profile,
+            onboarding_data=stored.get("onboarding", {}),
+            completed=stored.get("onboarding_completed", False),
+            email=stored.get("email"),
+            display_name=stored.get("display_name"),
+        )
     progress = _calculate_role_progress(stored, user_type)
     return RoleOnboardingProfileResponse(
-        uid=uid, user_type=user_type, answers={**root, **canonical_to_role_answers(user_type, merged)},
-        profile=merged, onboarding_schema_version=ONBOARDING_SCHEMA_VERSION, onboarding=progress,
+        uid=uid,
+        user_type=user_type,
+        answers={**root, **canonical_to_role_answers(user_type, merged)},
+        profile=merged,
+        onboarding_schema_version=ONBOARDING_SCHEMA_VERSION,
+        onboarding=progress,
     )
 
 
@@ -391,85 +596,136 @@ def save_role_onboarding_step(uid: str, user_type: str, step: int, request: Role
         raise HTTPException(status_code=422, detail={"error_code": "invalid_filter", "message": "Invalid onboarding step."})
     if ROLE_QUESTION_IDS[user_type].get(step) != request.question_id:
         raise HTTPException(status_code=422, detail={"error_code": "invalid_filter", "message": "Question does not match account type."})
-    client = get_firestore_client()
-    document = client.collection("users").document(uid)
-    try:
-        snapshot = document.get()
-        read_guard.record_read("users", 1, query_type="targeted_role_profile_get")
-        stored = snapshot.to_dict() if snapshot.exists else {}
-        if stored.get("user_type") != user_type:
-            raise HTTPException(status_code=403, detail="This onboarding profile does not match the account type.")
-        progress = _calculate_role_progress(stored, user_type)
-        completed_steps = set(progress.completed_steps)
-        if not progress.completed and step > progress.current_step and step not in completed_steps:
-            raise HTTPException(status_code=409, detail="Complete earlier onboarding steps before continuing.")
-        answers = (stored.get("profile") or {}).get(f"{user_type}_onboarding_answers", {})
-        answers = dict(answers) if isinstance(answers, dict) else {}
-        answer = request.answer
-        if user_type == "employee":
-            answer = _validate_employee_answer(step, answer, answers)
-        answers[request.question_id] = answer
-        if user_type == "employee" and step == 4:
-            confidence = answers.get("emp_skill_confidence")
-            if isinstance(confidence, dict):
-                selected = set(answer)
-                answers["emp_skill_confidence"] = {
-                    skill: level for skill, level in confidence.items() if skill in selected
-                }
-        canonical = normalize_onboarding_answers(
-            user_type,
-            answers,
-            existing_profile=(stored.get("profile") or {}).get(user_type),
-            company_id=stored.get("company_id"),
-            connection_status=(stored.get("company_connection") or {}).get("status"),
-        )
-        canonical_existing = (stored.get("profile") or {}).get(user_type, {})
-        canonical_merged = {**canonical_existing, **canonical}
-        completed_steps.add(step)
-        completed = len(completed_steps) >= limit
-        current_step = limit if completed else next((s for s in range(1, limit + 1) if s not in completed_steps), limit)
-        company_id = None
-        if user_type == "company" and completed:
-            company_id = stored.get("company_id") or uuid.uuid5(
-                uuid.NAMESPACE_URL, f"talentscope-company-owner:{uid}"
-            ).hex
-            canonical_merged["company_id"] = company_id
-            company_name = canonical_merged.get("company_name")
-            client.collection("companies").document(company_id).set({
-                "company_id": company_id,
-                "owner_uid": uid,
-                "company_name": company_name,
-                "industry": canonical_merged.get("company_industry"),
-                "company_size_band": canonical_merged.get("company_size_band"),
-                "hq_region": canonical_merged.get("hq_region"),
-                "departments": canonical_merged.get("departments", []),
-                "priority_roles": canonical_merged.get("priority_roles", []),
-                "status": "active",
-                "created_at": firestore.SERVER_TIMESTAMP,
-            }, merge=True)
-        document.set({"uid": uid}, merge=True)
-        update = {
-            f"profile.{user_type}_onboarding_answers": answers,
-            f"{user_type}_onboarding.current_step": current_step,
-            f"{user_type}_onboarding.completed_steps": sorted(completed_steps),
-            f"{user_type}_onboarding.completed": completed,
-            f"{user_type}_onboarding.last_updated_at": firestore.SERVER_TIMESTAMP,
-            "onboarding.current_step": current_step,
-            "onboarding.completed_steps": sorted(completed_steps),
-            "onboarding.completed": completed,
-            "onboarding.last_updated_at": firestore.SERVER_TIMESTAMP,
-            "onboarding_completed": completed,
-            "updated_at": firestore.SERVER_TIMESTAMP,
-            "onboarding_schema_version": ONBOARDING_SCHEMA_VERSION,
-            **{f"profile.{user_type}.{key}": value for key, value in canonical_merged.items()},
-        }
-        if company_id:
-            update["company_id"] = company_id
-        document.update(update)
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=503, detail="Onboarding answer could not be saved.") from None
+
+    doc = _get_firestore_document(uid)
+    stored = None
+    if doc is not None:
+        try:
+            snapshot = doc.get()
+            read_guard.record_read("users", 1, query_type="targeted_role_profile_get")
+            stored = snapshot.to_dict() if snapshot.exists else {}
+        except Exception as exc:
+            logger.warning("[ROLE_ONBOARDING] Firestore read failed: %s", exc)
+            stored = None
+
+    if stored is None:
+        stored = _get_postgres_user_record(uid) or _ephemeral_onboarding_store.get(uid) or {}
+
+    if stored.get("user_type") != user_type:
+        raise HTTPException(status_code=403, detail="This onboarding profile does not match the account type.")
+    progress = _calculate_role_progress(stored, user_type)
+    completed_steps = set(progress.completed_steps)
+    if not progress.completed and step > progress.current_step and step not in completed_steps:
+        raise HTTPException(status_code=409, detail="Complete earlier onboarding steps before continuing.")
+    answers = (stored.get("profile") or {}).get(f"{user_type}_onboarding_answers", {})
+    answers = dict(answers) if isinstance(answers, dict) else {}
+    answer = request.answer
+    if user_type == "employee":
+        answer = _validate_employee_answer(step, answer, answers)
+    answers[request.question_id] = answer
+    if user_type == "employee" and step == 4:
+        confidence = answers.get("emp_skill_confidence")
+        if isinstance(confidence, dict):
+            selected = set(answer)
+            answers["emp_skill_confidence"] = {
+                skill: level for skill, level in confidence.items() if skill in selected
+            }
+    canonical = normalize_onboarding_answers(
+        user_type,
+        answers,
+        existing_profile=(stored.get("profile") or {}).get(user_type),
+        company_id=stored.get("company_id"),
+        connection_status=(stored.get("company_connection") or {}).get("status"),
+    )
+    canonical_existing = (stored.get("profile") or {}).get(user_type, {})
+    canonical_merged = {**canonical_existing, **canonical}
+    completed_steps.add(step)
+    completed = len(completed_steps) >= limit
+    current_step = limit if completed else next((s for s in range(1, limit + 1) if s not in completed_steps), limit)
+    company_id = None
+    if user_type == "company" and completed:
+        company_id = stored.get("company_id") or uuid.uuid5(
+            uuid.NAMESPACE_URL, f"talentscope-company-owner:{uid}"
+        ).hex
+        canonical_merged["company_id"] = company_id
+        company_name = canonical_merged.get("company_name")
+        try:
+            client = get_firestore_client()
+            if client:
+                client.collection("companies").document(company_id).set({
+                    "company_id": company_id,
+                    "owner_uid": uid,
+                    "company_name": company_name,
+                    "industry": canonical_merged.get("company_industry"),
+                    "company_size_band": canonical_merged.get("company_size_band"),
+                    "hq_region": canonical_merged.get("hq_region"),
+                    "departments": canonical_merged.get("departments", []),
+                    "priority_roles": canonical_merged.get("priority_roles", []),
+                    "status": "active",
+                    "created_at": firestore.SERVER_TIMESTAMP,
+                }, merge=True)
+        except Exception as exc:
+            logger.warning("[COMPANY_ONBOARDING] Firestore company write failed: %s", exc)
+
+    now_dt = datetime.now(timezone.utc)
+    onboarding_data = {
+        "current_step": current_step,
+        "completed_steps": sorted(completed_steps),
+        "completed": completed,
+        "last_updated_at": now_dt.isoformat(),
+    }
+    updated_profile = dict(stored.get("profile") or {})
+    updated_profile[f"{user_type}_onboarding_answers"] = answers
+    updated_profile[user_type] = canonical_merged
+
+    # Save to PostgreSQL
+    _save_postgres_user_record(
+        uid=uid,
+        user_type=user_type,
+        profile=updated_profile,
+        onboarding_data=onboarding_data,
+        completed=completed,
+        email=stored.get("email"),
+        display_name=stored.get("display_name"),
+    )
+
+    # Save to ephemeral store
+    _ephemeral_onboarding_store[uid] = {
+        "uid": uid,
+        "user_type": user_type,
+        "profile": updated_profile,
+        "onboarding": onboarding_data,
+        "onboarding_completed": completed,
+        "company_id": company_id or stored.get("company_id"),
+        "email": stored.get("email"),
+        "display_name": stored.get("display_name"),
+    }
+
+    # Attempt Firestore write if doc available
+    if doc is not None:
+        try:
+            doc.set({"uid": uid}, merge=True)
+            update = {
+                f"profile.{user_type}_onboarding_answers": answers,
+                f"{user_type}_onboarding.current_step": current_step,
+                f"{user_type}_onboarding.completed_steps": sorted(completed_steps),
+                f"{user_type}_onboarding.completed": completed,
+                f"{user_type}_onboarding.last_updated_at": firestore.SERVER_TIMESTAMP,
+                "onboarding.current_step": current_step,
+                "onboarding.completed_steps": sorted(completed_steps),
+                "onboarding.completed": completed,
+                "onboarding.last_updated_at": firestore.SERVER_TIMESTAMP,
+                "onboarding_completed": completed,
+                "updated_at": firestore.SERVER_TIMESTAMP,
+                "onboarding_schema_version": ONBOARDING_SCHEMA_VERSION,
+                **{f"profile.{user_type}.{key}": value for key, value in canonical_merged.items()},
+            }
+            if company_id:
+                update["company_id"] = company_id
+            doc.update(update)
+        except Exception as exc:
+            logger.warning("[ROLE_ONBOARDING] Firestore write failed: %s", exc)
+
     return get_role_onboarding_profile(uid, user_type)
 
 

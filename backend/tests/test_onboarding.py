@@ -492,3 +492,51 @@ def test_new_company_admin_starts_at_step_one_with_no_completed_steps(monkeypatc
         assert step1_data["onboarding"]["current_step"] == 2
         assert step1_data["onboarding"]["completed_steps"] == [1]
 
+
+
+def test_onboarding_route_aliases_and_methods(monkeypatch):
+    """Verify OPTIONS, POST, PUT, and prefix aliases for onboarding endpoints."""
+    existing = {
+        "uid": "onboarding-user-1",
+        "user_type": "individual",
+        "profile": {},
+        "onboarding": {"current_step": 1, "completed_steps": [], "completed": False},
+    }
+    database = FakeFirestore({"users/onboarding-user-1": existing})
+    use_database(monkeypatch, database)
+    set_authenticated_user()
+
+    with TestClient(app) as client:
+        # 1. Options preflight handlers return 200
+        opt1 = client.options("/api/v1/onboarding/individual/step/1")
+        assert opt1.status_code == 200
+
+        opt2 = client.options("/api/v1/onboarding/profile")
+        assert opt2.status_code == 200
+
+        opt3 = client.options("/api/v1/onboarding/employee/step/1")
+        assert opt3.status_code == 200
+
+        # 2. Both PUT and POST work on individual step
+        ans1 = {"name": "Test User", "ageGroup": "22–25", "city": "Chennai", "country": "India"}
+        post_step = client.post("/api/v1/onboarding/individual/step/1", json={"answer": ans1})
+        assert post_step.status_code == 200
+        assert post_step.json()["saved"] is True
+
+        put_step = client.put("/api/v1/onboarding/individual/step/1", json={"answer": ans1})
+        assert put_step.status_code == 200
+        assert put_step.json()["saved"] is True
+
+        # 3. Both GET and POST work on generic /onboarding/profile
+        get_prof = client.get("/api/v1/onboarding/profile")
+        assert get_prof.status_code == 200
+
+        post_prof = client.post("/api/v1/onboarding/profile")
+        assert post_prof.status_code == 200
+
+        # 4. Endpoints accessible under /api prefix alias
+        alias_get = client.get("/api/onboarding/individual/profile")
+        assert alias_get.status_code == 200
+
+        alias_step = client.post("/api/onboarding/individual/step/1", json={"answer": ans1})
+        assert alias_step.status_code == 200

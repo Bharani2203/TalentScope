@@ -31,7 +31,8 @@ async function authenticatedRequest(path, options = {}) {
         ...options.headers
       }
     });
-  } catch {
+  } catch (err) {
+    console.error(`[ONBOARDING_API_NETWORK_ERROR] fetch failed for ${API_BASE_URL}${path}:`, err);
     throw new OnboardingApiError('NETWORK_ERROR', 'Could not reach the onboarding service. Please retry when connected.');
   }
 

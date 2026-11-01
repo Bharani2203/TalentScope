@@ -129,3 +129,6 @@ from app.api.routes import market_intelligence
 app.include_router(market_intelligence.router, prefix="/api")
 from app.api.routes import assistant
 app.include_router(assistant.router, prefix="/api")
+from app.api.routes import onboarding
+app.include_router(onboarding.router, prefix="/api")
+app.include_router(onboarding.role_router, prefix="/api")
