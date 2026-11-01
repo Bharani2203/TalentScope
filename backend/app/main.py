@@ -42,6 +42,20 @@ async def log_firestore_runtime():
     logger.info(firestore_runtime_label(settings.firebase_project_id))
 
 
+@app.on_event("startup")
+async def run_postgres_migrations():
+    """Apply safe, non-blocking PostgreSQL schema migrations on startup."""
+    import asyncio
+    try:
+        from app.core.database import get_pg_config
+        from app.core.migrations import run_migrations
+        pg_cfg = get_pg_config()
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, run_migrations, pg_cfg)
+    except Exception as exc:
+        logger.warning("[STARTUP_MIGRATIONS] Schema migration check skipped or failed: %s", exc)
+
+
 @app.middleware("http")
 async def firestore_read_log(request: Request, call_next):
     """Aggregate read-wrapper counts for this request when FIRESTORE_READ_LOG=1."""

@@ -130,17 +130,25 @@ def get_market_ecosystem_overview() -> MarketEcosystemOverview:
         first_period = str(row[3] or "2026-05")
 
         # 2. Query 6-month historical trajectory arrays from skill_market_observations
-        cur.execute("""
-            SELECT 
-                skill_name, 
-                period_month, 
-                blended_score,
-                (wiki_activity + github_activity + stackoverflow_activity) as total_activity
-            FROM skill_market_observations
-            WHERE period_month >= '2026-05' AND period_month <= '2026-10'
-            ORDER BY skill_name, period_month ASC;
-        """)
-        rows = cur.fetchall()
+        rows = []
+        try:
+            cur.execute("""
+                SELECT 
+                    skill_name, 
+                    period_month, 
+                    blended_score,
+                    (wiki_activity + github_activity + stackoverflow_activity) as total_activity
+                FROM skill_market_observations
+                WHERE period_month >= '2026-05' AND period_month <= '2026-10'
+                ORDER BY skill_name, period_month ASC;
+            """)
+            rows = cur.fetchall()
+        except Exception as eco_err:
+            logger.warning("Could not query blended_score from skill_market_observations: %s", eco_err)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
         # Fallback to external_skill_signals if skill_market_observations has not completed
         if not rows:

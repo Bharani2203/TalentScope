@@ -557,12 +557,20 @@ def fetch_pillar_skill_trends_from_postgres(
                         src_list.append(pt)
 
         # Query Tri-Signal blended momentum score
-        cur.execute("""
-            SELECT lower(skill_name), market_momentum_score
-            FROM skill_market_observations
-            WHERE period_month = '2026-10' AND (lower(skill_name) = ANY(%s) OR lower(skill_id) = ANY(%s));
-        """, (db_names, slug_list))
-        pillar_tri_scores = {r[0]: float(r[1]) for r in cur.fetchall()}
+        pillar_tri_scores = {}
+        try:
+            cur.execute("""
+                SELECT lower(skill_name), market_momentum_score
+                FROM skill_market_observations
+                WHERE period_month = '2026-10' AND (lower(skill_name) = ANY(%s) OR lower(skill_id) = ANY(%s));
+            """, (db_names, slug_list))
+            pillar_tri_scores = {r[0]: float(r[1]) for r in cur.fetchall()}
+        except Exception as tri_exc:
+            logger.warning("Could not query market_momentum_score for pillar skills: %s", tri_exc)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
         cur.close()
         conn.close()
@@ -719,12 +727,20 @@ def fetch_global_skill_trends_from_postgres(
         timeline_rows = cur.fetchall()
 
         # Query Tri-Signal blended momentum score
-        cur.execute("""
-            SELECT lower(skill_name), market_momentum_score
-            FROM skill_market_observations
-            WHERE period_month = '2026-10' AND lower(skill_name) = ANY(%s);
-        """, ([c.lower() for c in candidates],))
-        tri_scores = {r[0]: float(r[1]) for r in cur.fetchall()}
+        tri_scores = {}
+        try:
+            cur.execute("""
+                SELECT lower(skill_name), market_momentum_score
+                FROM skill_market_observations
+                WHERE period_month = '2026-10' AND lower(skill_name) = ANY(%s);
+            """, ([c.lower() for c in candidates],))
+            tri_scores = {r[0]: float(r[1]) for r in cur.fetchall()}
+        except Exception as tri_exc:
+            logger.warning("Could not query market_momentum_score for global skills: %s", tri_exc)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
         cur.close()
         conn.close()

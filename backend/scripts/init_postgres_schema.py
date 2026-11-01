@@ -201,10 +201,17 @@ DDL_STATEMENTS = [
         growth_rate NUMERIC(10, 4) DEFAULT 0.0,
         relative_frequency NUMERIC(10, 6) DEFAULT 0.0,
         tri_signal_score NUMERIC(10, 4) DEFAULT 0.0,
+        market_momentum_score FLOAT DEFAULT 0.0,
+        blended_score FLOAT DEFAULT 0.0,
+        wiki_activity BIGINT DEFAULT 0,
+        github_activity BIGINT DEFAULT 0,
+        stackoverflow_activity BIGINT DEFAULT 0,
+        raw_components JSONB DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     """,
     "CREATE INDEX IF NOT EXISTS idx_smo_skill_period ON skill_market_observations (skill_id, period_month);",
+    "CREATE INDEX IF NOT EXISTS idx_smo_period_month ON skill_market_observations (period_month);",
 
     # ---------------------------------------------------------
     # 5. jobs
@@ -324,8 +331,105 @@ DDL_STATEMENTS = [
         updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     """,
-    "CREATE INDEX IF NOT EXISTS idx_roadmaps_user_id ON learning_roadmaps (user_id);"
+    "CREATE INDEX IF NOT EXISTS idx_roadmaps_user_id ON learning_roadmaps (user_id);",
+
+    # ---------------------------------------------------------
+    # 10. skill_trends
+    # ---------------------------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS skill_trends (
+        id BIGSERIAL PRIMARY KEY,
+        skill_name VARCHAR(255),
+        skill_id VARCHAR(100),
+        period_month VARCHAR(50),
+        market_momentum_score FLOAT DEFAULT 0.0,
+        blended_score FLOAT DEFAULT 0.0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_skill_trends_skill_id ON skill_trends (skill_id);",
+    "CREATE INDEX IF NOT EXISTS idx_skill_trends_period ON skill_trends (period_month);",
+
+    # ---------------------------------------------------------
+    # 11. market_ecosystem
+    # ---------------------------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS market_ecosystem (
+        id BIGSERIAL PRIMARY KEY,
+        skill_name VARCHAR(255),
+        period_month VARCHAR(50),
+        market_momentum_score FLOAT DEFAULT 0.0,
+        blended_score FLOAT DEFAULT 0.0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_market_eco_period ON market_ecosystem (period_month);"
 ]
+
+MIGRATION_STATEMENTS = [
+    # 1. Ensure dependent tables exist before altering
+    """
+    CREATE TABLE IF NOT EXISTS skill_trends (
+        id BIGSERIAL PRIMARY KEY,
+        skill_name VARCHAR(255),
+        skill_id VARCHAR(100),
+        period_month VARCHAR(50),
+        market_momentum_score FLOAT DEFAULT 0.0,
+        blended_score FLOAT DEFAULT 0.0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS market_ecosystem (
+        id BIGSERIAL PRIMARY KEY,
+        skill_name VARCHAR(255),
+        period_month VARCHAR(50),
+        market_momentum_score FLOAT DEFAULT 0.0,
+        blended_score FLOAT DEFAULT 0.0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    # 2. Safe column migrations with IF NOT EXISTS
+    "ALTER TABLE skill_market_observations ADD COLUMN IF NOT EXISTS market_momentum_score FLOAT DEFAULT 0.0;",
+    "ALTER TABLE skill_market_observations ADD COLUMN IF NOT EXISTS blended_score FLOAT DEFAULT 0.0;",
+    "ALTER TABLE skill_market_observations ADD COLUMN IF NOT EXISTS wiki_activity BIGINT DEFAULT 0;",
+    "ALTER TABLE skill_market_observations ADD COLUMN IF NOT EXISTS github_activity BIGINT DEFAULT 0;",
+    "ALTER TABLE skill_market_observations ADD COLUMN IF NOT EXISTS stackoverflow_activity BIGINT DEFAULT 0;",
+    "ALTER TABLE skill_market_observations ADD COLUMN IF NOT EXISTS raw_components JSONB DEFAULT '{}'::jsonb;",
+    "ALTER TABLE skill_trends ADD COLUMN IF NOT EXISTS market_momentum_score FLOAT DEFAULT 0.0;",
+    "ALTER TABLE skill_trends ADD COLUMN IF NOT EXISTS blended_score FLOAT DEFAULT 0.0;",
+    "ALTER TABLE market_ecosystem ADD COLUMN IF NOT EXISTS market_momentum_score FLOAT DEFAULT 0.0;",
+    "ALTER TABLE market_ecosystem ADD COLUMN IF NOT EXISTS blended_score FLOAT DEFAULT 0.0;",
+]
+
+
+def run_migrations(config: dict[str, Any] | None = None) -> bool:
+    """Run idempotent ALTER TABLE migrations to ensure schema consistency.
+
+    Safely adds missing columns such as market_momentum_score and blended_score
+    if they do not already exist. Can be executed safely during application startup.
+    """
+    cfg = config or DB_CONFIG
+    try:
+        conn = psycopg2.connect(**cfg)
+        conn.autocommit = True
+        cur = conn.cursor()
+        for statement in MIGRATION_STATEMENTS:
+            try:
+                cur.execute(statement)
+            except Exception as stmt_exc:
+                logger.warning(
+                    "[MIGRATIONS] Migration notice for '%s...': %s",
+                    statement.strip()[:60].replace("\n", " "),
+                    stmt_exc,
+                )
+        cur.close()
+        conn.close()
+        logger.info("[MIGRATIONS] PostgreSQL schema migrations completed successfully.")
+        return True
+    except Exception as exc:
+        logger.warning("[MIGRATIONS] PostgreSQL schema migration check skipped or failed: %s", exc)
+        return False
 
 
 def ensure_database_exists() -> None:
@@ -376,6 +480,9 @@ def initialize_schema() -> None:
         cur.execute(statement)
     conn.commit()
     logger.info("All DDL statements executed and committed successfully.")
+
+    # Apply idempotent ALTER TABLE migrations
+    run_migrations(DB_CONFIG)
 
     # Verification: List created tables and column counts
     cur.execute(
