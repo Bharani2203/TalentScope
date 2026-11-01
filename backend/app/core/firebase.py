@@ -1,3 +1,6 @@
+import base64
+import json
+import logging
 import os
 from pathlib import Path
 import socket
@@ -9,6 +12,8 @@ from firebase_admin import credentials, firestore
 from google.auth.credentials import AnonymousCredentials
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 _firebase_app_lock = Lock()
 _firestore_client_lock = Lock()
@@ -117,7 +122,7 @@ def _resolve_certificate_path(configured_path: str) -> Path:
 def get_firebase_app() -> firebase_admin.App:
     """Return the configured Firebase Admin app (local emulator or verified credentials)."""
     with _firebase_app_lock:
-        if _is_emulator_mode() and _is_emulator_reachable():
+        if _is_emulator_mode():
             _validated_emulator_settings()
             try:
                 app = firebase_admin.get_app()
@@ -144,29 +149,52 @@ def get_firebase_app() -> firebase_admin.App:
             or getattr(settings, "firebase_service_account_base64", None)
         )
         if b64_cred and b64_cred.strip():
-            import base64
-            import json
-            try:
-                decoded = base64.b64decode(b64_cred.strip()).decode("utf-8")
-                cred_dict = json.loads(decoded)
-            except Exception as exc:
-                logger.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_BASE64: %s", exc)
+            raw_b64 = b64_cred.strip().strip("'\"")
+            if raw_b64.startswith("{") and raw_b64.endswith("}"):
+                try:
+                    cred_dict = json.loads(raw_b64)
+                    print("[FIREBASE_INIT] Successfully parsed JSON from FIREBASE_SERVICE_ACCOUNT_BASE64", flush=True)
+                except Exception as exc:
+                    print(f"[FIREBASE_INIT] Failed to parse JSON from FIREBASE_SERVICE_ACCOUNT_BASE64: {exc}", flush=True)
+                    logger.error("Failed to parse JSON from FIREBASE_SERVICE_ACCOUNT_BASE64: %s", exc)
+            else:
+                try:
+                    clean_b64 = raw_b64.replace(" ", "").replace("\n", "").replace("\r", "")
+                    missing_padding = len(clean_b64) % 4
+                    if missing_padding:
+                        clean_b64 += "=" * (4 - missing_padding)
+                    decoded = base64.b64decode(clean_b64).decode("utf-8")
+                    cred_dict = json.loads(decoded)
+                    print(f"[FIREBASE_INIT] Successfully decoded FIREBASE_SERVICE_ACCOUNT_BASE64 for project: {cred_dict.get('project_id')}", flush=True)
+                except Exception as exc:
+                    print(f"[FIREBASE_INIT] Failed to decode FIREBASE_SERVICE_ACCOUNT_BASE64: {type(exc).__name__}: {exc}", flush=True)
+                    logger.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_BASE64: %s", exc, exc_info=True)
 
         raw_json_cred = (
             os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON_RAW")
             or os.getenv("FIREBASE_SERVICE_ACCOUNT_RAW")
             or os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
         )
-        if not cred_dict and raw_json_cred and raw_json_cred.strip().startswith("{"):
-            import json
-            try:
-                cred_dict = json.loads(raw_json_cred.strip())
-            except Exception as exc:
-                logger.error("Failed to parse raw JSON credentials: %s", exc)
+        if not cred_dict and raw_json_cred and raw_json_cred.strip():
+            raw_stripped = raw_json_cred.strip().strip("'\"")
+            if raw_stripped.startswith("{") and raw_stripped.endswith("}"):
+                try:
+                    cred_dict = json.loads(raw_stripped)
+                    print(f"[FIREBASE_INIT] Successfully parsed raw JSON credentials for project: {cred_dict.get('project_id')}", flush=True)
+                except Exception as exc:
+                    print(f"[FIREBASE_INIT] Failed to parse raw JSON credentials: {type(exc).__name__}: {exc}", flush=True)
+                    logger.error("Failed to parse raw JSON credentials: %s", exc, exc_info=True)
 
         credential = None
+        detected_project_id = None
         if cred_dict:
-            credential = credentials.Certificate(cred_dict)
+            try:
+                credential = credentials.Certificate(cred_dict)
+                detected_project_id = cred_dict.get("project_id")
+                print(f"[FIREBASE_INIT] Created Certificate credential for project: {detected_project_id}", flush=True)
+            except Exception as cert_exc:
+                print(f"[FIREBASE_INIT] Certificate creation failed from parsed dictionary: {cert_exc}", flush=True)
+                logger.error("Certificate creation failed: %s", cert_exc, exc_info=True)
         else:
             cred_path = (
                 settings.google_application_credentials
@@ -183,19 +211,38 @@ def get_firebase_app() -> firebase_admin.App:
             if certificate_path is not None and not certificate_path.is_file():
                 if _is_emulator_mode():
                     _validated_emulator_settings()
-                raise FileNotFoundError(f"Configured Firebase service-account file does not exist: {certificate_path}")
+                if cred_path != "./secrets/firebase-service-account.json":
+                    raise FileNotFoundError(f"Configured Firebase service-account file does not exist: {certificate_path}")
 
             if certificate_path is not None and certificate_path.is_file():
-                credential = credentials.Certificate(str(certificate_path))
+                try:
+                    credential = credentials.Certificate(str(certificate_path))
+                    print(f"[FIREBASE_INIT] Loaded Certificate from file: {certificate_path}", flush=True)
+                except Exception as file_cert_exc:
+                    print(f"[FIREBASE_INIT] Failed to load certificate from file: {file_cert_exc}", flush=True)
+
+        target_project_id = detected_project_id or settings.firebase_project_id or os.getenv("FIREBASE_PROJECT_ID")
 
         try:
             app = firebase_admin.get_app()
-            if not settings.firebase_project_id or app.project_id == settings.firebase_project_id:
+            if not target_project_id or app.project_id == target_project_id:
                 return app
         except ValueError:
             pass
 
         if credential is None:
+            # Fallback to Google Application Default Credentials in cloud hosting environments
+            try:
+                import google.auth
+                default_cred, default_project = google.auth.default()
+                print(f"[FIREBASE_INIT] Using Google Application Default Credentials (project: {default_project})", flush=True)
+                return firebase_admin.initialize_app(
+                    credential=default_cred,
+                    options={"projectId": target_project_id or default_project} if (target_project_id or default_project) else None,
+                )
+            except Exception as adc_err:
+                print(f"[FIREBASE_INIT] Google Application Default Credentials fallback failed: {adc_err}", flush=True)
+
             if _is_emulator_mode():
                 _validated_emulator_settings()
             raise RuntimeError(
@@ -206,14 +253,14 @@ def get_firebase_app() -> firebase_admin.App:
         return firebase_admin.initialize_app(
             credential=credential,
             options={
-                "projectId": settings.firebase_project_id,
-            } if settings.firebase_project_id else None,
+                "projectId": target_project_id,
+            } if target_project_id else None,
         )
 
 
 def get_firestore_client():
     """Return a Firestore client associated with the active Firebase app."""
-    if _is_emulator_mode() and _is_emulator_reachable():
+    if _is_emulator_mode():
         _validated_emulator_settings()
     app = get_firebase_app()
     key = id(app)

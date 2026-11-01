@@ -92,7 +92,7 @@ export async function syncFirebaseUser(firebaseUser, profile = {}) {
   const tokenStarted = authTraceNow();
   recordAuthEvent('ID_TOKEN_STARTED');
   try {
-    idToken = await firebaseUser.getIdToken();
+    idToken = await firebaseUser.getIdToken(true);
     recordAuthEvent('ID_TOKEN_SUCCESS', { elapsed_ms: authTraceNow() - tokenStarted });
     setAuthDiagnosticState({ id_token: 'AVAILABLE' });
     logAuthTrace('firebase_id_token', {

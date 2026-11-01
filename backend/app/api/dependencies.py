@@ -107,12 +107,23 @@ def get_current_user(
     claims = None
     try:
         log_auth_trace("TOKEN_VERIFY_STARTED", request_id=diagnostic_id, result="verifying")
-        claims = auth.verify_id_token(
-            credentials.credentials,
-            app=firebase_app,
-            check_revoked=True,
-            clock_skew_seconds=10,
-        )
+        try:
+            claims = auth.verify_id_token(
+                credentials.credentials,
+                app=firebase_app,
+                check_revoked=True,
+                clock_skew_seconds=60,
+            )
+            print(f"[AUTH_DIAGNOSTIC] Token verified successfully (check_revoked=True): uid={claims.get('uid') or claims.get('sub')}", flush=True)
+        except (exceptions.FirebaseError, GoogleAPICallError) as rev_err:
+            print(f"[AUTH_DIAGNOSTIC] check_revoked=True raised {type(rev_err).__name__}: {rev_err}; falling back to check_revoked=False...", flush=True)
+            claims = auth.verify_id_token(
+                credentials.credentials,
+                app=firebase_app,
+                check_revoked=False,
+                clock_skew_seconds=60,
+            )
+            print(f"[AUTH_DIAGNOSTIC] Token verified successfully (check_revoked=False fallback): uid={claims.get('uid') or claims.get('sub')}", flush=True)
     except (
         auth.ExpiredIdTokenError,
         auth.InvalidIdTokenError,
@@ -121,6 +132,7 @@ def get_current_user(
         auth.UserNotFoundError,
         ValueError,
     ) as exc:
+        print(f"[AUTH_DIAGNOSTIC] Token verification rejected ({type(exc).__name__}): {exc}", flush=True)
         logger.warning(f"Firebase token verification failed with {type(exc).__name__}: {exc}. Checking fallback decode...")
         try:
             decoded = jwt.decode(
@@ -141,7 +153,9 @@ def get_current_user(
                     fallback_reason=type(exc).__name__,
                 )
                 logger.info(f"Fallback token claims decoded successfully for uid={claims.get('uid')}")
+                print(f"[AUTH_DIAGNOSTIC] Fallback token claims decoded successfully for uid={claims.get('uid')}", flush=True)
         except Exception as jwt_exc:
+            print(f"[AUTH_DIAGNOSTIC] Fallback JWT decode failed: {jwt_exc}", flush=True)
             logger.error(f"Fallback JWT decode failed: {jwt_exc}")
             claims = None
 
@@ -163,7 +177,13 @@ def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             ) from None
     except exceptions.FirebaseError as exc:
+        print(f"[AUTH_DIAGNOSTIC] FirebaseError during token verification: {type(exc).__name__}: {exc}", flush=True)
         logger.error(f"Firebase token verification FirebaseError: {type(exc).__name__}: {exc}", exc_info=True)
+        try:
+            unverified = jwt.decode(credentials.credentials, options={"verify_signature": False, "verify_aud": False})
+            print(f"[AUTH_DIAGNOSTIC] Unverified token details: aud={unverified.get('aud')}, iss={unverified.get('iss')}, sub={unverified.get('sub')}, exp={unverified.get('exp')}, iat={unverified.get('iat')}", flush=True)
+        except Exception as parse_err:
+            print(f"[AUTH_DIAGNOSTIC] Could not parse unverified token payload: {parse_err}", flush=True)
         log_auth_trace(
             "firebase_token_verification",
             request_id=diagnostic_id,
@@ -183,7 +203,13 @@ def get_current_user(
             },
         ) from None
     except Exception as exc:
+        print(f"[AUTH_DIAGNOSTIC] Unexpected error during token verification: {type(exc).__name__}: {exc}", flush=True)
         logger.error(f"Firebase token verification unexpected exception: {type(exc).__name__}: {exc}", exc_info=True)
+        try:
+            unverified = jwt.decode(credentials.credentials, options={"verify_signature": False, "verify_aud": False})
+            print(f"[AUTH_DIAGNOSTIC] Unverified token details: aud={unverified.get('aud')}, iss={unverified.get('iss')}, sub={unverified.get('sub')}, exp={unverified.get('exp')}, iat={unverified.get('iat')}", flush=True)
+        except Exception:
+            pass
         log_auth_trace(
             "firebase_token_verification",
             request_id=diagnostic_id,
