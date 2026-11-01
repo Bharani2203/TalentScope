@@ -24,6 +24,24 @@ def sync_user_profile(
     try:
         client = get_firestore_client()
     except Exception as exc:
+        if type(exc).__name__ == "DefaultCredentialsError" or "DefaultCredentialsError" in str(type(exc)):
+            print(f"[AUTH_PROFILE] Firestore unavailable due to DefaultCredentialsError: returning ephemeral user profile for {authenticated_user.uid}", flush=True)
+            stored = {
+                "uid": authenticated_user.uid,
+                "email": authenticated_user.email,
+                "email_verified": authenticated_user.email_verified,
+                "phone_number": authenticated_user.phone_number,
+                "display_name": authenticated_user.display_name,
+                "auth_provider": authenticated_user.auth_provider,
+                "phone_verified": bool(authenticated_user.phone_number),
+                "created_at": now,
+                "last_login_at": now,
+                "onboarding_completed": False,
+                "user_type": profile_input.user_type if profile_input else None,
+                "employee_type": profile_input.employee_type if profile_input else None,
+                "company_name": profile_input.company_name if profile_input else None,
+            }
+            return UserProfile.model_validate(stored)
         log_auth_trace(
             "firestore_client_acquisition",
             duration_ms=elapsed_ms(client_started),
@@ -45,6 +63,24 @@ def sync_user_profile(
         existing_snapshot = document.get()
         read_guard.record_read("users", 1, query_type="targeted_auth_profile")
     except Exception as exc:
+        if type(exc).__name__ == "DefaultCredentialsError" or "DefaultCredentialsError" in str(type(exc)):
+            print(f"[AUTH_PROFILE] Firestore document read failed due to DefaultCredentialsError: returning ephemeral user profile for {authenticated_user.uid}", flush=True)
+            stored = {
+                "uid": authenticated_user.uid,
+                "email": authenticated_user.email,
+                "email_verified": authenticated_user.email_verified,
+                "phone_number": authenticated_user.phone_number,
+                "display_name": authenticated_user.display_name,
+                "auth_provider": authenticated_user.auth_provider,
+                "phone_verified": bool(authenticated_user.phone_number),
+                "created_at": now,
+                "last_login_at": now,
+                "onboarding_completed": False,
+                "user_type": profile_input.user_type if profile_input else None,
+                "employee_type": profile_input.employee_type if profile_input else None,
+                "company_name": profile_input.company_name if profile_input else None,
+            }
+            return UserProfile.model_validate(stored)
         log_auth_trace(
             "firestore_profile_read",
             request_id=(diagnostic_context or {}).get("request_id"),
@@ -116,6 +152,9 @@ def sync_user_profile(
     try:
         document.set(updates, merge=True)
     except Exception as exc:
+        if type(exc).__name__ == "DefaultCredentialsError" or "DefaultCredentialsError" in str(type(exc)):
+            print(f"[AUTH_PROFILE] Firestore document set skipped due to DefaultCredentialsError: returning ephemeral profile for {authenticated_user.uid}", flush=True)
+            return profile
         log_auth_trace(
             "firestore_profile_write",
             request_id=(diagnostic_context or {}).get("request_id"),

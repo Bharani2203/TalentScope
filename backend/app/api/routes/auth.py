@@ -3,6 +3,7 @@ from time import perf_counter
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from firebase_admin import exceptions as firebase_exceptions
 from google.api_core.exceptions import GoogleAPICallError
+from google.auth.exceptions import DefaultCredentialsError
 
 from app.api.dependencies import get_current_user
 from app.core.auth_diagnostics import elapsed_ms, log_auth_trace, uid_reference
@@ -39,7 +40,7 @@ def sync_authenticated_user(
     diagnostic_context = {"request_id": diagnostic_id} if diagnostic_id else {}
     try:
         profile = sync_user_profile(current_user, profile_input, diagnostic_context)
-    except (GoogleAPICallError, firebase_exceptions.FirebaseError) as exc:
+    except (GoogleAPICallError, firebase_exceptions.FirebaseError, DefaultCredentialsError) as exc:
         log_auth_trace(
             "profile_sync_request",
             request_id=diagnostic_id,

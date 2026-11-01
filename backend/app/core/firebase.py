@@ -171,19 +171,46 @@ def get_firebase_app() -> firebase_admin.App:
                     logger.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_BASE64: %s", exc, exc_info=True)
 
         raw_json_cred = (
-            os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON_RAW")
+            os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+            or getattr(settings, "firebase_service_account_json", None)
+            or os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON_RAW")
             or os.getenv("FIREBASE_SERVICE_ACCOUNT_RAW")
-            or os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
         )
-        if not cred_dict and raw_json_cred and raw_json_cred.strip():
-            raw_stripped = raw_json_cred.strip().strip("'\"")
-            if raw_stripped.startswith("{") and raw_stripped.endswith("}"):
+        if not cred_dict and raw_json_cred and str(raw_json_cred).strip():
+            raw_str = str(raw_json_cred).strip()
+            if (raw_str.startswith("'") and raw_str.endswith("'")) or (raw_str.startswith('"') and raw_str.endswith('"')):
+                raw_str = raw_str[1:-1].strip()
+
+            if os.path.isfile(raw_str):
                 try:
-                    cred_dict = json.loads(raw_stripped)
-                    print(f"[FIREBASE_INIT] Successfully parsed raw JSON credentials for project: {cred_dict.get('project_id')}", flush=True)
+                    with open(raw_str, "r", encoding="utf-8") as f:
+                        cred_dict = json.load(f)
+                    print(f"[FIREBASE_INIT] Successfully loaded JSON from file path {raw_str} for project: {cred_dict.get('project_id')}", flush=True)
+                except Exception as f_exc:
+                    print(f"[FIREBASE_INIT] Failed to read JSON from file {raw_str}: {f_exc}", flush=True)
+            elif raw_str.startswith("{") and raw_str.endswith("}"):
+                try:
+                    cred_dict = json.loads(raw_str)
+                    print(f"[FIREBASE_INIT] Successfully parsed JSON from FIREBASE_SERVICE_ACCOUNT_JSON for project: {cred_dict.get('project_id')}", flush=True)
                 except Exception as exc:
-                    print(f"[FIREBASE_INIT] Failed to parse raw JSON credentials: {type(exc).__name__}: {exc}", flush=True)
-                    logger.error("Failed to parse raw JSON credentials: %s", exc, exc_info=True)
+                    try:
+                        unescaped = raw_str.encode().decode('unicode_escape')
+                        cred_dict = json.loads(unescaped)
+                        print(f"[FIREBASE_INIT] Successfully parsed unicode-unescaped JSON from FIREBASE_SERVICE_ACCOUNT_JSON for project: {cred_dict.get('project_id')}", flush=True)
+                    except Exception as unesc_exc:
+                        print(f"[FIREBASE_INIT] Failed to parse raw JSON from FIREBASE_SERVICE_ACCOUNT_JSON: {exc} (unescape error: {unesc_exc})", flush=True)
+            else:
+                try:
+                    clean_b64 = raw_str.replace(" ", "").replace("\n", "").replace("\r", "")
+                    missing_padding = len(clean_b64) % 4
+                    if missing_padding:
+                        clean_b64 += "=" * (4 - missing_padding)
+                    decoded = base64.b64decode(clean_b64).decode("utf-8")
+                    if decoded.strip().startswith("{"):
+                        cred_dict = json.loads(decoded)
+                        print(f"[FIREBASE_INIT] Successfully decoded base64 JSON from FIREBASE_SERVICE_ACCOUNT_JSON for project: {cred_dict.get('project_id')}", flush=True)
+                except Exception:
+                    pass
 
         credential = None
         detected_project_id = None
@@ -212,7 +239,8 @@ def get_firebase_app() -> firebase_admin.App:
                 if _is_emulator_mode():
                     _validated_emulator_settings()
                 if cred_path != "./secrets/firebase-service-account.json":
-                    raise FileNotFoundError(f"Configured Firebase service-account file does not exist: {certificate_path}")
+                    if not (isinstance(cred_path, str) and cred_path.strip().startswith("{")):
+                        raise FileNotFoundError(f"Configured Firebase service-account file does not exist: {certificate_path}")
 
             if certificate_path is not None and certificate_path.is_file():
                 try:
@@ -227,6 +255,10 @@ def get_firebase_app() -> firebase_admin.App:
             app = firebase_admin.get_app()
             if isinstance(app.credential, _EmulatorCredential):
                 print("[FIREBASE_INIT] Existing app has emulator credential in non-emulator mode; resetting app", flush=True)
+                firebase_admin.delete_app(app)
+                app = None
+            elif credential is not None and getattr(app, "credential", None) is None:
+                print("[FIREBASE_INIT] Existing app has no credential but new Certificate is available; resetting app", flush=True)
                 firebase_admin.delete_app(app)
                 app = None
             elif target_project_id and app.project_id != target_project_id:

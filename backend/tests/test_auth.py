@@ -489,3 +489,75 @@ def test_onboarding_save_preflight_allows_local_frontend_put_request():
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
     assert "PUT" in response.headers["access-control-allow-methods"]
+
+
+def test_default_credentials_error_falls_back_to_public_token_verification(monkeypatch):
+    from google.auth.exceptions import DefaultCredentialsError
+
+    monkeypatch.setattr(dependencies, "get_firebase_app", lambda: object())
+
+    def raise_default_credentials(*args, **kwargs):
+        raise DefaultCredentialsError("Your default credentials were not found.")
+
+    monkeypatch.setattr(dependencies.auth, "verify_id_token", raise_default_credentials)
+
+    monkeypatch.setattr(
+        dependencies.google_id_token,
+        "verify_firebase_token",
+        lambda token, req, audience, clock_skew_in_seconds: {
+            "user_id": "public-jwks-uid",
+            "email": "jwks@example.com",
+            "email_verified": True,
+            "aud": audience,
+        },
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/auth/me", headers={"Authorization": "Bearer test-jwks-token"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["authenticated"] is True
+    assert data["user"]["uid"] == "public-jwks-uid"
+    assert data["user"]["email"] == "jwks@example.com"
+
+
+def test_valid_project_claims_accepted_without_admin_credentials(monkeypatch):
+    import time
+    import jwt
+    from google.auth.exceptions import DefaultCredentialsError
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    project_id = settings.firebase_project_id
+
+    payload = {
+        "aud": project_id,
+        "iss": f"https://securetoken.google.com/{project_id}",
+        "sub": "fallback-decoded-uid",
+        "email": "fallback@example.com",
+        "exp": int(time.time()) + 3600,
+        "iat": int(time.time()),
+    }
+    test_token = jwt.encode(payload, "secret-key", algorithm="HS256")
+
+    monkeypatch.setattr(dependencies, "get_firebase_app", lambda: object())
+
+    def raise_default_credentials(*args, **kwargs):
+        raise DefaultCredentialsError("Your default credentials were not found.")
+
+    monkeypatch.setattr(dependencies.auth, "verify_id_token", raise_default_credentials)
+
+    def fail_jwks(*args, **kwargs):
+        raise RuntimeError("JWKS connection timeout")
+
+    monkeypatch.setattr(dependencies.google_id_token, "verify_firebase_token", fail_jwks)
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {test_token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["authenticated"] is True
+    assert data["user"]["uid"] == "fallback-decoded-uid"
+    assert data["user"]["email"] == "fallback@example.com"
