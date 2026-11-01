@@ -8,16 +8,54 @@ const BACKEND_API_BASE_URL = (() => {
   return 'http://127.0.0.1:8000';
 })();
 
-async function authenticatedRequest(path, options = {}) {
-  const { auth } = await import('../../../auth/firebase-client.js');
-  const firebaseUser = auth.currentUser;
-  if (!firebaseUser) throw new Error('Your sign-in session expired. Sign in again to load your skills.');
+/**
+ * Executes a promise with a timeout guarantee and optional fallback value.
+ */
+export function withTimeout(promise, ms = 5000, fallback = undefined) {
+  let timerId;
+  const timeoutPromise = new Promise((resolve, reject) => {
+    timerId = setTimeout(() => {
+      if (fallback !== undefined) {
+        resolve(typeof fallback === 'function' ? fallback() : fallback);
+      } else {
+        reject(new Error(`Operation timed out after ${ms}ms`));
+      }
+    }, ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timerId));
+}
 
-  const idToken = await firebaseUser.getIdToken();
+async function authenticatedRequest(path, options = {}) {
+  let idToken = null;
+  try {
+    const { auth } = await import('../../../auth/firebase-client.js');
+    let firebaseUser = auth?.currentUser;
+    if (!firebaseUser && typeof auth?.onAuthStateChanged === 'function') {
+      firebaseUser = await withTimeout(new Promise(resolve => {
+        const unsubscribe = auth.onAuthStateChanged(u => {
+          unsubscribe();
+          resolve(u);
+        });
+      }), 2000, null);
+    }
+    if (firebaseUser && typeof firebaseUser.getIdToken === 'function') {
+      idToken = await withTimeout(firebaseUser.getIdToken(), 3000, null);
+    }
+  } catch (err) {
+    console.warn('Could not acquire Firebase auth token for skills:', err);
+  }
+
+  if (!idToken) {
+    throw new Error('Your sign-in session expired. Sign in again to load your skills.');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
   let response;
   try {
     response = await fetch(`${BACKEND_API_BASE_URL}${path}`, {
       ...options,
+      signal: controller.signal,
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${idToken}`,
@@ -25,8 +63,13 @@ async function authenticatedRequest(path, options = {}) {
         ...options.headers
       }
     });
-  } catch {
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Skill service request timed out. Please try again.');
+    }
     throw new Error('Could not reach the skill service. Please try again.');
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (response.status === 401 || response.status === 403) {
@@ -154,8 +197,11 @@ export async function loadSkillTrends({ sortBy = 'frequency', limit = 5 } = {}) 
   const uniqueUrls = [...new Set(urls)];
 
   for (const url of uniqueUrls) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     try {
       const res = await fetch(url, {
+        signal: controller.signal,
         headers: { Accept: 'application/json' }
       });
       if (res.ok) {
@@ -166,6 +212,8 @@ export async function loadSkillTrends({ sortBy = 'frequency', limit = 5 } = {}) 
       }
     } catch {
       // try next backend target
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -189,8 +237,11 @@ export async function fetchAdvancedSkillMetrics({ limit = 5, skills, skill } = {
   const uniqueUrls = [...new Set(urls)];
 
   for (const url of uniqueUrls) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     try {
       const res = await fetch(url, {
+        signal: controller.signal,
         headers: { Accept: 'application/json' }
       });
       if (res.ok) {
@@ -204,6 +255,8 @@ export async function fetchAdvancedSkillMetrics({ limit = 5, skills, skill } = {
       }
     } catch {
       // try next backend target
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -221,8 +274,11 @@ export async function fetchCareerPillars() {
   const uniqueUrls = [...new Set(urls)];
 
   for (const url of uniqueUrls) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     try {
       const res = await fetch(url, {
+        signal: controller.signal,
         headers: { Accept: 'application/json' }
       });
       if (res.ok) {
@@ -233,6 +289,8 @@ export async function fetchCareerPillars() {
       }
     } catch {
       // try next backend target
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -251,8 +309,11 @@ export async function fetchPillarSkillTrends(pillarSlug, sortBy = 'composite') {
   const uniqueUrls = [...new Set(urls)];
 
   for (const url of uniqueUrls) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     try {
       const res = await fetch(url, {
+        signal: controller.signal,
         headers: { Accept: 'application/json' }
       });
       if (res.ok) {
@@ -263,6 +324,8 @@ export async function fetchPillarSkillTrends(pillarSlug, sortBy = 'composite') {
       }
     } catch {
       // try next backend target
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

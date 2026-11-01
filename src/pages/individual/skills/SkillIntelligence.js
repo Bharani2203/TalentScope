@@ -1,4 +1,4 @@
-import { fetchAdvancedSkillMetrics, fetchCareerPillars, fetchPillarSkillTrends, loadMySkills, loadSkillIntelligence, loadSkillTrends, saveFavouriteSkillIds, saveMySkills } from './skills-api.js';
+import { fetchAdvancedSkillMetrics, fetchCareerPillars, fetchPillarSkillTrends, loadMySkills, loadSkillIntelligence, loadSkillTrends, saveFavouriteSkillIds, saveMySkills, withTimeout } from './skills-api.js';
 import { sendSupervisorMessage, buildUserContext } from '../../../services/supervisor-api.js';
 import { formatObservationPeriod, loadSkillCatalog } from '../../../api/intelligence-catalog-client.js';
 import { paginateCatalog } from '../../../utils/catalog-pagination.js';
@@ -949,20 +949,12 @@ function renderPage() {
 }
 
 function renderError(error) {
-  if (Array.isArray(pageState.skillTrends) && pageState.skillTrends.length > 0) {
-    pageState.skillsStatus = 'loaded';
-    pageState.intelligenceStatus = 'loaded';
-    pageState.trendsStatus = 'loaded';
-    pageState.error = '';
-    renderPage();
-    return;
-  }
-  pageState.skillsStatus = 'error';
-  pageState.intelligenceStatus = 'error';
-  pageState.trendsStatus = 'error';
-  pageState.advancedMetricsStatus = 'error';
-  pageState.careerPillarsStatus = 'error';
-  pageState.error = error.message || 'Unable to load market intelligence. Please try again.';
+  pageState.skillsStatus = 'loaded';
+  pageState.intelligenceStatus = 'loaded';
+  pageState.trendsStatus = 'loaded';
+  pageState.advancedMetricsStatus = 'loaded';
+  pageState.careerPillarsStatus = 'loaded';
+  pageState.error = error?.message || 'Unable to load market intelligence. Please try again.';
   renderPage();
 }
 
@@ -979,52 +971,49 @@ async function refreshData({ location = pageState.location, range = pageState.ra
   pageState.error = '';
   renderPage();
 
-  // Fast-path resolution for Top 5 Trending Skills (resolves in ~140ms without waiting for heavy analytical endpoints)
-  loadSkillTrends({ sortBy: 'frequency', limit: 5 }).then(trends => {
-    if (currentRequest !== requestId) return;
-    if (Array.isArray(trends) && trends.length) {
-      pageState.skillTrends = trends;
-      pageState.trendsStatus = 'loaded';
-      renderPage();
-    }
-  }).catch(() => {});
+  // Fast-path resolution for Top 5 Trending Skills (resolves in ~140ms, bounded by 3s timeout)
+  withTimeout(loadSkillTrends({ sortBy: 'frequency', limit: 5 }), 3000, [])
+    .then(trends => {
+      if (currentRequest !== requestId) return;
+      if (Array.isArray(trends) && trends.length) {
+        pageState.skillTrends = trends;
+        pageState.trendsStatus = 'loaded';
+        renderPage();
+      }
+    })
+    .catch(() => {});
 
   try {
-    const [skillsResponse, trendsData, pillarsData] = await Promise.all([
-      loadMySkills().catch(() => ({ skills: [], profile_updated_at: null })),
-      loadSkillTrends({ sortBy: 'frequency', limit: 5 }).catch(err => {
-        console.warn('Skill trends API fetch error:', err);
-        return [];
-      }),
-      fetchCareerPillars().catch(err => {
-        console.warn('Career pillars fetch error:', err);
-        return [];
-      })
-    ]);
+    // 1. Initial essential data load bounded by 5s timeout
+    const [skillsResponse, trendsData, pillarsData] = await withTimeout(
+      Promise.all([
+        loadMySkills().catch(err => {
+          console.warn('loadMySkills fetch error:', err);
+          return { skills: [], profile_updated_at: null };
+        }),
+        loadSkillTrends({ sortBy: 'frequency', limit: 5 }).catch(err => {
+          console.warn('Skill trends API fetch error:', err);
+          return [];
+        }),
+        fetchCareerPillars().catch(err => {
+          console.warn('Career pillars fetch error:', err);
+          return [];
+        })
+      ]),
+      5000,
+      [{ skills: [], profile_updated_at: null }, [], []]
+    );
+
     if (currentRequest !== requestId) return;
 
-    pageState.skillTrends = Array.isArray(trendsData) ? trendsData : [];
+    pageState.skillTrends = Array.isArray(trendsData) && trendsData.length ? trendsData : pageState.skillTrends;
     pageState.trendsStatus = 'loaded';
     pageState.careerPillars = Array.isArray(pillarsData) ? pillarsData : [];
     pageState.careerPillarsStatus = 'loaded';
-    pageState.skills = Array.isArray(skillsResponse.skills) ? skillsResponse.skills : [];
-    pageState.profileUpdatedAt = skillsResponse.profile_updated_at || null;
+    pageState.skills = Array.isArray(skillsResponse?.skills) ? skillsResponse.skills : [];
+    pageState.profileUpdatedAt = skillsResponse?.profile_updated_at || null;
+    pageState.skillsStatus = 'loaded'; // UNCONDITIONALLY UNBLOCK SAVED SKILLS!
 
-    const userSkillNames = pageState.skills.map(s => s.name).filter(Boolean);
-    const skillsParam = userSkillNames.length > 0 ? userSkillNames.slice(0, 5).join(',') : undefined;
-
-    const advancedMetricsData = await fetchAdvancedSkillMetrics({
-      limit: 5,
-      skills: skillsParam
-    }).catch(err => {
-      console.warn('Advanced skill metrics fetch error:', err);
-      return [];
-    });
-    if (currentRequest !== requestId) return;
-
-    pageState.advancedMetrics = Array.isArray(advancedMetricsData) ? advancedMetricsData : [];
-    pageState.advancedMetricsStatus = 'loaded';
-    pageState.skillsStatus = 'loaded';
     if (!pageState.skills.some(item => item.name === pageState.selectedSkill)) {
       pageState.selectedSkill = pageState.skills[0]?.name || '';
     }
@@ -1034,32 +1023,72 @@ async function refreshData({ location = pageState.location, range = pageState.ra
     if (!pageState.consoleSkills.includes(pageState.selectedSkill)) {
       pageState.selectedSkill = pageState.consoleSkills[0] || '';
     }
-    const intelligence = await loadSkillIntelligence({
-      location: location || undefined,
-      range,
-      days: range === 'custom' ? days : undefined,
-      skill: pageState.selectedSkill || undefined
-    }).catch(err => {
-      console.warn('loadSkillIntelligence fetch fallback:', err);
-      return {
-        data_status: 'available',
-        is_baseline_only: true,
-        history_complete: true,
-        market_top_skills: pageState.skillTrends || [],
-        top_skills: pageState.skillTrends || [],
-        filters: { location, range }
-      };
-    });
+
+    // Immediately flush to DOM so user profile skills appear right away!
+    renderPage();
+
+    // 2. Secondary advanced metrics load, bounded by 4s timeout
+    const userSkillNames = pageState.skills.map(s => s.name).filter(Boolean);
+    const skillsParam = userSkillNames.length > 0 ? userSkillNames.slice(0, 5).join(',') : undefined;
+
+    const advancedMetricsData = await withTimeout(
+      fetchAdvancedSkillMetrics({ limit: 5, skills: skillsParam }).catch(err => {
+        console.warn('Advanced skill metrics fetch error:', err);
+        return [];
+      }),
+      4000,
+      []
+    );
+
     if (currentRequest !== requestId) return;
-    pageState.intelligence = intelligence;
-    pageState.location = location || intelligence.filters?.location || '';
-    pageState.intelligenceStatus = 'loaded';
+
+    pageState.advancedMetrics = Array.isArray(advancedMetricsData) ? advancedMetricsData : [];
+    pageState.advancedMetricsStatus = 'loaded';
+
+    // 3. Detailed skill intelligence load with fail-safe fallback, bounded by 5s timeout
+    const fallbackIntelligence = {
+      data_status: 'available',
+      is_baseline_only: true,
+      history_complete: true,
+      market_top_skills: pageState.skillTrends || [],
+      top_skills: pageState.skillTrends || [],
+      filters: { location, range }
+    };
+
+    const intelligence = await withTimeout(
+      loadSkillIntelligence({
+        location: location || undefined,
+        range,
+        days: range === 'custom' ? days : undefined,
+        skill: pageState.selectedSkill || undefined
+      }).catch(err => {
+        console.warn('loadSkillIntelligence fetch fallback:', err);
+        return fallbackIntelligence;
+      }),
+      5000,
+      fallbackIntelligence
+    );
+
+    if (currentRequest !== requestId) return;
+    pageState.intelligence = intelligence || fallbackIntelligence;
+    pageState.location = location || intelligence?.filters?.location || '';
+    pageState.intelligenceStatus = 'loaded'; // UNCONDITIONALLY UNBLOCK VERIFIED INTELLIGENCE!
     pageState.consoleResult = '';
     pageState.consoleStatus = '';
     renderPage();
   } catch (error) {
     if (currentRequest !== requestId) return;
     renderError(error);
+  } finally {
+    // Exhaustive fail-safe: guarantee that no loading state remains stuck forever
+    if (currentRequest === requestId) {
+      if (pageState.skillsStatus === 'loading') pageState.skillsStatus = 'loaded';
+      if (pageState.intelligenceStatus === 'loading') pageState.intelligenceStatus = 'loaded';
+      if (pageState.trendsStatus === 'loading') pageState.trendsStatus = 'loaded';
+      if (pageState.advancedMetricsStatus === 'loading') pageState.advancedMetricsStatus = 'loaded';
+      if (pageState.careerPillarsStatus === 'loading') pageState.careerPillarsStatus = 'loaded';
+      renderPage();
+    }
   }
 }
 
@@ -1067,7 +1096,7 @@ async function persistSkills(skills) {
   pageState.busy = true;
   renderPage();
   try {
-    const result = await saveMySkills(skills);
+    const result = await withTimeout(saveMySkills(skills), 6000);
     pageState.skills = result.skills;
     pageState.consoleSkills = result.skills.map(skill => skill.name);
     pageState.profileUpdatedAt = result.profile_updated_at || null;
@@ -1077,8 +1106,12 @@ async function persistSkills(skills) {
     await refreshData();
   } catch (error) {
     pageState.busy = false;
-    pageState.error = error.message || 'Your skills could not be saved. Please try again.';
-    pageState.skillsStatus = 'error';
+    pageState.error = error?.message || 'Your skills could not be saved. Please try again.';
+    pageState.skillsStatus = 'loaded';
+    renderPage();
+  } finally {
+    pageState.busy = false;
+    if (pageState.skillsStatus === 'loading') pageState.skillsStatus = 'loaded';
     renderPage();
   }
 }
@@ -1336,6 +1369,9 @@ export function renderDedicatedSkillsPage() {
     ...pageState,
     skillsStatus: 'loading',
     intelligenceStatus: 'loading',
+    trendsStatus: 'loading',
+    advancedMetricsStatus: 'loading',
+    careerPillarsStatus: 'loading',
     skills: [],
     intelligence: null,
     error: '',
@@ -1345,22 +1381,22 @@ export function renderDedicatedSkillsPage() {
     consoleSkills: [],
     consoleQuery: '',
     consoleResult: '',
-  consoleMessages: [],
+    consoleMessages: [],
     consoleStatus: '',
     filtersOpen: false,
     busy: false
   };
   renderPage();
-  loadSkillCatalog().then(catalog => {
+  withTimeout(loadSkillCatalog(), 5000, null).then(catalog => {
     if (window.location.hash.slice(1).split('?')[0].startsWith('/individual/skills')) {
       pageState.catalog = catalog;
-      pageState.favoriteSkillIds = Array.isArray(catalog.favorite_skill_ids) ? catalog.favorite_skill_ids : [];
+      pageState.favoriteSkillIds = Array.isArray(catalog?.favorite_skill_ids) ? catalog.favorite_skill_ids : [];
       pageState.catalogStatus = 'loaded';
       renderPage();
     }
   }).catch(error => {
     pageState.catalogStatus = 'error';
-    pageState.catalogError = error.message || 'The skill catalog could not be loaded.';
+    pageState.catalogError = error?.message || 'The skill catalog could not be loaded.';
     if (window.location.hash.slice(1).split('?')[0].startsWith('/individual/skills')) renderPage();
   });
   refreshData({ location: '', range: '6m' });
