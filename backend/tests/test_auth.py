@@ -561,3 +561,68 @@ def test_valid_project_claims_accepted_without_admin_credentials(monkeypatch):
     assert data["authenticated"] is True
     assert data["user"]["uid"] == "fallback-decoded-uid"
     assert data["user"]["email"] == "fallback@example.com"
+
+
+def test_vercel_cors_preflight_and_profile_sync(monkeypatch):
+    from app.services import auth_service
+    from app.models.auth import UserProfile
+
+    # Test OPTIONS preflight from production Vercel frontend
+    with TestClient(app) as client:
+        options_res = client.options(
+            "/api/v1/auth/sync",
+            headers={
+                "Origin": "https://talent-scope-ten.vercel.app",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,content-type,x-auth-diagnostic-id",
+            },
+        )
+
+    assert options_res.status_code == 200
+    assert options_res.headers["access-control-allow-origin"] == "https://talent-scope-ten.vercel.app"
+
+    # Test POST profile sync returns 200 with role and user details
+    monkeypatch.setattr(dependencies, "get_firebase_app", lambda: object())
+    monkeypatch.setattr(
+        dependencies.auth,
+        "verify_id_token",
+        lambda *args, **kwargs: {
+            "uid": "sync-vercel-uid",
+            "email": "vercel@example.com",
+            "email_verified": True,
+        },
+    )
+    monkeypatch.setattr(
+        auth_service,
+        "get_firestore_client",
+        lambda: FakeFirestore(),
+    )
+
+    with TestClient(app) as client:
+        sync_res = client.post(
+            "/api/v1/auth/sync",
+            headers={
+                "Authorization": "Bearer vercel-token",
+                "Origin": "https://talent-scope-ten.vercel.app",
+            },
+            json={"user_type": "individual"},
+        )
+
+    assert sync_res.status_code == 200
+    payload = sync_res.json()
+    assert payload["authenticated"] is True
+    assert payload["user"]["uid"] == "sync-vercel-uid"
+    assert payload["user"]["user_type"] == "individual"
+    assert payload["user"]["role"] == "individual"
+
+
+def test_sync_postgres_user_profile_handles_null_fields_with_defaults(monkeypatch):
+    from app.services.auth_service import sync_postgres_user_profile
+    from app.models.auth import AuthenticatedUser, AuthSyncRequest
+
+    # User with no email, no name, no provider
+    user = AuthenticatedUser(uid="user-without-email")
+    req = AuthSyncRequest()
+
+    # Should run with safe defaults without raising exceptions
+    sync_postgres_user_profile(user, req)

@@ -40,6 +40,8 @@ class UserProfile(AuthenticatedUser):
     employee_type: str | None = None
     company_name: str | None = None
     company_id: str | None = None
+    role: str | None = "individual"
+    avatar_url: str | None = None
 
 
 class AuthUserResponse(BaseModel):

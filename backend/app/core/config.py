@@ -87,6 +87,7 @@ class Settings(BaseSettings):
         "https://talent-scope-ten.vercel.app",
         "https://talentscope.ai",
         "https://app.talentscope.ai",
+        "https://talentscope-im0q.onrender.com",
     ]
     cors_allow_origin_regex: str | None = r"^https:\/\/.*\.vercel\.app$"
     # G1.7 Collection and scheduling configuration

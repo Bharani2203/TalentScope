@@ -58,6 +58,9 @@ def sync_authenticated_user(
             },
         ) from None
     except Exception as exc:
+        import traceback
+        print(f"[AUTH_SYNC_FATAL_ERROR] Unexpected error during profile sync for UID {current_user.uid}: {type(exc).__name__}: {exc}", flush=True)
+        traceback.print_exc()
         log_auth_trace(
             "profile_sync_request",
             request_id=diagnostic_id,
