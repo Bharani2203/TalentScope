@@ -368,6 +368,23 @@ def test_auth_routes_document_bearer_security():
     assert schema["paths"]["/api/v1/auth/sync"]["post"]["security"]
 
 
+def test_auth_sync_preflight_allows_vercel_production_deployment():
+    with TestClient(app) as client:
+        response = client.options(
+            "/api/v1/auth/sync",
+            headers={
+                "Origin": "https://talent-scope-ten.vercel.app",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://talent-scope-ten.vercel.app"
+    assert "POST" in response.headers["access-control-allow-methods"]
+    assert "authorization" in response.headers["access-control-allow-headers"].lower()
+
+
 def test_auth_sync_preflight_allows_local_frontend_bearer_request():
     with TestClient(app) as client:
         response = client.options(

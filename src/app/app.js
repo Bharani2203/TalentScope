@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api.js';
 const jobMarketData = {
   roles: ['AI Engineer', 'Backend Engineer', 'Data Engineer', 'Cloud Architect', 'Cybersecurity Lead'],
   totalOpenRoles: 42180,
@@ -892,7 +893,7 @@ function loadHomeRoadmapProgress({ force = false } = {}) {
         const token = await (window.talentscopeGetAuthToken ? window.talentscopeGetAuthToken() : null);
         const headers = { Accept: 'application/json' };
         if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch('/api/v1/learning/roadmap/progress', { headers });
+        const res = await fetch(`${API_BASE_URL}/api/v1/learning/roadmap/progress`, { headers });
         if (res.ok) data = await res.json();
       }
       if (reqId !== homeRoadmapProgressState.requestId) return;
@@ -986,7 +987,7 @@ function loadHomeMarketIntelligence({ location = dashboardState.marketLocation |
     } catch (err) {
       if (reqId !== homeMarketIntelligenceState.requestId) return;
       try {
-        const overviewRes = await fetch('http://127.0.0.1:8000/api/market-intelligence/overview').then(r => r.json());
+        const overviewRes = await fetch(`${API_BASE_URL}/api/market-intelligence/overview`).then(r => r.json());
         homeMarketIntelligenceState.data = {
           summary: {
             adoption_observations: overviewRes.adoption_observations || 576,
@@ -12104,7 +12105,7 @@ function loadHomeSkillIntelligence({
   }).catch(async () => {
     if (requestId !== homeSkillIntelligenceState.requestId) return;
     try {
-      const directTrends = await fetch('http://127.0.0.1:8000/api/skill-intelligence/trends?limit=5').then(r => r.json());
+      const directTrends = await fetch(`${API_BASE_URL}/api/skill-intelligence/trends?limit=5`).then(r => r.json());
       if (Array.isArray(directTrends) && directTrends.length) {
         homeSkillIntelligenceState.intelligence = {
           data_status: 'available',

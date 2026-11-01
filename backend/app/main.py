@@ -68,6 +68,7 @@ async def request_validation_error_handler(request: Request, exc: RequestValidat
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allowed_origins,
+    allow_origin_regex=getattr(settings, 'cors_allow_origin_regex', None),
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Accept", "Authorization", "Content-Type", *auth_diagnostic_headers],

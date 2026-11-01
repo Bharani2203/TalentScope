@@ -84,7 +84,11 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        "https://talent-scope-ten.vercel.app",
+        "https://talentscope.ai",
+        "https://app.talentscope.ai",
     ]
+    cors_allow_origin_regex: str | None = r"^https:\/\/.*\.vercel\.app$"
     # G1.7 Collection and scheduling configuration
     market_collection_cadence_hours: float = Field(default=24.0, ge=1.0, le=168.0)
     market_collection_cron: str = "15 3 * * *"
