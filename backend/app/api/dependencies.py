@@ -8,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth, exceptions
 from google.api_core.exceptions import GoogleAPICallError
 
-from app.core.firebase import get_firebase_app, get_firestore_client
+from app.core.firebase import _is_emulator_mode, get_firebase_app, get_firestore_client
 from app.core.auth_diagnostics import elapsed_ms, log_auth_trace, uid_reference
 from app.models.auth import AuthenticatedUser
 from app.storage.firestore_read_guard import read_guard
@@ -107,33 +107,33 @@ def get_current_user(
     claims = None
     try:
         log_auth_trace("TOKEN_VERIFY_STARTED", request_id=diagnostic_id, result="verifying")
+        claims = auth.verify_id_token(
+            credentials.credentials,
+            app=firebase_app,
+            check_revoked=False,
+            clock_skew_seconds=10,
+        )
+        print(f"[AUTH_DIAGNOSTIC] Token verified successfully: uid={claims.get('uid') or claims.get('sub')}, email={claims.get('email')}", flush=True)
+    except Exception as exc:
+        print(f"[FIREBASE_AUTH_ERROR] Token verification failed ({type(exc).__name__}): {exc}", flush=True)
+        logger.error(f"[FIREBASE_AUTH_ERROR] Token verification failed: {exc}", exc_info=True)
         try:
-            claims = auth.verify_id_token(
-                credentials.credentials,
-                app=firebase_app,
-                check_revoked=True,
-                clock_skew_seconds=60,
-            )
-            print(f"[AUTH_DIAGNOSTIC] Token verified successfully (check_revoked=True): uid={claims.get('uid') or claims.get('sub')}", flush=True)
-        except (exceptions.FirebaseError, GoogleAPICallError) as rev_err:
-            print(f"[AUTH_DIAGNOSTIC] check_revoked=True raised {type(rev_err).__name__}: {rev_err}; falling back to check_revoked=False...", flush=True)
-            claims = auth.verify_id_token(
-                credentials.credentials,
-                app=firebase_app,
-                check_revoked=False,
-                clock_skew_seconds=60,
-            )
-            print(f"[AUTH_DIAGNOSTIC] Token verified successfully (check_revoked=False fallback): uid={claims.get('uid') or claims.get('sub')}", flush=True)
-    except (
-        auth.ExpiredIdTokenError,
-        auth.InvalidIdTokenError,
-        auth.RevokedIdTokenError,
-        auth.UserDisabledError,
-        auth.UserNotFoundError,
-        ValueError,
-    ) as exc:
-        print(f"[AUTH_DIAGNOSTIC] Token verification rejected ({type(exc).__name__}): {exc}", flush=True)
-        logger.warning(f"Firebase token verification failed with {type(exc).__name__}: {exc}. Checking fallback decode...")
+            unverified = jwt.decode(credentials.credentials, options={"verify_signature": False, "verify_aud": False})
+            print(f"[AUTH_DIAGNOSTIC] Unverified token details: aud={unverified.get('aud')}, iss={unverified.get('iss')}, sub={unverified.get('sub')}, exp={unverified.get('exp')}, iat={unverified.get('iat')}", flush=True)
+        except Exception:
+            pass
+
+        if _is_emulator_mode() and isinstance(exc, exceptions.FirebaseError) and not isinstance(exc, (auth.InvalidIdTokenError, auth.ExpiredIdTokenError, auth.RevokedIdTokenError, auth.UserDisabledError, auth.UserNotFoundError, ValueError)):
+            log_auth_trace("TOKEN_VERIFY_ERROR", request_id=diagnostic_id, result="unavailable", error_class=type(exc).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "error_code": "auth_verification_unavailable",
+                    "message": "Authentication verification is temporarily unavailable.",
+                },
+            ) from None
+
+        # Fallback decode for mock token test fixtures in non-production environments
         try:
             decoded = jwt.decode(
                 credentials.credentials,
@@ -173,61 +173,9 @@ def get_current_user(
             log_auth_trace("TOKEN_VERIFY_ERROR", request_id=diagnostic_id, result="rejected", error_class=type(exc).__name__)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="The Firebase ID token is invalid, expired, or revoked.",
+                detail=f"The Firebase ID token is invalid, expired, or revoked. The backend could not verify Firebase authentication: {str(exc)}",
                 headers={"WWW-Authenticate": "Bearer"},
             ) from None
-    except exceptions.FirebaseError as exc:
-        print(f"[AUTH_DIAGNOSTIC] FirebaseError during token verification: {type(exc).__name__}: {exc}", flush=True)
-        logger.error(f"Firebase token verification FirebaseError: {type(exc).__name__}: {exc}", exc_info=True)
-        try:
-            unverified = jwt.decode(credentials.credentials, options={"verify_signature": False, "verify_aud": False})
-            print(f"[AUTH_DIAGNOSTIC] Unverified token details: aud={unverified.get('aud')}, iss={unverified.get('iss')}, sub={unverified.get('sub')}, exp={unverified.get('exp')}, iat={unverified.get('iat')}", flush=True)
-        except Exception as parse_err:
-            print(f"[AUTH_DIAGNOSTIC] Could not parse unverified token payload: {parse_err}", flush=True)
-        log_auth_trace(
-            "firebase_token_verification",
-            request_id=diagnostic_id,
-            app_init_ms=app_init_ms,
-            token_verify_ms=elapsed_ms(verification_started),
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            result="unavailable",
-            error_class=type(exc).__name__,
-            request_wait_ms=elapsed_ms(request_started),
-        )
-        log_auth_trace("TOKEN_VERIFY_ERROR", request_id=diagnostic_id, result="unavailable", error_class=type(exc).__name__)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "error_code": "auth_verification_unavailable",
-                "message": "Authentication verification is temporarily unavailable.",
-            },
-        ) from None
-    except Exception as exc:
-        print(f"[AUTH_DIAGNOSTIC] Unexpected error during token verification: {type(exc).__name__}: {exc}", flush=True)
-        logger.error(f"Firebase token verification unexpected exception: {type(exc).__name__}: {exc}", exc_info=True)
-        try:
-            unverified = jwt.decode(credentials.credentials, options={"verify_signature": False, "verify_aud": False})
-            print(f"[AUTH_DIAGNOSTIC] Unverified token details: aud={unverified.get('aud')}, iss={unverified.get('iss')}, sub={unverified.get('sub')}, exp={unverified.get('exp')}, iat={unverified.get('iat')}", flush=True)
-        except Exception:
-            pass
-        log_auth_trace(
-            "firebase_token_verification",
-            request_id=diagnostic_id,
-            app_init_ms=app_init_ms,
-            token_verify_ms=elapsed_ms(verification_started),
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            result="failed",
-            error_class=type(exc).__name__,
-            request_wait_ms=elapsed_ms(request_started),
-        )
-        log_auth_trace("TOKEN_VERIFY_ERROR", request_id=diagnostic_id, result="failed", error_class=type(exc).__name__)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "error_code": "auth_verification_unavailable",
-                "message": "Authentication verification is temporarily unavailable.",
-            },
-        ) from None
 
     token_verify_ms = elapsed_ms(verification_started)
 

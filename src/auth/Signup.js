@@ -612,6 +612,9 @@ function bindStepEvents(root) {
         }
         btnContinue.disabled = true;
         try {
+          if (typeof auth.currentUser?.getIdToken === 'function') {
+            await auth.currentUser.getIdToken(true);
+          }
           const employee = signupState.userType === 'employee';
           await syncCurrentFirebaseUser(auth.currentUser, {
             user_type: signupState.userType,
@@ -665,6 +668,9 @@ function bindStepEvents(root) {
       retryBtn.disabled = true;
       retryBtn.textContent = 'Retrying synchronization...';
       try {
+        if (typeof auth.currentUser?.getIdToken === 'function') {
+          await auth.currentUser.getIdToken(true);
+        }
         const employee = signupState.userType === 'employee';
         await syncCurrentFirebaseUser(auth.currentUser, {
           user_type: signupState.userType,

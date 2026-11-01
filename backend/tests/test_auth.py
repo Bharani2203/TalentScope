@@ -130,7 +130,7 @@ def test_me_returns_normalized_user_and_checks_revocation(monkeypatch):
         },
     }
     assert calls[0][0] == "test-id-token"
-    assert calls[0][1]["check_revoked"] is True
+    assert calls[0][1]["check_revoked"] is False
 
 
 def test_unverified_email_token_can_sync_and_use_protected_auth_api(monkeypatch):

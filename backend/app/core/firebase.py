@@ -221,11 +221,19 @@ def get_firebase_app() -> firebase_admin.App:
                 except Exception as file_cert_exc:
                     print(f"[FIREBASE_INIT] Failed to load certificate from file: {file_cert_exc}", flush=True)
 
-        target_project_id = detected_project_id or settings.firebase_project_id or os.getenv("FIREBASE_PROJECT_ID")
+        target_project_id = detected_project_id or settings.firebase_project_id or os.getenv("FIREBASE_PROJECT_ID") or "skill-demand-forecasting"
 
         try:
             app = firebase_admin.get_app()
-            if not target_project_id or app.project_id == target_project_id:
+            if isinstance(app.credential, _EmulatorCredential):
+                print("[FIREBASE_INIT] Existing app has emulator credential in non-emulator mode; resetting app", flush=True)
+                firebase_admin.delete_app(app)
+                app = None
+            elif target_project_id and app.project_id != target_project_id:
+                print(f"[FIREBASE_INIT] Existing app has different project_id ({app.project_id} vs {target_project_id}); resetting app", flush=True)
+                firebase_admin.delete_app(app)
+                app = None
+            else:
                 return app
         except ValueError:
             pass
@@ -245,9 +253,16 @@ def get_firebase_app() -> firebase_admin.App:
 
             if _is_emulator_mode():
                 _validated_emulator_settings()
-            raise RuntimeError(
-                "Firebase initialization requires either local emulator mode (TALENTSCOPE_FIREBASE_MODE=emulator) "
-                "or a configured GOOGLE_APPLICATION_CREDENTIALS / FIREBASE_SERVICE_ACCOUNT_JSON / FIREBASE_SERVICE_ACCOUNT_BASE64 service-account credential."
+                raise RuntimeError(
+                    "Firebase initialization requires either local emulator mode (TALENTSCOPE_FIREBASE_MODE=emulator) "
+                    "or a configured GOOGLE_APPLICATION_CREDENTIALS / FIREBASE_SERVICE_ACCOUNT_JSON / FIREBASE_SERVICE_ACCOUNT_BASE64 service-account credential."
+                )
+
+            # In cloud production without a service account file, initialize with projectId
+            # so auth.verify_id_token can verify real Google ID tokens using Google's public certificates
+            print(f"[FIREBASE_INIT] Initializing public-key Firebase app for project: {target_project_id}", flush=True)
+            return firebase_admin.initialize_app(
+                options={"projectId": target_project_id} if target_project_id else None,
             )
 
         return firebase_admin.initialize_app(
